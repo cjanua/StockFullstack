@@ -1,6 +1,7 @@
 #!/bin/bash
 
 sudo pacman -Syyu
+yay -Syyu
 sudo pacman -S --needed base-devel git
 
 if ! which python >/dev/null 2>&1; then
@@ -20,7 +21,29 @@ if ! which bun >/dev/null 2>&1; then
     source ~/.bashrc 
 fi
 
+if ! which git >/dev/null 2>&1; then
+    sudo pamcan -S git
+fi
+
 if ! which gh >/dev/null 2>&1; then
     yay -Sy github-cli
     source ~/.bashrc 
 fi
+
+if ! which direnv >/dev/null 2>&1; then
+    yay -Sy direnv
+    echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
+    source ~/.bashrc
+fi
+
+direnv allow
+
+pip install --upgrade pip
+pip install -r req.txt
+
+cd frontend
+bun init
+bun install
+cd ..
+
+direnv reload

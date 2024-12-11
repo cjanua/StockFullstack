@@ -6,10 +6,10 @@ cd frontend
 
 # Function to print usage instructions
 print_usage() {
-    echo "Usage: $0 [--feature-flag] [command arguments...]"
-    echo "  --feature-flag    Enable special feature"
-    echo "  command          Command to execute"
-    echo "  arguments        Arguments to pass to command"
+    echo "Usage: $0 [command arguments...] [--feature-flag]"
+    echo "  run               Run Next.js Server"
+    echo "  -fr               Enable Build"
+    echo "  --clean           Clean Next.js Cache"          
 }
 
 # Function to check if an array contains a value
@@ -27,19 +27,23 @@ contains_element() {
 
 # Store original arguments
 original_args=("$@")
-feature_enabled=false
+dev=true
 filtered_args=()
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --feature-flag)
-            feature_enabled=true
+        -fr|--build)
+            dev=false
             shift
             ;;
         -h|--help)
             print_usage
             exit 0
+            ;;
+        --clean)
+            rm -rf .next
+            shift
             ;;
         *)
             filtered_args+=("$1")
@@ -56,10 +60,8 @@ if [ ${#filtered_args[@]} -eq 0 ]; then
 fi
 
 # Execute command with feature flag if it was provided in original args
-if $feature_enabled && contains_element "--feature-flag" "${original_args[@]}"; then
-    echo "Executing command with feature flag"
-    "${filtered_args[@]}" --feature-flag
+if $feature_enabled && contains_element "-fr" "${original_args[@]}"; then
+    bun run --silent build && bun run --silent start
 else
-    echo "Executing command without feature flag"
-    "${filtered_args[@]}"
+    bun run --watch --hot -b dev
 fi

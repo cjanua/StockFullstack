@@ -3,6 +3,7 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import * as React from "react"
+import Navbar from "./Navbar"
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -11,3 +12,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     </NextThemesProvider>
   )
 }
+
+export function NavbarProvider({ children }: { children: React.ReactNode }) {
+    return (
+      <>
+        <Navbar />
+        {children}
+      </>
+    )
+  }

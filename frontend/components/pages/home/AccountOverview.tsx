@@ -87,7 +87,7 @@ export function AccountOverview() {
                 <CardTitle className="text-sm font-medium">Account Status</CardTitle>
             </CardHeader>
             <CardContent>
-                <Badge>{account.status}</Badge>
+                <Badge>{account.status.split('.')[1]}</Badge>
                 <p className="text-xs text-muted-foreground mt-2">
                 Day trades: {account.daytrade_count}
                 </p>

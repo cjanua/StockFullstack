@@ -1,0 +1,4 @@
+tabulate
+alpaca-py
+python-dotenv
+result
