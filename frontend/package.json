@@ -6,14 +6,17 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "format": "prettier --config .prettier/.prettierrc --write \"**/*.{js,ts,tsx,jsx,json,md}\""
   },
   "dependencies": {
     "@alpacahq/typescript-sdk": "^0.0.31-preview",
+    "@prisma/client": "^6.0.1",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-progress": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-switch": "^1.1.1",
+    "bcryptjs": "^2.4.3",
     "bun": "^1.1.38",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -22,21 +25,25 @@
     "lucide-react": "^0.468.0",
     "next": "15.0.4",
     "next-themes": "^0.4.4",
+    "prettier": "^3.4.2",
+    "prisma": "^6.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/bun": "latest",
+    "@types/node": "^22.10.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
     "eslint": "^8",
     "eslint-config-next": "15.0.4",
-    "@types/bun": "latest"
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   },
   "module": "index.ts",
   "type": "module"

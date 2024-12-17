@@ -1,4 +1,4 @@
-#!/~/venv/bin/python
+#!/usr/bin/env python3
 import argparse
 import logging
 from dataclasses import dataclass
@@ -52,7 +52,7 @@ registry = CommandRegistry()
 
 # Command handlers
 @registry.register('trading', 'account')
-def trading_account(*params) -> Dict[str, Any]:
+def trading_account(*kwrgs) -> Dict[str, Any]:
     """Get account information"""
     res = get_account()
     if is_ok(res):
@@ -107,14 +107,18 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument('--pretty', action='store_true', help='Pretty print output')
     
     # Command pattern argument
-    parser.add_argument('command', help='Command pattern (e.g., trading/account/get)')
+    parser.add_argument('command', help='Command pattern (e.g., trading/account)')
     
     # Command-specific arguments
+    # Historical Data
     parser.add_argument('--symbol', help='Stock symbol for bars data')
     parser.add_argument('--interval', type=Interval, choices=list(Interval),
                       help='Bar interval')
     parser.add_argument('--limit', type=int, help='Number of results to return')
     parser.add_argument('--days', type=int, help='Number of days of history')
+
+    # Auth
+    parser.add_argument('--token', type=int, help='Authentication token')
     
     return parser
 
@@ -190,7 +194,7 @@ def main() -> int:
         return 0
         
     except ValueError:
-        logger.error("Invalid command pattern. Use: domain/resource/action")
+        logger.error("Invalid command pattern. Use: domain/resource/[action]")
         return 1
     except Exception as e:
         logger.error(f"Error executing command: {e}")

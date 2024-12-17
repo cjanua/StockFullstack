@@ -1,5 +1,14 @@
-import { AccountOverview } from "@/components/pages/home/AccountOverview";
+// app/page.tsx
+import { AccountOverview } from "@/app/layouts/pages/HomeLayout";
+import { verifySession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+export default async function Home() {
+  // const user = await verifySession();
+
+  // if (!user.email || !user.password) {
+  //   redirect("/register");
+  // }
+
   return <AccountOverview />;
 }

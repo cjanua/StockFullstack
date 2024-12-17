@@ -9,7 +9,8 @@ print_usage() {
     echo "Usage: $0 [command arguments...] [--feature-flag]"
     echo "  run               Run Next.js Server"
     echo "  -fr               Enable Build"
-    echo "  --clean           Clean Next.js Cache"          
+    echo "  --clean           Clean Next.js Cache"
+    echo "  --format          Prettier"
 }
 
 # Function to check if an array contains a value
@@ -43,6 +44,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --clean)
             rm -rf .next
+            shift
+            ;;
+        --format)
+            bun run format
             shift
             ;;
         *)

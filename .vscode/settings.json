@@ -1,5 +1,15 @@
 {
     "files.exclude": {
-        "**/.git": false
-    }
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/node_modules": true,
+        "**/build": true,
+        "**/*.log": true,
+        "**/*.next": true,
+        "**/next-env.d.ts": true,
+        "**/venv": true,
+
+
+    },
+    "prettier.configPath": ".prettier/.prettierrc"
 }

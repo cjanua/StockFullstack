@@ -1,16 +1,17 @@
-import { getAlpacaAccount } from '@/lib/alpaca'
-import { NextResponse } from 'next/server'
-
+import { getAlpacaAccount } from "@/lib/alpaca";
+import { verifySession } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const account = await getAlpacaAccount()
-    return NextResponse.json(account)
+    // const user = await verifySession();
+    const account = await getAlpacaAccount();
+    return NextResponse.json(account);
   } catch (error) {
-    console.error('Error fetching account:', error)
+    console.error("Account fetch error:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch account data' },
-      { status: 500 }
-    )
+      { error: "Failed to fetch account" },
+      { status: 500 },
+    );
   }
 }

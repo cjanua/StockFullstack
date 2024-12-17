@@ -6,10 +6,10 @@ from alpaca.trading.client import TradingClient
 from result import Ok, Result
 load_dotenv()
 
-APCA_KEY = os.getenv('APCA_KEY')
-APCA_SECRET = os.getenv('APCA_SECRET')
+ALPACA_KEY = os.getenv('ALPACA_KEY')
+ALPACA_SECRET = os.getenv('ALPACA_SECRET')
 
-trading_client = TradingClient(APCA_KEY, APCA_SECRET, paper=False)
+trading_client = TradingClient(ALPACA_KEY, ALPACA_SECRET, paper=False)
 
 def get_account() -> Result[dict, str]:
     """Get account information"""
