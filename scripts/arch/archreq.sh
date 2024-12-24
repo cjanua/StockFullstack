@@ -22,12 +22,18 @@ if ! which bun >/dev/null 2>&1; then
 fi
 
 if ! which git >/dev/null 2>&1; then
-    sudo pamcan -S git
+    sudo pacman -S git
 fi
 
 if ! which gh >/dev/null 2>&1; then
     yay -Sy github-cli
     source ~/.bashrc 
+fi
+
+if ! which snyk >/dev/null 2>&1; then
+    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
+    chmod +x ./snyk
+    mv ./snyk /usr/local/bin/ 
 fi
 
 if ! which direnv >/dev/null 2>&1; then
@@ -42,7 +48,6 @@ pip install --upgrade pip
 pip install -r req.txt
 
 cd frontend
-bun init
 bun install
 cd ..
 
