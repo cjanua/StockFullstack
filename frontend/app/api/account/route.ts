@@ -9,7 +9,7 @@ export async function GET() {
     console.log("Account fetched:", account);
     return NextResponse.json(account);
   } catch (error) {
-    console.error("Account fetch error:", error);
+    console.error({data: ( "Account fetch error: " + error)});
     return NextResponse.json(
       { error: "Failed to fetch account" },
       { status: 500 },

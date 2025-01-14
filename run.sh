@@ -1,6 +1,9 @@
 #!/bin/bash
-
+# direnv allow
 pwd
+source ./scripts/arch/archreq.sh
+PROJECT_ROOT="$PWD"
+
 cd frontend
 
 
@@ -34,6 +37,10 @@ filtered_args=()
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -req|--update)
+            direnv allow
+            exit 0
+            ;;
         -fr|--build)
             dev=false
             shift
@@ -59,13 +66,8 @@ done
 
 # Check if command was provided
 if [ ${#filtered_args[@]} -eq 0 ]; then
-    echo "Error: No command provided"
-    print_usage
-    exit 1
-fi
-
-# Execute command with feature flag if it was provided in original args
-if $feature_enabled && contains_element "-fr" "${original_args[@]}"; then
+    bun run --watch --hot -b dev
+elif $feature_enabled && contains_element "-fr" "${original_args[@]}"; then
     bun run --silent build && bun run --silent start
 else
     bun run --watch --hot -b dev

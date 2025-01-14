@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!$PROJECT_ROOT/venv/bin/python3 python3
 import argparse
 import logging
 from dataclasses import dataclass
@@ -57,7 +57,10 @@ def trading_account(*kwrgs) -> Dict[str, Any]:
     res = get_account()
     if is_ok(res):
         return res.ok_value
-    return {}
+    return {
+        "error": True,
+        "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
+    }
 
 
 # @registry.register('trading', 'account', 'history')
