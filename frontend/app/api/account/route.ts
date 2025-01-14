@@ -6,6 +6,7 @@ export async function GET() {
   try {
     // const user = await verifySession();
     const account = await getAlpacaAccount();
+    console.log("Account fetched:", account);
     return NextResponse.json(account);
   } catch (error) {
     console.error("Account fetch error:", error);

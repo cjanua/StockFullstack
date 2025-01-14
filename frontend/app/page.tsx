@@ -1,5 +1,6 @@
 // app/page.tsx
-import { AccountOverview } from "@/app/layouts/Home";
+import { AccountOverview } from "@/app/layouts/pages/HomeLayout";
+import { PortfolioGraph } from "@/components/plotting/Portfolio";
 import { verifySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
@@ -10,5 +11,8 @@ export default async function Home() {
   //   redirect("/register");
   // }
 
-  return <AccountOverview />;
+  return <>
+    <AccountOverview />
+    <PortfolioGraph />
+  </>;
 }
