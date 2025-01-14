@@ -3,7 +3,7 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import * as React from "react";
-import Navbar from "../../components/Navbar";
+import Navbar from "../components/Navbar";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (

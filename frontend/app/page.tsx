@@ -1,5 +1,5 @@
 // app/page.tsx
-import { AccountOverview } from "@/app/layouts/pages/HomeLayout";
+import { AccountOverview } from "@/app/layouts/Home";
 import { verifySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
