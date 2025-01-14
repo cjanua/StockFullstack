@@ -1,5 +1,5 @@
 // app/page.tsx
-import { AccountOverview } from "@/app/layouts/pages/HomeLayout";
+import { AccountOverview } from "@/app/layouts/Home";
 import { PortfolioGraph } from "@/components/plotting/Portfolio";
 import { verifySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -13,6 +13,6 @@ export default async function Home() {
 
   return <>
     <AccountOverview />
-    <PortfolioGraph />
+    {/* <PortfolioGraph /> */}
   </>;
 }

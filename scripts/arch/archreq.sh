@@ -30,11 +30,11 @@ if ! which gh >/dev/null 2>&1; then
     source ~/.bashrc 
 fi
 
-if ! which snyk >/dev/null 2>&1; then
-    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
-    chmod +x ./snyk
-    mv ./snyk /usr/local/bin/ 
-fi
+# if ! which snyk >/dev/null 2>&1; then
+#     curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
+#     chmod +x ./snyk
+#     mv ./snyk /usr/local/bin/ 
+# fi
 
 if ! which direnv >/dev/null 2>&1; then
     yay -Sy direnv
