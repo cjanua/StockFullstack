@@ -1,21 +1,14 @@
-#!$PROJECT_ROOT/venv/bin/python3 python3
+#!../../venv/bin/python3
 import argparse
-import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from logging import DEBUG
+from typing import Dict, Any
 from enum import Enum
-
 from result import is_ok
+from commands import CommandContext, CommandRegistry
+from util import format_output, logger
 
-from loaders import get_account
+from loaders import get_account, get_positions, get_assets
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 class Interval(str, Enum):
     MINUTE = '1m'
@@ -23,36 +16,12 @@ class Interval(str, Enum):
     HOUR = '1h'
     DAY = '1d'
 
-@dataclass
-class CommandContext:
-    """Stores common parameters and configuration for commands"""
-    debug: bool = False
-    format: str = 'json'
-    pretty: bool = False
-
-class CommandRegistry:
-    def __init__(self):
-        self.commands: Dict[str, Dict[str, Dict[str, callable]]] = {}
-    
-    def register(self, domain: str, resource: str, action: str = 'get'):
-        """Decorator to register command handlers"""
-        def decorator(func):
-            if domain not in self.commands:
-                self.commands[domain] = {}
-            if resource not in self.commands[domain]:
-                self.commands[domain][resource] = {}
-            self.commands[domain][resource][action] = func
-            return func
-        return decorator
-
-    def get_handler(self, domain: str, resource: str, action: str = 'get') -> Optional[callable]:
-        return self.commands.get(domain, {}).get(resource, {}).get(action)
 
 registry = CommandRegistry()
 
 # Command handlers
 @registry.register('trading', 'account')
-def trading_account(*kwrgs) -> Dict[str, Any]:
+def get_trading_account(*kwrgs) -> Dict[str, Any]:
     """Get account information"""
     res = get_account()
     if is_ok(res):
@@ -62,7 +31,27 @@ def trading_account(*kwrgs) -> Dict[str, Any]:
         "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
     }
 
+@registry.register('trading', 'positions')
+def get_trading_positions(*kwrgs) -> Dict[str, Any]:
+    """Get positions information"""
+    res = get_positions()
+    if is_ok(res):
+        return res.ok_value
+    return {
+        "error": True,
+        "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
+    }
 
+@registry.register('trading', 'assets')
+def get_trading_assets(*kwrgs) -> Dict[str, Any]:
+    """Get list of assets"""
+    res = get_assets()
+    if is_ok(res):
+        return res.ok_value
+    return {
+        "error": True,
+        "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
+    }
 # @registry.register('trading', 'account', 'history')
 # def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
 #     """Get account history"""
@@ -125,37 +114,6 @@ def create_parser() -> argparse.ArgumentParser:
     
     return parser
 
-def format_output(data: Any, ctx: CommandContext) -> str:
-    """Format the output according to the specified format"""
-    import json
-    from tabulate import tabulate
-    import csv
-    from io import StringIO
-    
-    if ctx.format == 'json':
-        if ctx.pretty:
-            return json.dumps(data, indent=2)
-        return json.dumps(data)
-    
-    elif ctx.format == 'csv':
-        output = StringIO()
-        if isinstance(data, dict):
-            writer = csv.DictWriter(output, fieldnames=data.keys())
-            writer.writeheader()
-            writer.writerow(data)
-        elif isinstance(data, list):
-            writer = csv.DictWriter(output, fieldnames=data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
-        return output.getvalue()
-    
-    elif ctx.format == 'table':
-        if isinstance(data, dict):
-            return tabulate([(k, v) for k, v in data.items()], headers=['Field', 'Value'])
-        elif isinstance(data, list):
-            return tabulate(data, headers='keys')
-    
-    return str(data)
 
 def main() -> int:
     parser = create_parser()
@@ -169,7 +127,7 @@ def main() -> int:
     )
     
     if ctx.debug:
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(DEBUG)
         logger.debug(f"Arguments: {args}")
     
     try:

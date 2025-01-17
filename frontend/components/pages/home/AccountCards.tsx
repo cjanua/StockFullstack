@@ -10,7 +10,6 @@ interface Props {
 }
 export default function AccountCards() {
     const { account, isLoading, isError, error } = useAccount();
-
     if (isLoading) return <div>Loading account data...</div>;
     if (isError) return error.fallback;
     if (!account) return <div>No account data available</div>;

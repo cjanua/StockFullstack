@@ -1,18 +1,20 @@
 import logging
+from typing import List
 from dotenv import load_dotenv
 import os
 from alpaca.trading.client import TradingClient
 from alpaca.common.exceptions import APIError
+from alpaca.trading.models import Position, Asset
+
 from result import Ok, Result, Err
 import requests
+from backend.alpaca.serializers.Account import serialize_account
+from backend.alpaca.serializers.Asset import serialize_asset
+from backend.alpaca.serializers.Position import serialize_position
+from util import logger
+from config import APCA
 
-
-logger = logging.getLogger(__name__)
-load_dotenv()
-
-ALPACA_KEY = os.environ.get('ALPACA_KEY')
-ALPACA_SECRET = os.environ.get('ALPACA_SECRET')
-ALPACA_URL = os.environ.get('ALPACA_URL')
+ALPACA_KEY, ALPACA_SECRET, _ = APCA
 
 def get_trading_client() -> Result[TradingClient, str]:
     """Get authenticated trading client with enhanced error handling"""
@@ -20,30 +22,12 @@ def get_trading_client() -> Result[TradingClient, str]:
         return Err("Alpaca API credentials not found in environment")
     
     try:
-        # First try direct request to verify credentials
-        session = requests.Session()
-        headers = {
-            'APCA-API-KEY-ID': ALPACA_KEY,
-            'APCA-API-SECRET-KEY': ALPACA_SECRET,
-            'Accept': 'application/json'
-        }
-        
-        logger.info("Testing direct API access...")
-        response = session.get('https://api.alpaca.markets/v2/account', headers=headers)
-        
-        if response.status_code != 200:
-            logger.error(f"Direct API test failed: {response.status_code}")
-            logger.error(f"Response body: {response.text}")
-            return Err(f"API test failed: {response.status_code} - {response.text}")
-        
-
         # Create client with additional options
         client = TradingClient(
             ALPACA_KEY,
             ALPACA_SECRET,
             paper=False,
         )
-        
         try:
             _ = client.get_account()
             logger.info("Trading client created and verified")
@@ -64,7 +48,6 @@ def get_trading_client() -> Result[TradingClient, str]:
     
 def get_account() -> Result[dict, str]:
     """Get account information"""
-    from serializers.Account import serialize_account
 
     client_res = get_trading_client()
     if not client_res.is_ok():
@@ -76,6 +59,43 @@ def get_account() -> Result[dict, str]:
         account = client.get_account()
         logger.info("Successfully retrieved account")
         return Ok(serialize_account(account))
+    except Exception as e:
+        logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
+        return Err(str(e))
+
+def get_positions() -> Result[List[Position], str]:
+    """Get account information"""
+    # from serializers.Account import serialize_account
+
+    client_res = get_trading_client()
+    if not client_res.is_ok():
+        return Err(client_res.err_value)
+
+    client = client_res.ok_value
+
+    try:
+        positions = client.get_all_positions()
+        logger.info("Successfully retrieved positions")
+        return Ok([serialize_position(p) for p in positions])
+    except Exception as e:
+        logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
+        return Err(str(e))
+    
+def get_assets() -> Result[List[Asset], str]:
+    """Get account information"""
+    # from serializers.Account import serialize_account
+
+    client_res = get_trading_client()
+    if not client_res.is_ok():
+        return Err(client_res.err_value)
+
+    client = client_res.ok_value
+
+    try:
+        assets = client.get_all_assets()
+        logger.info("Successfully retrieved assets")
+        print(assets)
+        return Ok([serialize_asset(a) for a in assets])
     except Exception as e:
         logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
         return Err(str(e))

@@ -47,10 +47,10 @@ export default function Navbar() {
                 Dasboard
               </Link>
               <Link
-                href="#"
+                href="/assets"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary"
               >
-                Research
+                Assets
               </Link>
               <Link
                 href="#"
