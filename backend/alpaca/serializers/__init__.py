@@ -1,3 +1,6 @@
 from .Account import serialize_account
+from .Position import serialize_position
+from .Asset import serialize_asset
+from .PortfolioHistory import serialize_portfolio_history
 
-__all__ = ['serialize_account']
+__all__ = ['serialize_account', 'serialize_position', 'serialize_asset', 'serialize_portfolio_history']

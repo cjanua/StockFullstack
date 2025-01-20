@@ -18,5 +18,5 @@
 // };
 
 export function middleware() {
-  return
+  return;
 }

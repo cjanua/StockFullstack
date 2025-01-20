@@ -2,8 +2,7 @@
 
 "use client";
 import AccountCards from "@/components/pages/home/AccountCards";
-import { AccountGraph } from "@/components/plots/Account";
-import { useAccount } from "@/hooks/alpaca/useAccount";
+import { AccountGraph } from "@/components/plotting/Portfolio";
 
 export function HomeLayout() {
   return (

@@ -1,5 +1,6 @@
-#!../../venv/bin/python3
+#!/usr/bin/env /home/wsluser/Stocks/venv/bin/python3
 import argparse
+from datetime import datetime, timedelta
 from logging import DEBUG
 from typing import Dict, Any
 from enum import Enum
@@ -7,7 +8,7 @@ from result import is_ok
 from commands import CommandContext, CommandRegistry
 from util import format_output, logger
 
-from loaders import get_account, get_positions, get_assets
+from loaders import get_account, get_positions, get_assets, get_portfolio_history
 
 
 class Interval(str, Enum):
@@ -31,7 +32,7 @@ def get_trading_account(*kwrgs) -> Dict[str, Any]:
         "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
     }
 
-@registry.register('trading', 'positions')
+@registry.register('trading', 'account', 'positions')
 def get_trading_positions(*kwrgs) -> Dict[str, Any]:
     """Get positions information"""
     res = get_positions()
@@ -52,20 +53,18 @@ def get_trading_assets(*kwrgs) -> Dict[str, Any]:
         "error": True,
         "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
     }
-# @registry.register('trading', 'account', 'history')
-# def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
-#     """Get account history"""
-#     days = args.days or 7
-#     return {
-#         'account_id': 'demo-123',
-#         'transactions': [
-#             {
-#                 'date': (datetime.now() - timedelta(days=i)).isoformat(),
-#                 'type': 'DEPOSIT',
-#                 'amount': 1000.00
-#             } for i in range(days)
-#         ]
-#     }
+
+@registry.register('trading', 'account', 'history')
+def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
+    """Get account history"""
+    days = args.days or 7
+    res = get_portfolio_history(days)
+    if is_ok(res):
+        return res.ok_value
+    return {
+        "error": True,
+        "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
+    }
 
 # @registry.register('data', 'stocks', 'bars')
 # def get_stock_bars(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:

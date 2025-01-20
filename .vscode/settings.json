@@ -11,5 +11,7 @@
 
 
     },
-    "prettier.configPath": ".prettier/.prettierrc"
+    "prettier.configPath": ".prettier/.prettierrc",
+    "css.validate": false,
+    "tailwindCSS.validate": true
 }

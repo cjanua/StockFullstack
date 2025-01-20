@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { TrendingUp } from "lucide-react"
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
+import { TrendingUp } from "lucide-react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import {
   Card,
@@ -10,34 +10,50 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-const chartData = [
-  { month: "January", desktop: 186 },
-  { month: "February", desktop: 305 },
-  { month: "March", desktop: 237 },
-  { month: "April", desktop: 73 },
-  { month: "May", desktop: 209 },
-  { month: "June", desktop: 214 },
-]
+} from "@/components/ui/chart";
+import { usePortfolioHistory } from "@/hooks/alpaca/usePortfolioHistory";
+import { fmtCurrency } from "@/lib/utils";
 
-const chartConfig = {
-  desktop: {
-    label: "Desktop",
-    color: "hsl(var(--chart-1))",
-  },
-} satisfies ChartConfig
 
-export function PortfolioGraph() {
+export function AccountGraph() {
+  const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(30);
+  if (isLoading) return <div>Loading portfolio history data...</div>;
+  if (isError) return error.fallback;
+  if (!portfolioHistory) return <div>No portfolio history data available</div>;
+
+  const chartData = portfolioHistory.timestamp.map((t, i) => ({
+    date: parseInt(t)*1000,
+    value: parseFloat(portfolioHistory.equity[i]),
+  }));
+
+  const chartConfig = {
+    value: {
+      label: "Value",
+      color: "hsl(var(--chart-1))",
+    },
+    date: {
+      label: "Date",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig;
+
+  const low = Math.min(...chartData.map((d) => Math.floor(d.value)));
+  const high = Math.max(...chartData.map((d) => Math.ceil(d.value)));
+  const minY = low - (high-low)*.1;
+  const maxY = high + (high-low)*.1;
+
+  let prev = "";
+  
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Line Chart - Step</CardTitle>
+        <CardTitle>Account Performance</CardTitle>
         <CardDescription>January - June 2024</CardDescription>
       </CardHeader>
       <CardContent>
@@ -50,22 +66,49 @@ export function PortfolioGraph() {
               right: 12,
             }}
           >
-            <CartesianGrid vertical={false} />
+            <CartesianGrid />
             <XAxis
-              dataKey="month"
+              dataKey="date"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              tickFormatter={(value) => value.slice(0, 3)}
+              tickFormatter={(v) => {
+                const value = new Date(v).toLocaleDateString("en-US")
+                if (typeof value === "string") {
+                  const parts = value.split("/");
+                  let build = parts[0] + "/" + parts[1]
+                  if (prev !== parts[2]) {
+                    build += "/" + parts[2].slice(2, 4)
+                    prev = parts[2]
+                  }
+                  prev = parts[2]
+                  return build
+                }
+                return value;
+              }}
+              // tickFormatter={(value) => value.slice(0, 3)}
+            />
+            <YAxis
+              domain={[minY, maxY]}
+              tickFormatter={(value: number | string) => {
+                if (typeof value === "string") {
+                  return fmtCurrency(parseFloat(value))
+                }
+                if (typeof value === "number") {
+                  return fmtCurrency(value)
+                }
+                return value;
+              }}
             />
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent hideLabel />}
+              content={<ChartTooltipContent />}
+              formatter={(value: number) => [`${fmtCurrency(value)} USD`, ""]}
             />
             <Line
-              dataKey="desktop"
-              type="step"
-              stroke="var(--color-desktop)"
+              dataKey="value"
+              type="stepAfter"
+              stroke="var(--color-value)"
               strokeWidth={2}
               dot={false}
             />
@@ -81,5 +124,5 @@ export function PortfolioGraph() {
         </div>
       </CardFooter>
     </Card>
-  )
+  );
 }

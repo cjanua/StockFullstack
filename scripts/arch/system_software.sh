@@ -33,11 +33,11 @@ if need_update; then
     sudo pacman -Sy
     # Store current timestamp
     date +%s > "$TIMESTAMP_FILE"
+    sudo pacman -S --needed base-devel
 else
     echo "Pacman sync already performed today, skipping..."
 fi
 
-sudo pacman -S --needed base-devel git
 
 if ! which yay >/dev/null 2>&1; then
     git clone https://aur.archlinux.org/yay.git
@@ -56,5 +56,6 @@ if ! which direnv >/dev/null 2>&1; then
 fi
 
 if ! which python >/dev/null 2>&1; then
+    echo "fart"
     sudo pacman -S python
 fi

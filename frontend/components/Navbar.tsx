@@ -36,7 +36,9 @@ export default function Navbar() {
                 href="#"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-primary"
               >
-                <span className="text-2xl font-bold text-primary"><b>NGA</b>Tech</span>
+                <span className="text-2xl font-bold text-primary">
+                  <b>NGA</b>Tech
+                </span>
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -47,10 +49,10 @@ export default function Navbar() {
                 Dasboard
               </Link>
               <Link
-                href="/assets"
+                href="/positions"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary"
               >
-                Assets
+                Positions
               </Link>
               <Link
                 href="#"

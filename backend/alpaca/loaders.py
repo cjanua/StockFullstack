@@ -4,13 +4,13 @@ from dotenv import load_dotenv
 import os
 from alpaca.trading.client import TradingClient
 from alpaca.common.exceptions import APIError
-from alpaca.trading.models import Position, Asset
+from alpaca.trading.models import Position, Asset, PortfolioHistory, TradeAccount
+from alpaca.trading.requests import GetPortfolioHistoryRequest
 
 from result import Ok, Result, Err
 import requests
-from backend.alpaca.serializers.Account import serialize_account
-from backend.alpaca.serializers.Asset import serialize_asset
-from backend.alpaca.serializers.Position import serialize_position
+from backend.alpaca.serializers import serialize_account, serialize_asset, serialize_position, serialize_portfolio_history
+
 from util import logger
 from config import APCA
 
@@ -46,7 +46,7 @@ def get_trading_client() -> Result[TradingClient, str]:
         logger.error(f"Unexpected error: {str(e)}")
         return Err(str(e))
     
-def get_account() -> Result[dict, str]:
+def get_account() -> Result[TradeAccount, str]:
     """Get account information"""
 
     client_res = get_trading_client()
@@ -70,7 +70,6 @@ def get_positions() -> Result[List[Position], str]:
     client_res = get_trading_client()
     if not client_res.is_ok():
         return Err(client_res.err_value)
-
     client = client_res.ok_value
 
     try:
@@ -88,7 +87,6 @@ def get_assets() -> Result[List[Asset], str]:
     client_res = get_trading_client()
     if not client_res.is_ok():
         return Err(client_res.err_value)
-
     client = client_res.ok_value
 
     try:
@@ -96,6 +94,25 @@ def get_assets() -> Result[List[Asset], str]:
         logger.info("Successfully retrieved assets")
         print(assets)
         return Ok([serialize_asset(a) for a in assets])
+    except Exception as e:
+        logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
+        return Err(str(e))
+
+def get_portfolio_history(days: int = 7) -> Result[dict, str]:
+    """Get account history"""
+    client_res = get_trading_client()
+    if not client_res.is_ok():
+        return Err(client_res.err_value)
+    client = client_res.ok_value
+
+    try:
+        req: GetPortfolioHistoryRequest = GetPortfolioHistoryRequest(
+            period=f'{days}D',
+            timeframe='1D',
+        )
+        history = client.get_portfolio_history(req)
+        logger.info("Successfully retrieved history")
+        return Ok(serialize_portfolio_history(history))
     except Exception as e:
         logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
         return Err(str(e))

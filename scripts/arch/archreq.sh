@@ -19,8 +19,10 @@ fi
 # fi
 
 source ./venv/bin/activate 
+if ! which uv >/dev/null 2>&1; then
+    pip install --upgrade uv 
+fi
 
-pip install --upgrade uv
 uv pip install -r req.txt
 
 cd frontend

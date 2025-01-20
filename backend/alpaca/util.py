@@ -12,7 +12,6 @@ logging.basicConfig(
 class Logger(L):
     def __init__(self, name: str):
         super().__init__(name)
-        self.setLevel(logging.DEBUG)
         self.addHandler(logging.StreamHandler())
         self.propagate = False
         

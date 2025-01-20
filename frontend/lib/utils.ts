@@ -31,3 +31,17 @@ export function isValidDate(dateString: string): boolean {
   const date = new Date(dateString);
   return date instanceof Date && !isNaN(date.getTime());
 }
+
+export function fmtCurrency(amt: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amt);
+}
+
+export function fmtPercent(amt: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    minimumFractionDigits: 2,
+  }).format(amt);
+}

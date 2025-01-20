@@ -1,4 +1,4 @@
-pacman -Su python python-pip
+pacman -Sy python python-pip
 python -m venv venv
 source venv/bin/activate
 pip install --upgrade pip

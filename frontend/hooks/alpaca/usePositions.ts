@@ -1,26 +1,26 @@
-// hooks/useAccount.ts
+// hooks/usePositions.ts
 "use client";
 import { getError } from "@/types/error";
-import { Account } from "@alpacahq/typescript-sdk";
+import { Position } from "@/lib/alpaca";
 import { useState, useEffect } from "react";
 
-export function useAccount() {
-  const [account, setAccount] = useState<Account | null>(null);
+export function usePositions() {
+  const [positions, setPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState(getError());
 
   useEffect(() => {
-    async function fetchAccount() {
+    async function fetchPositions() {
       try {
-        const response = await fetch("/api/account");
+        const response = await fetch("/api/positions");
         if (!response.ok) {
           setIsError(true);
           setError(getError("nextApiError", response.statusText));
           return;
         }
         const data = await response.json();
-        setAccount(data);
+        setPositions(data);
       } catch (err) {
         setIsError(true);
         if (err instanceof Error) {
@@ -32,8 +32,8 @@ export function useAccount() {
       }
     }
 
-    fetchAccount();
+    fetchPositions();
   }, []);
 
-  return { account, isLoading, isError, error };
+  return { positions, isLoading, isError, error };
 }
