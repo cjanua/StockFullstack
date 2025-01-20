@@ -33,7 +33,7 @@ export default function Navbar() {
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
               <Link
-                href="#"
+                href="/"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-primary"
               >
                 <span className="text-2xl font-bold text-primary">
@@ -43,7 +43,7 @@ export default function Navbar() {
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               <Link
-                href="#"
+                href="/"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-primary"
               >
                 Dasboard

@@ -1,7 +1,7 @@
 // components/pages/home/AccountOverview.tsx
 
 "use client";
-import AccountCards from "@/components/pages/home/AccountCards";
+import AccountCards from "@/components/alpaca/AccountCards";
 import { AccountGraph } from "@/components/plotting/Portfolio";
 
 export function HomeLayout() {

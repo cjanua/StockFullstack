@@ -1,5 +1,5 @@
 "use client";
-import { PositionTable } from "@/components/pages/positions/PositionTable";
+import { PositionTable } from "@/components/alpaca/PositionTable";
 
 export function PositionsLayout() {
   return (
