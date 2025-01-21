@@ -1,7 +1,6 @@
 "use client";
 
 import { TrendingUp } from "lucide-react";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import {
   Card,
@@ -11,12 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button"
 import {
@@ -36,11 +30,11 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { useForm } from "react-hook-form"
 import { useState, useEffect } from "react";
+import PortfolioHistoryGraph from "../plotting/PortfolioHistoryGraph";
 
-const FormSchema = z.object({
-  days: z.string({ required_error: "Days is required" }),
-  timeframe: z.string({ required_error: "Timeframe is required" }),
-})
+import { NameType, Payload, ValueType } from "recharts/types/component/DefaultTooltipContent";
+
+
 const daysOptions = [
   { value: "2D", display: "1D"},
   { value: "7D", display: "1W"},
@@ -57,25 +51,31 @@ const timeframeOptionsBase = [
   { value: "1D", display: "1D"},
 ]
 
+const FormSchema = z.object({
+  days: z.string({ required_error: "Days is required" }),
+  timeframe: z.string({ required_error: "Timeframe is required" }),
+})
+
 export function AccountGraph() {
   const [timeframeOptions, setTimeframeOptions] = useState(timeframeOptionsBase);
   const [tmpDays, setTmpDays] = useState("180D");
 
   useEffect(() => {
     const numDays = parseInt(tmpDays.slice(0, -1))
-    if (numDays >= 7) {
-      setTimeframeOptions(timeframeOptionsBase.filter((option) => option.value !== "1Min"));
-    }
-    if (numDays >= 30) {
+    if (numDays >= 30)
       setTimeframeOptions(timeframeOptionsBase.filter((option) => !option.value.endsWith("Min")));
-    }
-
+    else if (numDays >= 7)
+      setTimeframeOptions(timeframeOptionsBase.filter((option) => option.value !== "1Min"));
+    else
+      setTimeframeOptions(timeframeOptionsBase);
   }, [tmpDays]);
 
   const [days, setDays] = useState(180);
   const [timeframe, setTimeframe] = useState("1D");
 
-  const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
+  useEffect(() => {
+    // This will trigger the usePortfolioHistory hook to refetch data when days changes
+  }, [days, timeframe]);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -85,13 +85,17 @@ export function AccountGraph() {
     }
   });
 
-  useEffect(() => {
-    // This will trigger the usePortfolioHistory hook to refetch data when days changes
-  }, [days, timeframe]);
+  const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
 
   if (isLoading) return <div>Loading portfolio history data...</div>;
   if (isError) return error.fallback;
   if (!portfolioHistory) return <div>No portfolio history data available</div>;
+
+  let chartData = portfolioHistory.timestamp.map((t, i) => ({
+    date: parseInt(t)*1000,
+    value: parseFloat(portfolioHistory.equity[i]),
+  }));
+  chartData = chartData.filter((d) => d.value > 0);
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
     setDays(parseInt(data.days.slice(0, -1)) ?? days);
@@ -107,30 +111,66 @@ export function AccountGraph() {
     })
   }
 
-  let chartData = portfolioHistory.timestamp.map((t, i) => ({
-    date: parseInt(t)*1000,
-    value: parseFloat(portfolioHistory.equity[i]),
-  }));
-  chartData = chartData.filter((d) => d.value > 0);
-
-  const chartConfig = {
-    value: {
-      label: "Value",
-      color: "hsl(var(--chart-1))",
-    },
-    date: {
-      label: "Date",
-      color: "hsl(var(--chart-1))",
-    },
-  } satisfies ChartConfig;
-
-  const low = Math.min(...chartData.map((d) => Math.floor(d.value)));
-  const high = Math.max(...chartData.map((d) => Math.ceil(d.value)));
-  const minY = low - (high-low)*.1;
-  const maxY = high + (high-low)*.1;
-
   let prev = "";
+  const fmtXAxis = ({ x, y, payload }: { x: number, y: number, payload: {value: number, date: number}}) => {
+    let mainValue;
+    let subValue;
+    let render = false;
+
+    const date = new Date(payload.value)
+
+    if (timeframe.endsWith("D")) {
+      mainValue = date.toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+      });
+      subValue =  date.toLocaleString("en-US", {
+        year: "2-digit",
+      });
   
+    } else {
+      subValue = date.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit"
+      });
+      mainValue = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+    render = prev !== subValue;
+    prev = subValue;
+    return (
+      <svg>
+      <foreignObject x={x - 40} y={y - 10} width={80} height={40}>
+        <div className="flex flex-col items-center">
+          <span>{mainValue}</span>
+          {render && <span>{subValue}</span>}
+        </div>
+      </foreignObject>
+    </svg>
+    );
+  };
+
+  const fmtYAxis = (value: string | number) => {
+    if (typeof value === "string") {
+      return fmtCurrency(parseFloat(value))
+    }
+    if (typeof value === "number") {
+      return fmtCurrency(value)
+    }
+    return value;
+  }
+
+  const fmtTooltip = (_label: unknown, payload: Payload<ValueType, NameType>[]) => {
+    const p = payload[0].payload;
+
+    const date = new Date(p.date).toLocaleDateString();
+    if (timeframe.endsWith("D"))
+      return <>{date}</>;
+    const time = new Date(p.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return <>{date} {time}</>;
+  }
   
   return (
     <Card>
@@ -206,99 +246,7 @@ export function AccountGraph() {
         </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig}>
-          <LineChart
-            accessibilityLayer
-            data={chartData}
-            margin={{
-              left: 12,
-              right: 12,
-              bottom: 2
-            }}
-          >
-            <CartesianGrid />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              tick={({ x, y, payload }) => {
-                if (timeframe.endsWith("D")) {
-                  const value = new Date(payload.value).toLocaleString("en-US", {
-                    month: "2-digit",
-                    day: "2-digit",
-                    year: "2-digit"
-                  });
-                  const parts = value.split("/");
-                  const monthDay = `${parts[0]}/${parts[1]}`;
-                  const render = prev !== parts[2];
-                  prev = parts[2];
-                  return (
-                    <svg>
-                      <foreignObject x={x - 40} y={y - 10} width={80} height={40}>
-                        <div className="flex flex-col items-center">
-                          <span>{monthDay}</span>
-                          {render && <span>{parts[2]}</span>}
-                        </div>
-                      </foreignObject>
-                    </svg>
-                  );
-                } else {
-                  const date = new Date(payload.value).toLocaleDateString("en-US", {
-                    month: "2-digit",
-                    day: "2-digit"
-                  });
-                  const time = new Date(payload.value).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  });
-                  const render = prev !== date;
-                  prev = date;
-                  return (
-                    <svg>
-                    <foreignObject x={x - 40} y={y - 10} width={80} height={40}>
-                      <div className="flex flex-col items-center">
-                        <span>{time}</span>
-                        {render && <span>{date}</span>}
-                      </div>
-                    </foreignObject>
-                  </svg>
-                  );
-                }
-              }}
-            />
-            <YAxis
-              domain={[minY, maxY]}
-              tickFormatter={(value: number | string) => {
-                if (typeof value === "string") {
-                  return fmtCurrency(parseFloat(value))
-                }
-                if (typeof value === "number") {
-                  return fmtCurrency(value)
-                }
-                return value;
-              }}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent />}
-              labelFormatter={(_label, payload) => {
-                const date = new Date(payload[0].payload.date).toLocaleDateString();
-                if (timeframe.endsWith("D"))
-                  return date;
-                const time = new Date(payload[0].payload.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-                return `${date} ${time}`;
-              }}
-            />
-            <Line
-              dataKey="value"
-              type="stepAfter"
-              stroke="var(--color-value)"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ChartContainer>
+        <PortfolioHistoryGraph chartData={chartData} fmtXAxis={fmtXAxis} fmtYAxis={fmtYAxis} fmtTooltip={fmtTooltip}/>
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 font-medium leading-none">
