@@ -4,7 +4,7 @@ import { getError } from "@/types/error";
 import { PortfolioHistory } from "@alpacahq/typescript-sdk";
 import { useState, useEffect } from "react";
 
-export function usePortfolioHistory(days: number) {
+export function usePortfolioHistory(days: number, timeframe: string) {
   const [portfolioHistory, setPositions] = useState<PortfolioHistory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState<boolean>(false);
@@ -15,6 +15,7 @@ export function usePortfolioHistory(days: number) {
       try {
         const response = await fetch("/api/account/history", { headers: {
             "days": `${days}`,
+            "timeframe": `${timeframe}`,
         }});
 
         if (!response.ok) {
@@ -36,7 +37,7 @@ export function usePortfolioHistory(days: number) {
     }
 
     fetchPortfolioHistory();
-  }, [days]);
+  }, [days, timeframe]);
 
   return { portfolioHistory, isLoading, isError, error };
 }

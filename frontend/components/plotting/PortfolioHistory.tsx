@@ -1,0 +1,313 @@
+"use client";
+
+import { TrendingUp } from "lucide-react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+import { usePortfolioHistory } from "@/hooks/alpaca/usePortfolioHistory";
+import { fmtCurrency } from "@/lib/utils";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+
+import { useForm } from "react-hook-form"
+import { useState, useEffect } from "react";
+
+const FormSchema = z.object({
+  days: z.string({ required_error: "Days is required" }),
+  timeframe: z.string({ required_error: "Timeframe is required" }),
+})
+const daysOptions = [
+  { value: "2D", display: "1D"},
+  { value: "7D", display: "1W"},
+  { value: "30D", display: "1M"},
+  { value: "180D", display: "6M"},
+  { value: "365D", display: "1Y"},
+  { value: "-1D", display: "All Time"}
+]
+
+const timeframeOptionsBase = [
+  { value: "5Min", display: "5m"},
+  { value: "15Min", display: "15m"},
+  { value: "1H", display: "1h"},
+  { value: "1D", display: "1D"},
+]
+
+export function AccountGraph() {
+  const [timeframeOptions, setTimeframeOptions] = useState(timeframeOptionsBase);
+  const [tmpDays, setTmpDays] = useState("180D");
+
+  useEffect(() => {
+    const numDays = parseInt(tmpDays.slice(0, -1))
+    if (numDays >= 7) {
+      setTimeframeOptions(timeframeOptionsBase.filter((option) => option.value !== "1Min"));
+    }
+    if (numDays >= 30) {
+      setTimeframeOptions(timeframeOptionsBase.filter((option) => !option.value.endsWith("Min")));
+    }
+
+  }, [tmpDays]);
+
+  const [days, setDays] = useState(180);
+  const [timeframe, setTimeframe] = useState("1D");
+
+  const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
+
+  const form = useForm<z.infer<typeof FormSchema>>({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      days: `${days}D`,
+      timeframe: timeframe,
+    }
+  });
+
+  useEffect(() => {
+    // This will trigger the usePortfolioHistory hook to refetch data when days changes
+  }, [days, timeframe]);
+
+  if (isLoading) return <div>Loading portfolio history data...</div>;
+  if (isError) return error.fallback;
+  if (!portfolioHistory) return <div>No portfolio history data available</div>;
+
+  function onSubmit(data: z.infer<typeof FormSchema>) {
+    setDays(parseInt(data.days.slice(0, -1)) ?? days);
+    setTimeframe(data.timeframe ?? timeframe);
+    console.log(days)
+    toast({
+      title: "You submitted the following values:",
+      description: (
+        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
+          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
+        </pre>
+      ),
+    })
+  }
+
+  let chartData = portfolioHistory.timestamp.map((t, i) => ({
+    date: parseInt(t)*1000,
+    value: parseFloat(portfolioHistory.equity[i]),
+  }));
+  chartData = chartData.filter((d) => d.value > 0);
+
+  const chartConfig = {
+    value: {
+      label: "Value",
+      color: "hsl(var(--chart-1))",
+    },
+    date: {
+      label: "Date",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig;
+
+  const low = Math.min(...chartData.map((d) => Math.floor(d.value)));
+  const high = Math.max(...chartData.map((d) => Math.ceil(d.value)));
+  const minY = low - (high-low)*.1;
+  const maxY = high + (high-low)*.1;
+
+  let prev = "";
+  
+  
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <div>
+          <CardTitle>Account Performance</CardTitle>
+          <CardDescription>January - June 2024</CardDescription>
+        </div>
+        <div className="flex flex-row items-center justify-between gap-1">
+          <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="w-2/3 space-y-6 flex flex-row items-end justify-between gap-1">
+            <FormField
+              control={form.control}
+              name="days"
+              render={({ field }) => (
+              <FormItem>
+                <FormLabel>Days</FormLabel>
+                  <Select onValueChange={(v: string) => {field.onChange(v); setTmpDays(v)}} defaultValue={tmpDays}>
+                    <FormControl>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select Days" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Days</SelectLabel>
+                        {daysOptions.map((option) => 
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.display}
+                          </SelectItem>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField
+              control={form.control}
+              name="timeframe"
+              render={({ field }) => (
+              <FormItem>
+                <FormLabel>Timeframe</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={timeframe} value={timeframe}>
+                    <FormControl>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select timeframe" />
+                      </SelectTrigger>
+                    </FormControl>            
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Timeframe</SelectLabel>
+                        {timeframeOptions.map((option) => 
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.display}
+                          </SelectItem>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <Button type="submit">Submit</Button>
+          </form>
+          </Form>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig}>
+          <LineChart
+            accessibilityLayer
+            data={chartData}
+            margin={{
+              left: 12,
+              right: 12,
+              bottom: 2
+            }}
+          >
+            <CartesianGrid />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              tick={({ x, y, payload }) => {
+                if (timeframe.endsWith("D")) {
+                  const value = new Date(payload.value).toLocaleString("en-US", {
+                    month: "2-digit",
+                    day: "2-digit",
+                    year: "2-digit"
+                  });
+                  const parts = value.split("/");
+                  const monthDay = `${parts[0]}/${parts[1]}`;
+                  const render = prev !== parts[2];
+                  prev = parts[2];
+                  return (
+                    <svg>
+                      <foreignObject x={x - 40} y={y - 10} width={80} height={40}>
+                        <div className="flex flex-col items-center">
+                          <span>{monthDay}</span>
+                          {render && <span>{parts[2]}</span>}
+                        </div>
+                      </foreignObject>
+                    </svg>
+                  );
+                } else {
+                  const date = new Date(payload.value).toLocaleDateString("en-US", {
+                    month: "2-digit",
+                    day: "2-digit"
+                  });
+                  const time = new Date(payload.value).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  });
+                  const render = prev !== date;
+                  prev = date;
+                  return (
+                    <svg>
+                    <foreignObject x={x - 40} y={y - 10} width={80} height={40}>
+                      <div className="flex flex-col items-center">
+                        <span>{time}</span>
+                        {render && <span>{date}</span>}
+                      </div>
+                    </foreignObject>
+                  </svg>
+                  );
+                }
+              }}
+            />
+            <YAxis
+              domain={[minY, maxY]}
+              tickFormatter={(value: number | string) => {
+                if (typeof value === "string") {
+                  return fmtCurrency(parseFloat(value))
+                }
+                if (typeof value === "number") {
+                  return fmtCurrency(value)
+                }
+                return value;
+              }}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent />}
+              labelFormatter={(_label, payload) => {
+                const date = new Date(payload[0].payload.date).toLocaleDateString();
+                if (timeframe.endsWith("D"))
+                  return date;
+                const time = new Date(payload[0].payload.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                return `${date} ${time}`;
+              }}
+            />
+            <Line
+              dataKey="value"
+              type="stepAfter"
+              stroke="var(--color-value)"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+      <CardFooter className="flex-col items-start gap-2 text-sm">
+        <div className="flex gap-2 font-medium leading-none">
+          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="leading-none text-muted-foreground">
+          Showing total visitors for the last 6 months
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}

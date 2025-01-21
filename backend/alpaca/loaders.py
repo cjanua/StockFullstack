@@ -98,7 +98,7 @@ def get_assets() -> Result[List[Asset], str]:
         logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
         return Err(str(e))
 
-def get_portfolio_history(days: int = 7) -> Result[dict, str]:
+def get_portfolio_history(days: int = 7, timeframe: str = "1D") -> Result[dict, str]:
     """Get account history"""
     client_res = get_trading_client()
     if not client_res.is_ok():
@@ -108,7 +108,7 @@ def get_portfolio_history(days: int = 7) -> Result[dict, str]:
     try:
         req: GetPortfolioHistoryRequest = GetPortfolioHistoryRequest(
             period=f'{days}D',
-            timeframe='1D',
+            timeframe=f'{timeframe}',
         )
         history = client.get_portfolio_history(req)
         logger.info("Successfully retrieved history")

@@ -58,7 +58,22 @@ def get_trading_assets(*kwrgs) -> Dict[str, Any]:
 def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
     """Get account history"""
     days = args.days or 7
-    res = get_portfolio_history(days)
+    timeframe = args.timeframe or '1D'
+    if timeframe.endswith('Min'):
+        if days >= 7 and timeframe == '1Min':
+            return {
+                "error": True,
+                "message": "1Min timeframe is limited to less than 7 days of history",
+                "code": "1Min7DayErr"
+            }
+        if days >= 30 and timeframe.endswith('Min'):
+            return {
+                "error": True,
+                "message": "Any min timeframe is limited to less than 30 days of history",
+                "code": "Min30DayErr"
+            }
+    
+    res = get_portfolio_history(days, timeframe)
     if is_ok(res):
         return res.ok_value
     return {
@@ -93,8 +108,7 @@ def create_parser() -> argparse.ArgumentParser:
     
     # Global options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
-    parser.add_argument('--format', choices=['json', 'csv', 'table'], default='json',
-                      help='Output format')
+    parser.add_argument('--format', choices=['json', 'csv', 'table'], default='json', help='Output format')
     parser.add_argument('--pretty', action='store_true', help='Pretty print output')
     
     # Command pattern argument
@@ -103,10 +117,11 @@ def create_parser() -> argparse.ArgumentParser:
     # Command-specific arguments
     # Historical Data
     parser.add_argument('--symbol', help='Stock symbol for bars data')
-    parser.add_argument('--interval', type=Interval, choices=list(Interval),
-                      help='Bar interval')
+    parser.add_argument('--interval', type=Interval, choices=list(Interval), help='Bar interval')
     parser.add_argument('--limit', type=int, help='Number of results to return')
-    parser.add_argument('--days', type=int, help='Number of days of history')
+
+    parser.add_argument('--days', type=int, help='Number of days into history')
+    parser.add_argument('--timeframe', type=str, help='Resolution of historical data')
 
     # Auth
     parser.add_argument('--token', type=int, help='Authentication token')
@@ -130,7 +145,7 @@ def main() -> int:
         logger.debug(f"Arguments: {args}")
     
     try:
-       # Parse command pattern
+        # Parse command pattern
         parts = args.command.split('/')
         if len(parts) == 2:
             domain, resource = parts

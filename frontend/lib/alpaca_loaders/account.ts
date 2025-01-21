@@ -33,7 +33,7 @@ export async function getAlpacaAccount(): Promise<Account> {
   }
 }
 
-export async function getAlpacaAccountHistory(days = 7): Promise<Account> {
+export async function getAlpacaAccountHistory(days: number = 7, timeframe: string = "1D"): Promise<Account> {
   const projectRoot = process.env.PROJECT_ROOT;
   if (!projectRoot)
     throw new Error("PROJECT_ROOT environment variable not set");
@@ -51,8 +51,8 @@ export async function getAlpacaAccountHistory(days = 7): Promise<Account> {
     const account = await execCommand<Account>(pythonInterpreter, [
       scriptPath,
       `trading/account/history`,
-      `--days`,
-      `${(days)}`
+      `--days`, `${(days)}`,
+      `--timeframe`, `${(timeframe)}`,
     ]);
     console.log("Account fetched successfully:", account);
 
