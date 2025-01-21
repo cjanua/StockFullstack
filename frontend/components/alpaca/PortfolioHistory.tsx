@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp } from "lucide-react";
+import { TrendingDown, TrendingUp } from "lucide-react";
 
 import {
   Card,
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/form";
 
 import { usePortfolioHistory } from "@/hooks/alpaca/usePortfolioHistory";
-import { fmtCurrency } from "@/lib/utils";
+import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -96,6 +96,7 @@ export function AccountGraph() {
     value: parseFloat(portfolioHistory.equity[i]),
   }));
   chartData = chartData.filter((d) => d.value > 0);
+  chartData = chartData.sort((a, b) => a.date - b.date);
 
   function onSubmit(data: z.infer<typeof FormSchema>) {
     setDays(parseInt(data.days.slice(0, -1)) ?? days);
@@ -171,6 +172,8 @@ export function AccountGraph() {
     const time = new Date(p.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     return <>{date} {time}</>;
   }
+
+  const ratioDiff = ((chartData.at(-1)?.value ?? 0) - (chartData.at(0)?.value ?? 0)) / (chartData.at(0)?.value ?? 1);
   
   return (
     <Card>
@@ -250,7 +253,8 @@ export function AccountGraph() {
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 font-medium leading-none">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+          Trending up by {fmtPercent(ratioDiff)} in {days != -1 ? days : "All"} Days
+          {ratioDiff > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
         </div>
         <div className="leading-none text-muted-foreground">
           Showing total visitors for the last 6 months
