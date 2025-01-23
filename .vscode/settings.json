@@ -28,6 +28,6 @@
         "editor.tabSize": 2
     },
     "[python]": {
-        "editor.tabSize": 4
+        "editor.tabSize": 2
     }
 }

@@ -4,13 +4,14 @@ from dotenv import load_dotenv
 import os
 from alpaca.trading.client import TradingClient
 from alpaca.common.exceptions import APIError
-from alpaca.trading.models import Position, Asset, PortfolioHistory, TradeAccount
+from alpaca.trading.models import Position, Asset, PortfolioHistory, TradeAccount, Watchlist
 from alpaca.trading.requests import GetPortfolioHistoryRequest
 
 from result import Ok, Result, Err
 import requests
 from backend.alpaca.serializers import serialize_account, serialize_asset, serialize_position, serialize_portfolio_history
 
+from backend.alpaca.serializers.Watchlist import serialize_watchlist
 from util import logger
 from config import APCA
 
@@ -98,7 +99,7 @@ def get_assets() -> Result[List[Asset], str]:
         logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
         return Err(str(e))
 
-def get_portfolio_history(days: int = 7, timeframe: str = "1D") -> Result[dict, str]:
+def get_portfolio_history(days: int = 7, timeframe: str = "1D") -> Result[PortfolioHistory, str]:
     """Get account history"""
     client_res = get_trading_client()
     if not client_res.is_ok():
@@ -115,4 +116,19 @@ def get_portfolio_history(days: int = 7, timeframe: str = "1D") -> Result[dict, 
         return Ok(serialize_portfolio_history(history))
     except Exception as e:
         logger.error(f"Error in get_account: {type(e).__name__}: {str(e)}")
+        return Err(str(e))
+
+def get_watchlists() -> Result[List[Watchlist], str]:
+    """Get watchlists"""
+    client_res = get_trading_client()
+    if not client_res.is_ok():
+        return Err(client_res.err_value)
+    client = client_res.ok_value
+
+    try:
+        watchlists: List[Watchlist] = client.get_watchlists()
+        logger.info("Successfully retrieved watchlists")
+        return Ok([serialize_watchlist(w) for w in watchlists])
+    except Exception as e:
+        logger.error(f"Error in get_watchlists: {type(e).__name__}: {str(e)}")
         return Err(str(e))

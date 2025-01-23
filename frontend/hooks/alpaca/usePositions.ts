@@ -13,7 +13,12 @@ export function usePositions() {
   useEffect(() => {
     async function fetchPositions() {
       try {
-        const response = await fetch("/api/positions");
+        const response = await fetch("/api/positions", {
+          next: {
+            revalidate: 86400,
+            tags: ['positions'],
+          }
+        });
         if (!response.ok) {
           setIsError(true);
           setError(getError("nextApiError", response.statusText));

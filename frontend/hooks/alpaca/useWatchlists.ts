@@ -1,31 +1,33 @@
-// hooks/useAccount.ts
+// hooks/usePositions.ts
 "use client";
 import { getError } from "@/types/error";
-import { Account } from "@alpacahq/typescript-sdk";
+import { Watchlist } from "@alpacahq/typescript-sdk";
 import { useState, useEffect } from "react";
 
-export function useAccount() {
-  const [account, setAccount] = useState<Account | null>(null);
+export function useWatchlists() {
+  const [watchlists, setPositions] = useState<Watchlist[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState(getError());
 
   useEffect(() => {
-    async function fetchAccount() {
+    async function fetchWatchlists() {
       try {
-        const response = await fetch("/api/account", {
+        const response = await fetch("/api/account/watchlists", {
           next: {
             revalidate: 86400,
-            tags: ['account'],
+            tags: ['watchlists'],
           }
         });
+
         if (!response.ok) {
           setIsError(true);
           setError(getError("nextApiError", response.statusText));
           return;
         }
-        const data = await response.json();
-        setAccount(data);
+        const data: Watchlist[] = await response.json();
+        console.log(data)
+        setPositions(data);
       } catch (err) {
         setIsError(true);
         if (err instanceof Error) {
@@ -37,8 +39,8 @@ export function useAccount() {
       }
     }
 
-    fetchAccount();
+    fetchWatchlists();
   }, []);
 
-  return { account, isLoading, isError, error };
+  return { watchlists, isLoading, isError, error };
 }

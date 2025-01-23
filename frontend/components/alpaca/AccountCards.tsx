@@ -14,6 +14,8 @@ export default function AccountCards() {
     (parseFloat(account.equity) / parseFloat(account.portfolio_value)) * 100;
 
   const accountStatus = account.status.split(".").pop() || "Unknown";
+
+  const equityChange = parseFloat(account.equity) - parseFloat(account.last_equity);
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 py-4">
@@ -54,6 +56,9 @@ export default function AccountCards() {
               {formatCurrency(parseFloat(account.equity))}
             </div>
             <Progress value={equityPercentage} className="mt-2" />
+            <p className="text-xs text-muted-foreground mt-1 flex flex-row" style={{ color: equityChange > 0 ? "green" : "red"}}>
+              {equityChange > 0 ? "+" : ""}{formatCurrency(equityChange)}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
               {equityPercentage.toFixed(2)}% of portfolio value
             </p>

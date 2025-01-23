@@ -35,11 +35,12 @@ export function PositionTable({ count }: { count: number }) {
       label: "% TDY",
       value: (p: Position) => `${fmtPercent(parseFloat(p.change_today))}`,
       align: "right",
+      className: (p: Position) => parseFloat(p.change_today) > 0 ? "text-green-400" : "text-red-400"
     },
     {
       label: "TDY $ PL",
       value: (p: Position) => fmtCurrency(
-        parseFloat(p.lastday_price) - parseFloat(p.current_price),
+        parseFloat(p.unrealized_intraday_pl),
       ),
       align: "right",
     },
@@ -47,7 +48,7 @@ export function PositionTable({ count }: { count: number }) {
       label: "Net PL %",
       value: (p: Position) => fmtPercent(parseFloat(p.unrealized_plpc)),
       align: "right",
-      cellStyle: (p: Position) => ({ color: (parseFloat(p.unrealized_plpc) > 0 ? "green" : "red") }),
+      className: (p: Position) => parseFloat(p.unrealized_plpc) > 0 ? "text-green-400" : "text-red-400"
     },
     {
       label: "Net PL $",

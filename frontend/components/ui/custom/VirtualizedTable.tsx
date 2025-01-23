@@ -16,7 +16,7 @@ export type ColDef<T> = {
   label: string;
   value: (item: T) => string;
   align: string;
-  cellStyle?: (item: T) => object;
+  className?: (item: T) => string;
 };
 
 export default function VirtualizedTable<T>({ items, count, tableDef }: { items: T[], count: number, tableDef: ColDef<T>[],  }) {
@@ -73,8 +73,8 @@ export default function VirtualizedTable<T>({ items, count, tableDef }: { items:
                   {tableDef.map((def) => (
                     <TableCell
                       key={def.label}
-                      className={def.align === "right" ? "text-right" : ""}
-                      style={{ width: `${width}px`, ...(def.cellStyle ? def.cellStyle(item) : {})}}
+                      className={`subpixel-antialiased font-medium ${def.align === "right" ? "text-right" : ""} ${def.className ? def.className(item) : ""}`}
+                      style={{ width: `${width}px`}}
                     >
                       {def.value(item)}
                     </TableCell>

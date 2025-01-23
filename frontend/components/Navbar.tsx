@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ThemeChanger from "./ThemeChanger";
 import { useRouter } from "next/navigation";
+import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
 
 export default function Navbar() {
   const router = useRouter();
@@ -25,6 +26,13 @@ export default function Navbar() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
   };
+
+  const { watchlists, isLoading, isError, error} = useWatchlists();
+
+  if (isLoading) return <div>Loading watchlists...</div>;
+  if (isError) return error.fallback;
+  if (!watchlists) return <div>No watchlists available</div>;
+  
 
   return (
     <nav className="bg-background border-b">
@@ -54,6 +62,27 @@ export default function Navbar() {
               >
                 Positions
               </Link>
+              <div className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    Watchlists
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {/* <DropdownMenuLabel>Settings</DropdownMenuLabel> */}
+                  {/* <DropdownMenuSeparator /> */}
+                  {watchlists.map((w) =>
+                    <Link key={w.id} href={`/assets?watchlist=${w.id}`}>
+                    <DropdownMenuItem>
+                      {w.name}
+                    </DropdownMenuItem>
+                    </Link>
+                  )}
+                  
+                </DropdownMenuContent>
+              </DropdownMenu>
+              </div>
               <Link
                 href="#"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary"

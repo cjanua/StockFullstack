@@ -8,7 +8,7 @@ from result import is_ok
 from commands import CommandContext, CommandRegistry
 from util import format_output, logger
 
-from loaders import get_account, get_positions, get_assets, get_portfolio_history
+from loaders import get_account, get_positions, get_assets, get_portfolio_history, get_watchlists
 
 
 class Interval(str, Enum):
@@ -74,6 +74,18 @@ def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[s
             }
     
     res = get_portfolio_history(days, timeframe)
+    if is_ok(res):
+        return res.ok_value
+    return {
+        "error": True,
+        "message": res.err_value if hasattr(res, 'err_value') else "Unknown error"
+    }
+
+@registry.register('trading', 'account', 'watchlists')
+def get_account_watchlists(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
+    """Get account history"""
+    
+    res = get_watchlists()
     if is_ok(res):
         return res.ok_value
     return {

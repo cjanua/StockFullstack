@@ -13,10 +13,16 @@ export function usePortfolioHistory(days: number, timeframe: string) {
   useEffect(() => {
     async function fetchPortfolioHistory() {
       try {
-        const response = await fetch("/api/account/history", { headers: {
-            "days": `${days}`,
+        const response = await fetch("/api/account/history", { 
+          headers: {
             "timeframe": `${timeframe}`,
-        }});
+            "days": `${days}`,
+          },
+          next: {
+            revalidate: 86400,
+            tags: ['accountHistory'],
+          }
+        });
 
         if (!response.ok) {
           setIsError(true);

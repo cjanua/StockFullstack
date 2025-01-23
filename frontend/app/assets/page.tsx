@@ -2,8 +2,8 @@
 import { SymbolOverviewNoSSR } from "@/components/plotting/SymbolOverview";
 
 export default function Home() {
-  const viewHeight = window.innerHeight * 2 / 3;
-  const viewWidth = window.innerWidth * 0.75;
+  const viewHeight = document.body.clientHeight * 2 / 3;
+  const viewWidth = document.body.clientWidth * 0.75;
   return (
     <div className="grid place-items-center pt-8">
       <SymbolOverviewNoSSR
