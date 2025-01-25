@@ -33,6 +33,7 @@ import { useState, useEffect } from "react";
 import PortfolioHistoryGraph from "../plotting/PortfolioHistoryGraph";
 
 import { NameType, Payload, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import { Skeleton } from "../ui/skeleton";
 
 
 const daysOptions = [
@@ -87,7 +88,14 @@ export function AccountGraph() {
 
   const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
 
-  if (isLoading) return <div>Loading portfolio history data...</div>;
+  if (isLoading) return <>
+    <div className="flex flex-col space-y-3 pb-8">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-[250px]" />
+        <Skeleton className="h-4 w-[200px]" />
+      </div>
+    </div>
+  </>;
   if (isError) return error.fallback;
   if (!portfolioHistory) return <div>No portfolio history data available</div>;
 

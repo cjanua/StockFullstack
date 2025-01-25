@@ -18,6 +18,7 @@ import {
 import ThemeChanger from "./ThemeChanger";
 import { useRouter } from "next/navigation";
 import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
+import { Watchlist } from "@alpacahq/typescript-sdk";
 
 export default function Navbar() {
   const router = useRouter();
@@ -27,12 +28,11 @@ export default function Navbar() {
     router.push("/");
   };
 
-  const { watchlists, isLoading, isError, error} = useWatchlists();
+  const { watchlists, isLoading, isError, error } = useWatchlists();
 
-  if (isLoading) return <div>Loading watchlists...</div>;
-  if (isError) return error.fallback;
-  if (!watchlists) return <div>No watchlists available</div>;
-  
+  // Render cached data immediately if available
+  const cachedWatchlists = typeof window !== "undefined" ? localStorage.getItem("watchlists") : null;
+  const initialWatchlists = cachedWatchlists ? JSON.parse(cachedWatchlists) : null;
 
   return (
     <nav className="bg-background border-b">
@@ -45,7 +45,7 @@ export default function Navbar() {
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-primary"
               >
                 <span className="text-2xl font-bold text-primary">
-                  <b>NGA</b>Tech
+                  <b>DTF</b>
                 </span>
               </Link>
             </div>
@@ -70,9 +70,9 @@ export default function Navbar() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {/* <DropdownMenuLabel>Settings</DropdownMenuLabel> */}
-                  {/* <DropdownMenuSeparator /> */}
-                  {watchlists.map((w) =>
+                  {isLoading && <div>Loading watchlists...</div>}
+                  {isError && <div>Error: {error.message}</div>}
+                  {(initialWatchlists || watchlists)?.map((w: Watchlist) =>
                     <Link key={w.id} href={`/assets?watchlist=${w.id}`}>
                     <DropdownMenuItem>
                       {w.name}

@@ -1,11 +1,10 @@
-// hooks/usePositions.ts
 "use client";
 import { getError } from "@/types/error";
 import { PortfolioHistory } from "@alpacahq/typescript-sdk";
 import { useState, useEffect } from "react";
 
 export function usePortfolioHistory(days: number, timeframe: string) {
-  const [portfolioHistory, setPositions] = useState<PortfolioHistory | null>(null);
+  const [portfolioHistory, setPortfolioHistory] = useState<PortfolioHistory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState(getError());
@@ -13,6 +12,13 @@ export function usePortfolioHistory(days: number, timeframe: string) {
   useEffect(() => {
     async function fetchPortfolioHistory() {
       try {
+        const cacheKey = `portfolioHistory_${days}_${timeframe}`;
+        const cachedPortfolioHistory = localStorage.getItem(cacheKey);
+        if (cachedPortfolioHistory) {
+          setPortfolioHistory(JSON.parse(cachedPortfolioHistory));
+          setIsLoading(false);
+        }
+
         const response = await fetch("/api/alpaca/account/history", { 
           headers: {
             "timeframe": `${timeframe}`,
@@ -30,13 +36,15 @@ export function usePortfolioHistory(days: number, timeframe: string) {
           return;
         }
         const data = await response.json();
-        setPositions(data);
+        setPortfolioHistory(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
       } catch (err) {
         setIsError(true);
         if (err instanceof Error) {
           setError(getError("unknownError", err.message));
+        } else {
+          setError(getError("unknownError", String(err)));
         }
-        setError(getError("unknownError", String(err)));
       } finally {
         setIsLoading(false);
       }

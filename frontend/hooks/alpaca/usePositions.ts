@@ -1,4 +1,3 @@
-// hooks/usePositions.ts
 "use client";
 import { getError } from "@/types/error";
 import { Position } from "@/lib/alpaca";
@@ -13,6 +12,12 @@ export function usePositions() {
   useEffect(() => {
     async function fetchPositions() {
       try {
+        const cachedPositions = localStorage.getItem("positions");
+        if (cachedPositions) {
+          setPositions(JSON.parse(cachedPositions));
+          setIsLoading(false);
+        }
+
         const response = await fetch("/api/alpaca/positions", {
           next: {
             revalidate: 86400,
@@ -26,12 +31,14 @@ export function usePositions() {
         }
         const data = await response.json();
         setPositions(data);
+        localStorage.setItem("positions", JSON.stringify(data));
       } catch (err) {
         setIsError(true);
         if (err instanceof Error) {
           setError(getError("unknownError", err.message));
+        } else {
+          setError(getError("unknownError", String(err)));
         }
-        setError(getError("unknownError", String(err)));
       } finally {
         setIsLoading(false);
       }

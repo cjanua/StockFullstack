@@ -13,6 +13,12 @@ export function useAccount() {
   useEffect(() => {
     async function fetchAccount() {
       try {
+        const cachedAccount = localStorage.getItem("account");
+        if (cachedAccount) {
+          setAccount(JSON.parse(cachedAccount));
+          setIsLoading(false);
+        }
+
         const response = await fetch("/api/alpaca/account", {
           next: {
             revalidate: 86400,
@@ -26,12 +32,14 @@ export function useAccount() {
         }
         const data = await response.json();
         setAccount(data);
+        localStorage.setItem("account", JSON.stringify(data));
       } catch (err) {
         setIsError(true);
         if (err instanceof Error) {
           setError(getError("unknownError", err.message));
+        } else {
+          setError(getError("unknownError", String(err)));
         }
-        setError(getError("unknownError", String(err)));
       } finally {
         setIsLoading(false);
       }

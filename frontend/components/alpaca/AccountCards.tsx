@@ -3,10 +3,18 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, isValidDate } from "@/lib/utils";
 import { Progress } from "@radix-ui/react-progress";
 import { useAccount } from "@/hooks/alpaca/useAccount";
+import { Skeleton } from "../ui/skeleton";
 
 export default function AccountCards() {
   const { account, isLoading, isError, error } = useAccount();
-  if (isLoading) return <div>Loading account data...</div>;
+  if (isLoading) return <>
+    <div className="flex flex-col space-y-3 pb-8">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-[250px]" />
+        <Skeleton className="h-4 w-[200px]" />
+      </div>
+    </div>
+  </>;
   if (isError) return error.fallback;
   if (!account) return <div>No account data available</div>;
 
