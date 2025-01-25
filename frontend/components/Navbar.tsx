@@ -102,9 +102,6 @@ export default function Navbar() {
                 <DropdownMenuItem>Preferences</DropdownMenuItem>
                 <DropdownMenuItem>Notifications</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={handleLogout}>
-                  Log out
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
