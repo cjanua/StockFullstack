@@ -16,17 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ThemeChanger from "./ThemeChanger";
-import { useRouter } from "next/navigation";
 import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
 import { Watchlist } from "@alpacahq/typescript-sdk";
 
 export default function Navbar() {
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await fetch("/api/alpaca/auth/logout", { method: "POST" });
-    router.push("/");
-  };
 
   const { watchlists, isLoading, isError, error } = useWatchlists();
 
