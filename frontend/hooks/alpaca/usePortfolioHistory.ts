@@ -13,7 +13,7 @@ export function usePortfolioHistory(days: number, timeframe: string) {
   useEffect(() => {
     async function fetchPortfolioHistory() {
       try {
-        const response = await fetch("/api/account/history", { 
+        const response = await fetch("/api/alpaca/account/history", { 
           headers: {
             "timeframe": `${timeframe}`,
             "days": `${days}`,

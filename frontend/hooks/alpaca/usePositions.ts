@@ -13,7 +13,7 @@ export function usePositions() {
   useEffect(() => {
     async function fetchPositions() {
       try {
-        const response = await fetch("/api/positions", {
+        const response = await fetch("/api/alpaca/positions", {
           next: {
             revalidate: 86400,
             tags: ['positions'],

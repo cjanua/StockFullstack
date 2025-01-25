@@ -13,7 +13,7 @@ export function useWatchlists() {
   useEffect(() => {
     async function fetchWatchlists() {
       try {
-        const response = await fetch("/api/account/watchlists", {
+        const response = await fetch("/api/alpaca/account/watchlists", {
           next: {
             revalidate: 86400,
             tags: ['watchlists'],

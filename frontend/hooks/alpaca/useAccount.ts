@@ -13,7 +13,7 @@ export function useAccount() {
   useEffect(() => {
     async function fetchAccount() {
       try {
-        const response = await fetch("/api/account", {
+        const response = await fetch("/api/alpaca/account", {
           next: {
             revalidate: 86400,
             tags: ['account'],
