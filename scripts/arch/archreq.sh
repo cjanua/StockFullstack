@@ -55,3 +55,20 @@ cd ..
 chmod +x ./backend/alpaca/apca.py
 chmod +x ./run.sh
 
+has_systemd=$(ps -p 1 | grep -c systemd)
+if [ "$has_systemd" -eq 1 ]; then
+    echo "Systemd is running"
+else
+    sudo tee -a /etc/wsl.conf > /dev/null << EOF
+[boot]
+systemd=true
+EOF
+    echo "Restart you WSL Image to run systemd"
+fi
+
+if ! grep -q "cd /home/wsluser/Stocks" ~/.bashrc; then
+    echo 'cd /home/wsluser/Stocks' >> ~/.bashrc
+    echo 'docker-compose down' >> ~/.bashrc
+    echo 'cd -' >> ~/.bashrc
+    source ~/.bashrc
+fi

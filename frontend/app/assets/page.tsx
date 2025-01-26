@@ -1,30 +1,43 @@
 "use client"
 import { SymbolOverviewNoSSR } from "@/components/plotting/SymbolOverview";
+import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
+import { Asset, Watchlist } from "@alpacahq/typescript-sdk";
 import { useEffect, useState } from "react";
+import { useWindowSize, useSearchParam } from "react-use"
 
 export default function Home() {
-  const [ view, setView ] = useState({ height: document.body.clientHeight, width: document.body.clientWidth * 0.75 });
+  const watchlist = useSearchParam("watchlist");
+
+  const { width, height } = useWindowSize();
+
+  const { watchlists, isLoading, isError, error } = useWatchlists();
+
+  const [symbols, setSymbols] = useState<string[][]>([[]]);
 
   useEffect(() => {
-    const handleResize = () => {
-      setView({ height: document.body.clientHeight, width: document.body.clientWidth * 0.75 });
-    };
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+    if (!isLoading && !isError && watchlists) {
+      const selectedWatchlist = watchlists.find((w: Watchlist) => w.id === watchlist);
+      if (selectedWatchlist && selectedWatchlist.assets) {
+        setSymbols(selectedWatchlist.assets.map((a: Asset) => [a.symbol]));
+      }
+    }
+  }, [isLoading, isError, watchlists, watchlist]);
+  
   return (
     <div className="grid place-items-center pt-8">
+      <>{watchlist}</>
+      <>{isError && error?.fallback}</>
       <SymbolOverviewNoSSR
         dateFormat="MM/dd/yy"
         colorTheme="dark"
-        height={view.height}
-        width={view.width}
+        height={Math.floor(height * 0.75)}
+        width={Math.floor(width*0.8)}
         chartType="candlesticks"
         downColor="#800080"
         borderDownColor="#800080"
         wickDownColor="#800080"
+        fontSize="20"
+        symbols={ symbols }
       />
     </div>
   );

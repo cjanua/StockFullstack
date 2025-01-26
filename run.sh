@@ -66,9 +66,9 @@ done
 
 # Check if command was provided
 if [ ${#filtered_args[@]} -eq 0 ]; then
-    bun run --watch --hot -b dev
+    bun run --watch --hot --exposed -b dev 
 elif $feature_enabled && contains_element "-fr" "${original_args[@]}"; then
     bun run --silent build && bun run --silent start
 else
-    bun run --watch --hot -b dev
+    bun run --watch --hot --exposed -b dev
 fi
