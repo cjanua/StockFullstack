@@ -3,16 +3,20 @@ import { SymbolOverviewNoSSR } from "@/components/plotting/SymbolOverview";
 import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
 import { Asset, Watchlist } from "@alpacahq/typescript-sdk";
 import { useEffect, useState } from "react";
-import { useWindowSize, useSearchParam } from "react-use"
+import { useSearchParam } from "react-use"
+import "./styles.css";
 
 export default function Home() {
   const watchlist = useSearchParam("watchlist");
 
-  const { width, height } = useWindowSize();
-
   const { watchlists, isLoading, isError, error } = useWatchlists();
 
   const [symbols, setSymbols] = useState<string[][]>([[]]);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !isError && watchlists) {
@@ -22,23 +26,28 @@ export default function Home() {
       }
     }
   }, [isLoading, isError, watchlists, watchlist]);
-  
+
+  if (!isClient) {
+    return null;
+  }
+
   return (
     <div className="grid place-items-center pt-8">
       <>{watchlist}</>
       <>{isError && error?.fallback}</>
-      <SymbolOverviewNoSSR
-        dateFormat="MM/dd/yy"
-        colorTheme="dark"
-        height={Math.floor(height * 0.75)}
-        width={Math.floor(width*0.8)}
-        chartType="candlesticks"
-        downColor="#800080"
-        borderDownColor="#800080"
-        wickDownColor="#800080"
-        fontSize="20"
-        symbols={ symbols }
-      />
+      <div className="symbol-overview-container">
+        <SymbolOverviewNoSSR
+          dateFormat="MM/dd/yy"
+          colorTheme="dark"
+          chartType="candlesticks"
+          downColor="#800080"
+          borderDownColor="#800080"
+          wickDownColor="#800080"
+          fontSize="20"
+          symbols={symbols}
+          autosize={true}
+        />
+      </div>
     </div>
   );
 }
