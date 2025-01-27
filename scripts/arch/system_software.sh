@@ -47,8 +47,6 @@ if ! which yay >/dev/null 2>&1; then
     rm -rf ./yay
 fi
 
-yay -Sy
-
 if ! which direnv >/dev/null 2>&1; then
     yay -Sy direnv
     echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
@@ -56,6 +54,5 @@ if ! which direnv >/dev/null 2>&1; then
 fi
 
 if ! which python >/dev/null 2>&1; then
-    echo "fart"
     sudo pacman -S python
 fi
