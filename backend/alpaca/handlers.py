@@ -1,7 +1,7 @@
 from typing import Dict, Any, Callable
 from commands import CommandContext, CommandRegistry
 from result import is_ok
-from loaders import get_account, get_positions, get_assets, get_portfolio_history, get_watchlists
+from loaders import get_account, query_asset, get_positions, get_assets, get_portfolio_history, get_watchlists
 import argparse
 
 registry = CommandRegistry()
@@ -57,3 +57,15 @@ def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[s
 def get_account_watchlists(*args) -> Dict[str, Any]:
     """Get account watchlists"""
     return handle_response(get_watchlists)
+
+@registry.register('trading', 'assets', 'search')
+def search_assets(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
+    """Search assets"""
+    query = args.query
+    if not query:
+        return {
+            "error": True,
+            "message": "Missing query parameter",
+            "code": "MissingQuery"
+        }
+    return handle_response(lambda: query_asset(query))

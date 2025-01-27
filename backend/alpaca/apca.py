@@ -40,7 +40,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Auth
     parser.add_argument('--token', type=int, help='Authentication token')
-    
+    parser.add_argument('--query', type=str, help='A Search query')
     return parser
 
 

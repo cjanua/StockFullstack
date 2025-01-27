@@ -116,7 +116,7 @@ def _fetch_positions() -> List[Position]:
         raise Exception(client_res.err_value)
     client = client_res.ok_value
 
-    positions = client.get_positions()
+    positions = client.get_all_positions()
     logger.info("Successfully retrieved positions")
     return [serialize_position(p) for p in positions]
 
@@ -130,6 +130,28 @@ def _fetch_assets() -> List[Asset]:
         raise Exception(client_res.err_value)
     client = client_res.ok_value
 
-    assets = client.get_assets()
+    assets = client.get_all_assets()
     logger.info("Successfully retrieved assets")
     return [serialize_asset(a) for a in assets]
+
+def query_asset(symbol: str) -> Result[List[Asset], str]:
+    """Query asset by symbol"""
+    return cache_result(f'asset_{symbol}', 3600, lambda: _fetch_asset(symbol))
+
+def _fetch_asset(query: str) -> List[Asset]:
+    assets_res = get_assets()
+    if assets_res.is_err():
+        raise Exception(assets_res.err_value)
+    
+    assets: List[Asset] = assets_res.ok_value
+
+    query_lower = query.lower()
+    matching_assets = [
+        asset for asset in assets
+        if query_lower in asset['symbol'].lower() or query_lower in asset['name'].lower()
+    ]
+    
+    if not matching_assets:
+        raise Exception(f"No assets found matching query '{query}'")
+    
+    return matching_assets

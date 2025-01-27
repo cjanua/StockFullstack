@@ -18,6 +18,7 @@ import {
 import ThemeChanger from "./ThemeChanger";
 import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
 import { Watchlist } from "@alpacahq/typescript-sdk";
+import { SearchBar } from "./alpaca/SearchStocks";
 
 export default function Navbar() {
 
@@ -85,6 +86,7 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex items-center">
+            <SearchBar />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
