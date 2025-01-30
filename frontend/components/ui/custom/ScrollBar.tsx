@@ -99,6 +99,14 @@ export function ScrollBar({
       const mainScrollBarWidth =
         window.innerWidth - document.documentElement.clientWidth;
       document.body.style.overflowY = "hidden";
+      if (isGrabbing) {
+        document.body.style.cursor = "grabbing";
+        document.body.style.userSelect = "none";
+      } else {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+
+      }
       if (mainScrollBarWidth > 0)
         document.body.style.paddingRight = `${mainScrollBarWidth}px`;
     } else {
@@ -108,7 +116,6 @@ export function ScrollBar({
   }, [isEnabled, isGrabbing]);
 
   document.body.onmouseup = handleScrollRelease;
-  document.body.style.userSelect = isGrabbing ? "none" : "auto";
   document.body.onmousemove = handleScrollMove;
 
   return (
@@ -133,6 +140,7 @@ export function ScrollBar({
               ? "#999999"
               : "#666666",
             borderRadius: "0.375rem",
+            cursor: isGrabbing ? "grabbing" : "grab",
         }}
         onMouseDown={handleScrollGrab}
       />
