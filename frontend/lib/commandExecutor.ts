@@ -1,4 +1,4 @@
-import { execCommand } from "../processes";
+import { execCommand } from "./processes";
 import path from "path";
 import { existsSync } from "fs";
 
