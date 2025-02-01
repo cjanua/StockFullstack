@@ -1,4 +1,4 @@
-import { getAlpacaWatchlists } from "@/lib/alpaca_loaders/account";
+import { getAlpacaWatchlists } from "@/lib/alpaca";
 import { NextResponse } from "next/server";
 
 
