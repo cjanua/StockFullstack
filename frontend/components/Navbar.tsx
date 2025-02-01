@@ -85,6 +85,7 @@ export default function Navbar() {
               </Link>
             </div>
           </div>
+          <div className="flex items-center justify-center h-full">Hello</div>
           <div className="flex items-center">
             <SearchBar />
             <DropdownMenu>

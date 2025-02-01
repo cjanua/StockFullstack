@@ -1,5 +1,5 @@
 import { Direction } from "@alpacahq/typescript-sdk";
-import { executeAlpacaCommand } from "./commandExecutor";
+import AlpacaClient from "./client";
 
 export type Position = {
   asset_id: string;
@@ -23,5 +23,6 @@ export type Position = {
 };
 
 export default async function getAlpacaPositions(): Promise<Position[]> {
-  return executeAlpacaCommand<Position[]>("trading/account/positions");
+  const client = AlpacaClient.getClient();
+  return client.getPositions();
 }

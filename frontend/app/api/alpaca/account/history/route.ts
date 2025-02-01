@@ -1,4 +1,4 @@
-import { getAlpacaAccount, getAlpacaAccountHistory } from "@/lib/alpaca";
+import { getAlpacaAccount, getAlpacaPortfolioHistory } from "@/lib/alpaca";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const timeframe = headers.get("timeframe") ?? "1D";
 
   try {
-    const portfolioHistory = await getAlpacaAccountHistory(days, timeframe);
+    const portfolioHistory = await getAlpacaPortfolioHistory(days, timeframe);
     console.log("Portfolio history fetched:", portfolioHistory.timestamp[-1]);
     return NextResponse.json(portfolioHistory);
   } catch (error) {
