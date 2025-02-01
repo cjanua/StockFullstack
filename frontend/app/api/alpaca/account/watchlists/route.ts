@@ -4,13 +4,13 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const account = await getAlpacaWatchlists();
-    console.log("Account history fetched:", account);
-    return NextResponse.json(account);
+    const watchlists = await getAlpacaWatchlists();
+    console.log("Watchlists fetched:", watchlists.length);
+    return NextResponse.json(watchlists);
   } catch (error) {
-    console.error({ data: "Account history fetch error: " + error });
+    console.error({ data: "Watchlists fetch error: " + error });
     return NextResponse.json(
-      { error: "Failed to fetch account history" },
+      { error: "Failed to fetch watchlists history" },
       { status: 500 },
     );
   }

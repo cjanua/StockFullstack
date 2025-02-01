@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
   const timeframe = headers.get("timeframe") ?? "1D";
 
   try {
-    const account = await getAlpacaAccountHistory(days, timeframe);
-    console.log("Account history fetched:", account);
-    return NextResponse.json(account);
+    const portfolioHistory = await getAlpacaAccountHistory(days, timeframe);
+    console.log("Portfolio history fetched:", portfolioHistory.timestamp[-1]);
+    return NextResponse.json(portfolioHistory);
   } catch (error) {
     console.error({ data: "Account history fetch error: " + error });
     return NextResponse.json(

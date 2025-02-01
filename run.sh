@@ -2,7 +2,6 @@
 # direnv allow
 pwd
 source ./scripts/arch/archreq.sh
-PROJECT_ROOT="$PWD"
 
 cd frontend
 

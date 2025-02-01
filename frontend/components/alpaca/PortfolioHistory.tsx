@@ -109,7 +109,6 @@ export function AccountGraph() {
   function onSubmit(data: z.infer<typeof FormSchema>) {
     setDays(parseInt(data.days.slice(0, -1)) ?? days);
     setTimeframe(data.timeframe ?? timeframe);
-    console.log(days)
     toast({
       title: "You submitted the following values:",
       description: (

@@ -13,12 +13,11 @@ export async function execCommand<T>(cmd: string, args: string[]): Promise<T> {
 
     process.stdout.on("data", (data) => {
       stdout += data.toString();
-      console.log(`stdout: ${data}`); // Real-time stdout logging
     });
 
     process.stderr.on("data", (data) => {
       stderr += data.toString();
-      console.info(`stderr: ${data}`); // Real-time stderr logging
+      console.info(`* ${data}`); // Real-time stderr logging
     });
 
     process.on("close", (code) => {

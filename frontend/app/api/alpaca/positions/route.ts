@@ -6,7 +6,7 @@ export async function GET() {
     // const user = await verifySession();
     const ps = await getAlpacaPositions();
 
-    console.log("Positions fetched:", ps);
+    console.log("Positions fetched:", ps.length);
     const positions = ps.sort((a, b) =>
       parseFloat(a.qty) * parseFloat(a.current_price) >
       parseFloat(b.qty) * parseFloat(b.current_price)
