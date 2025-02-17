@@ -51,3 +51,7 @@ samples/
 *.parquet
 
 data/
+
+.QuantConnect/
+
+lean.json

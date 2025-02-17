@@ -1,27 +1,20 @@
+if ! which git >/dev/null 2>&1; then
+    sudo pacman -S git
+fi
+
 if ! which bun >/dev/null 2>&1; then
     curl -fsSL https://bun.sh/install | bash
     source ~/.bashrc 
 fi
 
-if ! which git >/dev/null 2>&1; then
-    sudo pacman -S git
-fi
-
-if ! which gh >/dev/null 2>&1; then
-    yay -Sy github-cli
-fi
+# if ! which gh >/dev/null 2>&1; then
+#     yay -Sy github-cli
+# fi
 
 if ! which podman >/dev/null 2>&1; then
-    # Install Docker and related tools
+    # Install Podman
     sudo pacman -S podman podman-compose openssh fuse-overlayfs
-    # if [ ! -f /etc/containers/registries.conf ] || ! grep -q "unqualified-search-registries" /etc/containers/registries.conf; then
-    #     echo "Adding registry configuration..."
-    #     echo "$REGISTRY_CONFIG" | sudo tee /etc/containers/registries.conf > /dev/null
-    # else
-    #     echo "Registry configuration already exists, skipping..."
-    # fi
-    # First, we'll remove the old storage system completely
-    # Create a user-owned directory for container storage
+
     mkdir -p ~/podman-storage
 
     # Update the storage configuration
@@ -31,15 +24,21 @@ driver = "vfs"
 runroot = "/home/$USER/podman-storage/run"
 graphroot = "/home/$USER/podman-storage/root"
 EOF
-
-    podman pull redis
 fi
 
-# if ! which snyk >/dev/null 2>&1; then
-#     curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
-#     chmod +x ./snyk
-#     mv ./snyk /usr/local/bin/ 
-# fi
+if ! which docker >/dev/null 2>&1; then
+    sudo pacman -S wget
+    wget https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -qO- | tar xvfz - docker/docker --strip-components=1
+    sudo mv ./docker /usr/local/bin
+    yay -S docker-desktop
+    systemctl --user start docker-desktop
+    systemctl --user enable docker-desktop
+fi
+
+podman pull redis
+# podman pull quantconnect/lean
+
+
 
 source ./venv/bin/activate 
 if ! which uv >/dev/null 2>&1; then

@@ -6,3 +6,19 @@ services:
       - "6379:6379"
     volumes:
       - ./data/redis:/data
+  # lean-engine:
+  #   image: quantconnect/lean:latest
+  #   container_name: lean-engine
+  #   restart: unless-stopped
+  #   environment:
+  #     - QC_USER=${QC_USER:-quant_user}
+  #     - QC_PASSWORD=${QC_PASSWORD:-quant_pass}
+  #   volumes:
+  #     - ./docker/lean/config:/Lean/config
+  #     - ./docker/lean/data:/Lean/Data
+  #     - ./docker/lean/launcher/bin/Debug:/Lean/Launcher/bin/Debug
+  #     - ./backend/lean/backtests:/Results
+  #   ports:
+  #     - "5678:5678"  # Lean Engine API
+  #   working_dir: /Lean
+  #   command: ["bash", "-c", "dotnet build && sleep infinity"]
