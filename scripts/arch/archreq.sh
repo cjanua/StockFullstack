@@ -58,13 +58,13 @@ chmod +x ./run.sh
 
 has_systemd=$(ps -p 1 | grep -c systemd)
 if [ "$has_systemd" -eq 1 ]; then
-    echo "Systemd is running"
+    echo ""
 else
     sudo tee -a /etc/wsl.conf > /dev/null << EOF
 [boot]
 systemd=true
 EOF
-    echo "Restart you WSL Image to run systemd"
+    echo "Restart your system to run systemd"
 fi
 
 if ! grep -q "cd /home/wsluser/Stocks" ~/.bashrc; then
