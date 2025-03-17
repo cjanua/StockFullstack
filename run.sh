@@ -2,6 +2,7 @@
 # direnv allow
 pwd
 source ./scripts/arch/archreq.sh
+direnv allow
 
 cd frontend
 

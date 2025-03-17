@@ -32,7 +32,7 @@ runroot = "/home/$USER/podman-storage/run"
 graphroot = "/home/$USER/podman-storage/root"
 EOF
 
-    podman pull redis
+    podman pull docker.io/library/redis:latest
 fi
 
 # if ! which snyk >/dev/null 2>&1; then

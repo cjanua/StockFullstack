@@ -1,2 +1,2 @@
 #!/bin/bash
-/home/wsluser/Stocks/run.sh "$@"
+/home/cjanua/Documents/repos/Stock-FullStack/StockFullstack/run.sh "$@"

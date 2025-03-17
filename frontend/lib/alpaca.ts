@@ -8,7 +8,6 @@ import {
 
 import { env } from "process";
 
-const ALPCA_URL = env.APCA_URL;
 
 export type Position = {
   asset_id: string;
@@ -36,10 +35,11 @@ class AlpacaClient {
   private client: Client;
 
   private constructor() {
-    // console.log(ALPACA_KEY, ALPACA_SECRET);
     const opts: CreateClientOptions = {
       paper: false,
-      baseURL: ALPCA_URL,
+      baseURL: env.ALPACA_URL,
+      key: env.ALPACA_KEY,
+      secret: env.ALPACA_SECRET,
     };
     this.client = createClient(opts);
   }
