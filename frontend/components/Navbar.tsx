@@ -56,6 +56,12 @@ export default function Navbar() {
               >
                 Positions
               </Link>
+              <Link
+                href="/orders"
+                className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary"
+              >
+                Orders
+              </Link>
               <div className="inline-flex items-center px-1 pt-1 text-sm font-medium text-muted-foreground hover:text-primary">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

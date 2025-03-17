@@ -3,7 +3,10 @@
 
 import { 
   createClient, CreateClientOptions, Client,
-  Account, Watchlist, PortfolioHistory, Direction
+  Account, Watchlist, PortfolioHistory, Direction,
+  CreateOrderOptions,
+  Order,
+  GetOrderOptions
 } from "@alpacahq/typescript-sdk";
 
 import { env } from "process";
@@ -68,4 +71,65 @@ export async function getAlpacaWatchlists(): Promise<Watchlist[]> {
 
 export async function getAlpacaPositions(): Promise<Position[]> {
   return client.getPositions();
+}
+
+// Orders
+export async function createAlpacaOrder(params: any): Promise<Order> {
+  try {
+    return await client.createOrder(params);
+  } catch (error) {
+    console.error("Error creating order:", error);
+    throw error;
+  }
+}
+
+export async function getAlpacaOrders(params: any = {}): Promise<Order> {
+  try {
+    return await client.getOrders(params);
+  } catch (error) {
+    console.error("Error getting orders:", error);
+    throw error;
+  }
+}
+
+// Get a specific order by ID
+export async function getAlpacaOrder(orderId: string): Promise<Order> {
+  try {
+    return await client.getOrder({
+      order_id: orderId,
+    });
+  } catch (error) {
+    console.error(`Error getting order ${orderId}:`, error);
+    throw error;
+  }
+}
+
+export async function cancelAlpacaOrder(orderId: string): Promise<Order> {
+  try {
+    return await client.cancelOrder({
+      order_id: orderId,
+    });
+  } catch (error) {
+    console.error(`Error canceling order ${orderId}:`, error);
+    throw error;
+  }
+}
+
+// // Cancel all open orders by fetching them first and canceling each one
+export async function cancelAllAlpacaOrders(): Promise<void> {
+  try {
+    // Get all open orders
+    const openOrders = await getAlpacaOrders({ status: 'open' });
+    
+    // Cancel each order one by one
+    const _ = await cancelAlpacaOrder(openOrders.id);
+    
+    // Wait for all cancel operations to complete
+    // await Promise.all(cancelPromises);
+    
+    return;
+  } catch (error) {
+    console.error("Error canceling all orders:", error);
+    throw error;
+  }
 }
