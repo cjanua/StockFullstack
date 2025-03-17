@@ -64,7 +64,7 @@ export function AccountGraph() {
   useEffect(() => {
     const numDays = parseInt(tmpDays.slice(0, -1))
     if (numDays >= 30)
-      setTimeframeOptions(timeframeOptionsBase.filter((option) => !option.value.endsWith("Min")));
+      setTimeframeOptions(timeframeOptionsBase.filter((option) => (!option.value.endsWith("Min")) && !option.value.endsWith("H")));
     else if (numDays >= 7)
       setTimeframeOptions(timeframeOptionsBase.filter((option) => option.value !== "1Min"));
     else

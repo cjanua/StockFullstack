@@ -1,0 +1,13 @@
+{
+    "algorithm-language": "Python",
+    "parameters": {
+        "coarse_size": "1000",
+        "fine_size": "10"
+    },
+    "description": "This algorithm selects the top 1,000 most liquid securities at the beginning of every month. If it's January, it forms an equal-weighted portfolio of the 10 smallest securities in the set. Otherwise, it forms an equal-weighted portfolio of the 10 largest securities.",
+    "cloud-id": 21230284,
+    "organization-id": "59ca246a4b811363446254d36030f5f5",
+    "python-venv": 1,
+    "encrypted": false,
+    "local-id": 868828685
+}
