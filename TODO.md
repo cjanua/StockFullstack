@@ -6,12 +6,11 @@ Project Description
 
 ### Todo
 
-- [ ] Close position working  
-- [ ] Auth  
 - [ ] Real Watchlists  
 
 ### In Progress
 
+- [ ] Auth  
 
 ### Done ✓
 

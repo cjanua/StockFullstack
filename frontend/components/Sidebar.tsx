@@ -60,6 +60,10 @@ export default function Sidebar() {
     }
   };
 
+  React.useEffect(() => {
+    setIsExpanded(false);
+  }, [pathname]);
+
   return (
     <div
       ref={sidebarRef}
@@ -173,7 +177,9 @@ export default function Sidebar() {
               <DropdownMenuItem>
                 <ThemeChanger />
               </DropdownMenuItem>
-              <DropdownMenuItem>Profile</DropdownMenuItem>
+              <Link href="/account">
+                <DropdownMenuItem>Profile</DropdownMenuItem>
+              </Link>
               <DropdownMenuItem>Preferences</DropdownMenuItem>
               <DropdownMenuItem>Notifications</DropdownMenuItem>
             </DropdownMenuContent>
