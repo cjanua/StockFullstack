@@ -6,17 +6,19 @@ import { PortfolioRecommendations } from "@/components/alpaca/PortfolioRecommend
 
 export default function PositionsPage() {
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Open Positions</h1>
-        <OrderForm />
+    <div className="flex">
+      <div className="flex-1 p-6 mx-16">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Open Positions</h1>
+          <OrderForm />
+        </div>
+        
+        <div className="mb-8">
+          <PortfolioRecommendations />
+        </div>
+        
+        <PositionTable count={15} />
       </div>
-      
-      <div className="mb-8">
-        <PortfolioRecommendations />
-      </div>
-      
-      <PositionTable count={15} />
     </div>
   );
 }

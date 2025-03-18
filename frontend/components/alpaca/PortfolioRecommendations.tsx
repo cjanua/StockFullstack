@@ -116,15 +116,15 @@ export function PortfolioRecommendations() {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Portfolio Value</div>
-                <div className="text-xl font-bold mt-1">${data?.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                <div className="text-xl font-bold mt-1">${data?.portfolio_value.toFixed(2)}</div>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Current Cash</div>
-                <div className="text-xl font-bold mt-1">${data?.cash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                <div className="text-xl font-bold mt-1">${data?.cash.toFixed(2)}</div>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Target Cash</div>
-                <div className="text-xl font-bold mt-1">${data?.target_cash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                <div className="text-xl font-bold mt-1">${data?.target_cash.toFixed(2)}</div>
               </div>
             </div>
             
@@ -163,10 +163,10 @@ export function PortfolioRecommendations() {
                       {buyRecommendations.map((rec) => (
                         <TableRow key={rec.symbol}>
                           <TableCell className="font-medium">{rec.symbol}</TableCell>
-                          <TableCell>{rec.current_shares.toFixed(0)}</TableCell>
-                          <TableCell>{rec.target_shares.toFixed(0)}</TableCell>
+                          <TableCell>{rec.current_shares.toFixed(2)}</TableCell>
+                          <TableCell>{rec.target_shares.toFixed(2)}</TableCell>
                           <TableCell className="text-right font-bold text-green-600">
-                            {rec.quantity.toFixed(0)}
+                            {rec.quantity.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -194,10 +194,10 @@ export function PortfolioRecommendations() {
                       {sellRecommendations.map((rec) => (
                         <TableRow key={rec.symbol}>
                           <TableCell className="font-medium">{rec.symbol}</TableCell>
-                          <TableCell>{rec.current_shares.toFixed(0)}</TableCell>
-                          <TableCell>{rec.target_shares.toFixed(0)}</TableCell>
+                          <TableCell>{rec.current_shares.toFixed(2)}</TableCell>
+                          <TableCell>{rec.target_shares.toFixed(2)}</TableCell>
                           <TableCell className="text-right font-bold text-red-600">
-                            {rec.quantity.toFixed(0)}
+                            {rec.quantity.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}
