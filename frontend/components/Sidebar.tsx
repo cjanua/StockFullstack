@@ -10,7 +10,10 @@ import {
   List,
   // Contact,
   Settings,
-  Search
+  Search,
+  Home,
+  LineChart,
+  Activity
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -43,6 +46,7 @@ export default function Sidebar() {
     { name: "Dashboard", href: "/", icon: <LayoutDashboard className="h-5 w-5" /> },
     { name: "Positions", href: "/positions", icon: <TrendingUp className="h-5 w-5" /> },
     { name: "Orders", href: "/orders", icon: <ShoppingCart className="h-5 w-5" /> },
+    { name: "Health", href: "/api-diagnostics", icon: <Activity className="h-5 w-5" /> },
     // { name: "Contact", href: "#", icon: <Contact className="h-5 w-5" /> },
   ];
 

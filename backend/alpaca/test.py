@@ -1,5 +1,5 @@
 from result import Err
-from backend.alpaca.config import APCA
+from config import APCA
 from util import logger
 import requests
 from alpaca.trading.client import TradingClient

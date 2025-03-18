@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import logging
 from typing import List, Any, Callable
 from dotenv import load_dotenv
@@ -6,15 +7,20 @@ from alpaca.trading.client import TradingClient
 from alpaca.common.exceptions import APIError
 from alpaca.trading.models import Position, Asset, PortfolioHistory, TradeAccount, Watchlist
 from alpaca.trading.requests import GetPortfolioHistoryRequest
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
 
 from result import Ok, Result, Err
 import requests
-from backend.alpaca.serializers import serialize_account, serialize_asset, serialize_position, serialize_portfolio_history
-from backend.alpaca.serializers.Watchlist import serialize_watchlist
+from serializers import serialize_account, serialize_asset, serialize_position, serialize_portfolio_history
+from serializers.Watchlist import serialize_watchlist
 from util import logger
 from config import APCA
+import pandas as pd
+
 import redis
 import json
+import traceback
 
 ALPACA_KEY, ALPACA_SECRET, _ = APCA
 
@@ -77,6 +83,81 @@ def _fetch_portfolio_history(days: int, timeframe: str) -> Any:
     history = client.get_portfolio_history(req)
     logger.info("Successfully retrieved history")
     return serialize_portfolio_history(history)
+
+def get_history(days: int = 365):
+    """Get historical data for all symbols in portfolio plus benchmarks"""
+    try:
+        print(f"Getting historical data for {days} days")
+        
+        positions_result = get_positions()
+        if positions_result.is_err():
+            return Err(f"Error fetching positions: {positions_result.err_value}")
+        
+        positions = positions_result.ok_value
+        symbols = [p['symbol'] for p in positions]
+        
+        symbols.extend(['SPY', 'QQQ', 'IWM', 'GLD'])
+        symbols = list(set(symbols))
+        
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        data_client_res = get_historical_data_client()
+        if data_client_res.is_err():
+            return Err(data_client_res.err_value)
+        
+        data_client = data_client_res.ok_value
+        
+        symbol_data = {}
+        
+        request_params = StockBarsRequest(
+            symbol_or_symbols=symbols,
+            timeframe=TimeFrame.Day,
+            start=start_date,
+            end=end_date
+        )
+        
+        bars_response = data_client.get_stock_bars(request_params)
+        
+        for symbol in symbols:
+            if symbol in bars_response.data:
+                symbol_bars = bars_response.data[symbol]
+                
+                bars_data = []
+                for bar in symbol_bars:
+                    bars_data.append({
+                        'timestamp': bar.timestamp,
+                        'close': bar.close
+                    })
+                
+                if bars_data:
+                    df = pd.DataFrame(bars_data)
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                    df.set_index('timestamp', inplace=True)
+                    symbol_data[symbol] = df['close']
+                    print(f"Successfully retrieved {len(bars_data)} bars for {symbol}")
+            else:
+                print(f"No data available for {symbol}")
+        
+        if not symbol_data:
+            return Err("No historical data retrieved for any symbol")
+        
+        # Combine all symbol data into a single DataFrame
+        prices_df = pd.DataFrame(symbol_data)
+        
+        # Ensure the DataFrame is structured correctly
+        if prices_df.empty:
+            logger.error("No data available in the DataFrame.")
+            return Err("No data available in the DataFrame.")
+        
+        # Fill missing values
+        prices_df = prices_df.ffill().bfill()
+        
+        return Ok(prices_df)
+    
+    except Exception as e:
+        logger.error(f"Error in get_history: {str(e)}\n{traceback.format_exc()}")
+        return Err(f"Error in get_history: {str(e)}")
 
 def get_watchlists() -> Result[List[Watchlist], str]:
     """Get watchlists"""
@@ -155,3 +236,18 @@ def _fetch_asset(query: str) -> List[Asset]:
         raise Exception(f"No assets found matching query '{query}'")
     
     return matching_assets
+
+def get_historical_data_client():
+    """Get a dedicated client for historical data"""
+    try:
+        from alpaca.data.historical import StockHistoricalDataClient
+        
+        if not ALPACA_KEY or not ALPACA_SECRET:
+            return Err("Alpaca API credentials not found in environment")
+        
+        data_client = StockHistoricalDataClient(ALPACA_KEY, ALPACA_SECRET)
+        logger.info("Historical data client created")
+        return Ok(data_client)
+    except Exception as e:
+        logger.error(f"Error creating historical data client: {type(e).__name__}: {str(e)}")
+        return Err(str(e))

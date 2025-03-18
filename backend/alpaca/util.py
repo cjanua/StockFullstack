@@ -2,7 +2,7 @@
 import logging
 from logging import Logger as L
 
-from backend.alpaca.commands import CommandContext
+from commands import CommandContext
 
 logging.basicConfig(
     # level=logging.INFO,

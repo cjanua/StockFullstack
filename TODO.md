@@ -6,11 +6,12 @@ Project Description
 
 ### Todo
 
+- [ ]   
+- [ ] Some Analysis  
 - [ ] Real Watchlists  
 
 ### In Progress
 
-- [ ] Auth  
 
 ### Done ✓
 

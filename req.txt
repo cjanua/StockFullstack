@@ -3,3 +3,6 @@ alpaca-py
 python-dotenv
 result
 lean
+redis
+seaborn
+scipy

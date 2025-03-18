@@ -1,17 +1,20 @@
+// app/positions/page.tsx
 "use client";
 import { PositionTable } from "@/components/alpaca/PositionTable";
 import { OrderForm } from "@/components/alpaca/OrderForm";
-// import { PositionLiveUpdates } from "@/components/alpaca/PositionLiveUpdates";
+import { PortfolioRecommendations } from "@/components/alpaca/PortfolioRecommendations";
 
-export default function PositionsLayout() {
+export default function PositionsPage() {
   return (
-    <div className="p-6 ml-16 transition-all duration-300 ease-in-out">
+    <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Open Positions</h1>
         <OrderForm />
       </div>
       
-      {/* <PositionLiveUpdates /> */}
+      <div className="mb-8">
+        <PortfolioRecommendations />
+      </div>
       
       <PositionTable count={15} />
     </div>
