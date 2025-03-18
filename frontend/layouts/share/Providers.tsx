@@ -17,7 +17,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex">
       <Sidebar />
-      <div className="ml-16 w-full">
+      <div className="flex-1 ml-16 transition-all duration-300 ease-in-out">
         {children}
       </div>
     </div>

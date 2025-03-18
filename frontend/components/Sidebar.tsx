@@ -69,7 +69,8 @@ export default function Sidebar() {
       ref={sidebarRef}
       className={cn(
         "fixed left-0 top-0 h-full bg-background border-r transition-all duration-300 ease-in-out z-40",
-        isExpanded ? "w-56" : "w-16"
+        isExpanded ? "w-56" : "w-16",
+        isExpanded ? "sidebar-expanded" : "sidebar-collapsed"
       )}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={handleMouseLeave}

@@ -116,9 +116,10 @@ export async function createAlpacaOrder(params: any): Promise<Order> {
   }
 }
 
-export async function getAlpacaOrders(params: any = {}): Promise<Order> {
+export async function getAlpacaOrders(params: any = {}): Promise<Order[]> {
   try {
-    return await client.getOrders(params);
+    const orders = await client.getOrders(params);
+    return Array.isArray(orders) ? orders : [orders];
   } catch (error) {
     console.error("Error getting orders:", error);
     throw error;
@@ -148,18 +149,18 @@ export async function cancelAlpacaOrder(orderId: string): Promise<Order> {
   }
 }
 
-// // Cancel all open orders by fetching them first and canceling each one
+// Cancel all open orders by fetching them first and canceling each one
 export async function cancelAllAlpacaOrders(): Promise<void> {
   try {
     // Get all open orders
     const openOrders = await getAlpacaOrders({ status: 'open' });
-    
+
     // Cancel each order one by one
-    const _ = await cancelAlpacaOrder(openOrders.id);
-    
+    const cancelPromises = openOrders.map(order => cancelAlpacaOrder(order.id));
+
     // Wait for all cancel operations to complete
-    // await Promise.all(cancelPromises);
-    
+    await Promise.all(cancelPromises);
+
     return;
   } catch (error) {
     console.error("Error canceling all orders:", error);
