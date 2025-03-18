@@ -3,7 +3,7 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import * as React from "react";
-import Sidebar from "../../../components/Sidebar";
+import Sidebar from "../../components/Sidebar";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (

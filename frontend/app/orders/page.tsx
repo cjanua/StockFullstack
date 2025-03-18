@@ -1,4 +1,4 @@
-import { OrdersLayout } from "../layouts/Orders";
+import { OrdersLayout } from "@/layouts/Orders";
 
 export default async function OrdersPage() {
   return (
