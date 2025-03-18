@@ -73,6 +73,39 @@ export async function getAlpacaPositions(): Promise<Position[]> {
   return client.getPositions();
 }
 
+
+/**
+ * Close a position by creating a market order to sell/buy the position
+ * @param symbol Symbol of the position to close
+ * @param qty Quantity to close (required)
+ * @param side Side of the current position ('long' closes with sell, 'short' closes with buy)
+ * @returns The created order object
+ */
+export async function closeAlpacaPosition(symbol: string, qty: string, side: 'long' | 'short' = 'long'): Promise<Order> {
+  try {
+    // Ensure we have a quantity (required by Alpaca API)
+    if (!qty) {
+      throw new Error(`Quantity is required to close position for ${symbol}`);
+    }
+    
+    const orderParams = {
+      symbol: symbol.toUpperCase(),
+      qty: qty, // Always provide quantity
+      side: side === 'long' ? 'sell' : 'buy', // Close long positions by selling, short positions by buying
+      type: 'market',
+      time_in_force: 'day',
+    };
+    
+    console.log(`Creating order to close ${symbol} position:`, orderParams);
+    
+    // Create a market order to close the position
+    return await createAlpacaOrder(orderParams);
+  } catch (error) {
+    console.error(`Error closing position for ${symbol}:`, error);
+    throw error;
+  }
+}
+
 // Orders
 export async function createAlpacaOrder(params: any): Promise<Order> {
   try {

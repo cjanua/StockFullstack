@@ -5,7 +5,7 @@ import { Position } from "@/lib/alpaca";
 import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { ArrowUpDown, Search } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/hooks/use-toast";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type SortDirection = "asc" | "desc";
 
@@ -24,12 +36,13 @@ interface SortState {
 }
 
 export function PositionTable({ count }: { count: number }) {
-  const { positions, isLoading, isError, error } = usePositions();
+  const { positions, isLoading, isError, error, mutate } = usePositions();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortState, setSortState] = useState<SortState>({ 
     column: "market_value", 
     direction: "desc" 
   });
+  const [closingPosition, setClosingPosition] = useState<string | null>(null);
   
   if (isLoading) return <div>Loading positions data...</div>;
   if (isError) return error.fallback;
@@ -96,6 +109,50 @@ export function PositionTable({ count }: { count: number }) {
       return { column, direction: "desc" };
     });
   };
+  
+  // Function to close a position
+  const handleClosePosition = async (symbol: string) => {
+    try {
+      setClosingPosition(symbol);
+      
+      // Find position to get side information
+      const position = positions.find(p => p.symbol === symbol);
+      if (!position) {
+        throw new Error(`Position for ${symbol} not found`);
+      }
+      
+      // Determine if long or short position
+      const positionSide = position.side === 'long' ? 'long' : 'short';
+      
+      // Make API call to close position
+      const response = await fetch(`/api/alpaca/positions/${symbol}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || `Failed to close ${symbol} position`);
+      }
+      
+      // Show success message
+      toast({
+        title: "Position Closed",
+        description: `Successfully closed ${symbol} position with market order`,
+      });
+      
+      // Refresh positions data
+      mutate();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : `Failed to close ${symbol} position`,
+        variant: "destructive",
+      });
+    } finally {
+      setClosingPosition(null);
+    }
+  };
+  
   
   // Create a sortable header
   const SortableHeader = ({ column, label }: { column: string, label: string }) => (
@@ -174,7 +231,42 @@ export function PositionTable({ count }: { count: number }) {
               View Details
             </DropdownMenuItem>
             <DropdownMenuItem>Add Note</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-500">Close Position</DropdownMenuItem>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem 
+                  className="text-red-500" 
+                  onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
+                >
+                  Close Position
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Close {p.symbol} Position</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will create a market order to {p.side === 'long' ? 'sell' : 'buy'} your entire position of {p.qty} shares.
+                    Are you sure you want to proceed?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleClosePosition(p.symbol)}
+                    disabled={closingPosition === p.symbol}
+                    className="bg-red-500 hover:bg-red-600"
+                  >
+                    {closingPosition === p.symbol ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Closing...
+                      </>
+                    ) : (
+                      'Close Position'
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </DropdownMenuContent>
         </DropdownMenu>
       )
