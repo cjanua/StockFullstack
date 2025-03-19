@@ -1,3 +1,5 @@
+# alpaca/loaders.py
+
 from datetime import datetime, timedelta
 import logging
 from typing import List, Any, Callable
@@ -14,15 +16,15 @@ from result import Ok, Result, Err
 import requests
 from serializers import serialize_account, serialize_asset, serialize_position, serialize_portfolio_history
 from serializers.Watchlist import serialize_watchlist
-from util import logger
-from config import APCA
+from backend.alpaca.core.util import logger
+from backend.alpaca.core.config import config
 import pandas as pd
 
 import redis
 import json
 import traceback
 
-ALPACA_KEY, ALPACA_SECRET, _ = APCA
+ALPACA_KEY, ALPACA_SECRET, _ = config.get_credentials()
 
 # Initialize Redis client with the host from environment variables
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")

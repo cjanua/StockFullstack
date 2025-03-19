@@ -1,8 +1,9 @@
-# Configure logging
+# alpaca/util.py
+
 import logging
 from logging import Logger as L
 
-from commands import CommandContext
+from backend.alpaca.cli.commands import CommandContext
 
 logging.basicConfig(
     # level=logging.INFO,

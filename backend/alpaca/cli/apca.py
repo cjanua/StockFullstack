@@ -1,10 +1,11 @@
 #!/usr/bin/env /home/wsluser/Stocks/venv/bin/python3
+# alpaca/apca.py
 import argparse
 from logging import DEBUG
 from enum import Enum
-from commands import CommandContext
-from util import format_output, logger
-from handlers import registry  # Import the registry from handlers
+from backend.alpaca.cli.commands import CommandContext
+from backend.alpaca.core.util import format_output, logger
+from backend.alpaca.handlers.handlers import registry  # Import the registry from handlers
 
 
 

@@ -1,7 +1,9 @@
+# alpaca/handlers.py
+
 from typing import Dict, Any, Callable
-from commands import CommandContext, CommandRegistry
+from backend.alpaca.cli.commands import CommandContext, CommandRegistry
 from result import is_ok
-from loaders import get_account, query_asset, get_positions, get_assets, get_portfolio_history, get_watchlists
+from backend.alpaca.sdk.loaders import get_account, query_asset, get_positions, get_assets, get_portfolio_history, get_watchlists
 import argparse
 
 registry = CommandRegistry()

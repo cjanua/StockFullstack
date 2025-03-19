@@ -1,6 +1,8 @@
+# alpaca/test.py
+
 from result import Err
-from config import APCA
-from util import logger
+from backend.alpaca.core.config import APCA
+from backend.alpaca.core.util import logger
 import requests
 from alpaca.trading.client import TradingClient
 

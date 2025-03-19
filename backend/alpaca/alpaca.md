@@ -1,3 +1,0 @@
-/trading
-    /account
-        /get

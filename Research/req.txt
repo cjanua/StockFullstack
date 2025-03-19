@@ -1,3 +1,0 @@
-ipykernel
-alpaca-py
-python-dotenv

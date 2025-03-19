@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+# alpaca/cli_optimizer.py
+
 import click
 import requests
 import pandas as pd
 import json
 from tabulate import tabulate
 from result import Ok
-from loaders import get_account, get_positions
+from backend.alpaca.sdk.loaders import get_account, get_positions
 
 @click.group()
 def cli():
@@ -47,7 +49,7 @@ def optimize(lookback, min_change, cash_reserve):
 def calculate_recommendations(lookback, min_change, cash_reserve):
     """Calculate portfolio recommendations directly (for CLI fallback)"""
     # This is a simplified version - in production, import the shared logic from portfolio_service.py
-    from portfolio_service import get_optimal_portfolio
+    from backend.alpaca.services.portfolio_service import get_optimal_portfolio
     import asyncio
     
     # Get account and positions
