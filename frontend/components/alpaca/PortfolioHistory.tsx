@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-import { usePortfolioHistory } from "@/hooks/alpaca/usePortfolioHistory";
+import { usePortfolioHistory } from "@/hooks/queries/useAlpacaQueries";
 import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { z } from "zod"
@@ -86,7 +86,7 @@ export function AccountGraph() {
     }
   });
 
-  const { portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
+  const { data: portfolioHistory, isLoading, isError, error } = usePortfolioHistory(days, timeframe);
 
   if (isLoading) return <>
     <div className="flex flex-col space-y-3 pb-8">
@@ -96,7 +96,7 @@ export function AccountGraph() {
       </div>
     </div>
   </>;
-  if (isError) return error.fallback;
+  if (isError) return error.message;
   if (!portfolioHistory) return <div>No portfolio history data available</div>;
 
   let chartData = portfolioHistory.timestamp.map((t, i) => ({

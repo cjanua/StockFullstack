@@ -5,11 +5,11 @@ import { useEffect, useState } from "react";
 import { useWebSocket } from "@/lib/websocket";
 import { AlertCircle, ArrowDown, ArrowUp, Wifi, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { usePositions } from "@/hooks/alpaca/usePositions";
+import { usePositions } from "@/hooks/queries/useAlpacaQueries";
 import { fmtCurrency, fmtPercent } from "@/lib/utils";
 
 export function PositionLiveUpdates() {
-  const { positions } = usePositions();
+  const { data: positions } = usePositions();
   const [symbols, setSymbols] = useState<string[]>([]);
   const [updates, setUpdates] = useState<Map<string, { price: number, change: number }>>(new Map());
   

@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ThemeChanger from "./ThemeChanger";
-import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
+import { useWatchlists } from "@/hooks/queries/useAlpacaQueries";
 import { Watchlist } from "@/types/alpaca";
 import { cn } from "@/lib/utils";
 import { useOnClickOutside } from "@/hooks/useOnClickOutside";
@@ -36,7 +36,7 @@ export default function Sidebar() {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const sidebarRef = React.useRef<HTMLDivElement>(null!);
   const pathname = usePathname();
-  const { watchlists, isLoading, isError, error } = useWatchlists();
+  const { data: watchlists, isLoading, isError, error } = useWatchlists();
 
   // Render cached data immediately if available
   const cachedWatchlists = typeof window !== "undefined" ? localStorage.getItem("watchlists") : null;

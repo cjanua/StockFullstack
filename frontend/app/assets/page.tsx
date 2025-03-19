@@ -1,6 +1,6 @@
 "use client"
 import { SymbolOverviewNoSSR } from "@/components/plotting/SymbolOverview";
-import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
+import { useWatchlists } from "@/hooks/queries/useAlpacaQueries";
 import { useEffect, useState } from "react";
 import { useSearchParam } from "react-use"
 import "./styles.css";
@@ -9,7 +9,7 @@ import { Asset, Watchlist } from "@/types/alpaca";
 export default function Home() {
   const watchlist = useSearchParam("watchlist");
 
-  const { watchlists, isLoading, isError, error } = useWatchlists();
+  const { data: watchlists, isLoading, isError, error } = useWatchlists();
 
   const [symbols, setSymbols] = useState<string[][]>([[]]);
   const [isClient, setIsClient] = useState(false);
@@ -34,7 +34,7 @@ export default function Home() {
   return (
     <div className="grid place-items-center pt-8">
       <>{watchlist}</>
-      <>{isError && error?.fallback}</>
+      <>{isError && error.message}</>
       <div className="symbol-overview-container">
         <SymbolOverviewNoSSR
           dateFormat="MM/dd/yy"
