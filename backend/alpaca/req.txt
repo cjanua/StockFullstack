@@ -5,6 +5,8 @@ result
 redis
 seaborn
 scipy
-pyportfolioopt
+PyPortfolioOpt
 pandas
 numpy
+uvicorn
+fastapi

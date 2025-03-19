@@ -6,19 +6,16 @@ services:
       - "6379:6379"
     volumes:
       - ./data/redis:/data
-  # lean-engine:
-  #   image: quantconnect/lean:latest
-  #   container_name: lean-engine
-  #   restart: unless-stopped
-  #   environment:
-  #     - QC_USER=${QC_USER:-quant_user}
-  #     - QC_PASSWORD=${QC_PASSWORD:-quant_pass}
-  #   volumes:
-  #     - ./docker/lean/config:/Lean/config
-  #     - ./docker/lean/data:/Lean/Data
-  #     - ./docker/lean/launcher/bin/Debug:/Lean/Launcher/bin/Debug
-  #     - ./backend/lean/backtests:/Results
-  #   ports:
-  #     - "5678:5678"  # Lean Engine API
-  #   working_dir: /Lean
-  #   command: ["bash", "-c", "dotnet build && sleep infinity"]
+
+  portfolio-service:
+    build:
+      context: ./backend/alpaca
+      dockerfile: Dockerfile
+    container_name: portfolio-service-py
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - ALPACA_KEY=${ALPACA_KEY}
+      - ALPACA_SECRET=${ALPACA_SECRET}
+      - REDIS_HOST=redis  # Use the Redis container's name as the hostname

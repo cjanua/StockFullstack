@@ -7,7 +7,6 @@ from typing import Dict, List, Optional
 import asyncio
 import logging
 from datetime import datetime, timedelta
-import traceback
 
 from loaders import (
     ALPACA_KEY,

@@ -24,10 +24,9 @@ driver = "vfs"
 runroot = "/home/$USER/podman-storage/run"
 graphroot = "/home/$USER/podman-storage/root"
 EOF
-
-    podman pull docker.io/library/redis:latest
 fi
-
+podman pull docker.io/library/redis:latest
+# podman pull docker.io/quantconnect/lean:latest
 if ! which docker >/dev/null 2>&1; then
     sudo pacman -S wget
     wget https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -qO- | tar xvfz - docker/docker --strip-components=1

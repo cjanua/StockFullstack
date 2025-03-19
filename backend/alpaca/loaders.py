@@ -24,8 +24,10 @@ import traceback
 
 ALPACA_KEY, ALPACA_SECRET, _ = APCA
 
-# Initialize Redis client
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+# Initialize Redis client with the host from environment variables
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
 
 def cache_result(key: str, ttl: int, func: Callable[[], Any]) -> Result[Any, str]:
     """Helper function to cache results"""
@@ -99,7 +101,7 @@ def get_history(days: int = 365):
         symbols.extend(['SPY', 'QQQ', 'IWM', 'GLD'])
         symbols = list(set(symbols))
         
-        end_date = datetime.now()
+        end_date = datetime.now() - timedelta(minutes=15)  # Adjust end_date to 15 minutes ago
         start_date = end_date - timedelta(days=days)
         
         data_client_res = get_historical_data_client()

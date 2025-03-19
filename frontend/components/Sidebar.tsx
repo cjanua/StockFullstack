@@ -138,8 +138,8 @@ export default function Sidebar() {
                   side="right" 
                   className="z-50"
                 >
-                  {isLoading && <div>Loading watchlists...</div>}
-                  {isError && <div>Error: {error.message}</div>}
+                  {/* {isLoading && <div>Loading watchlists...</div>}
+                  {isError && <div>Error: {error.message}</div>} */}
                   {(initialWatchlists || watchlists)?.map((w: Watchlist) => (
                     <Link key={w.id} href={`/assets?watchlist=${w.id}`}>
                       <DropdownMenuItem>{w.name}</DropdownMenuItem>
