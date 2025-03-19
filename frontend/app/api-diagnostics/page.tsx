@@ -245,7 +245,7 @@ export default function ApiDiagnosticsPage() {
         </TabsContent>
       </Tabs>
       
-      <div className="mt-6 p-4 bg-muted rounded border">
+      {/* <div className="mt-6 p-4 bg-muted rounded border">
         <h2 className="text-xl font-semibold mb-2">Troubleshooting Guide</h2>
         <ul className="space-y-2 list-disc list-inside">
           <li><strong>FastAPI service not running:</strong> If health check fails, make sure your FastAPI server is running with <code className="bg-muted-foreground/20 p-1 rounded">python -m uvicorn portfolio_service:app --host 0.0.0.0 --port 8001 --reload</code></li>
@@ -253,7 +253,7 @@ export default function ApiDiagnosticsPage() {
           <li><strong>CORS issues:</strong> If direct API calls fail from browser, check CORS settings in FastAPI</li>
           <li><strong>Data processing errors:</strong> If endpoints return 500 status, check your backend logs for errors</li>
         </ul>
-      </div>
+      </div> */}
     </div>
   );
 } 
