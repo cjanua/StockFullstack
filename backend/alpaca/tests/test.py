@@ -1,12 +1,12 @@
 # alpaca/test.py
 
 from result import Err
-from backend.alpaca.core.config import APCA
+from backend.alpaca.core.config import AlpacaConfig as APCA
 from backend.alpaca.core.util import logger
 import requests
-from alpaca.trading.client import TradingClient
+from backend.alpaca.sdk.clients import TradingClient
 
-ALPACA_KEY, ALPACA_SECRET, ALPACA_URL_ = APCA
+ALPACA_KEY, ALPACA_SECRET, ALPACA_URL_ = APCA.get_credentials()
 
 def test_trading_api(client: TradingClient):
     """Test trading api"""

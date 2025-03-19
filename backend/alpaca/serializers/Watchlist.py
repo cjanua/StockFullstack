@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
-from serializers.Asset import serialize_asset
+from backend.alpaca.serializers.Asset import serialize_asset
+
 
 def serialize_watchlist(watchlist) -> Dict[str, Union[str, List[Dict]]]:
     """Convert a Watchlist object to a serializable dictionary matching frontend Watchlist type

@@ -3,9 +3,11 @@
 from typing import Dict, Any, Callable
 from backend.alpaca.cli.commands import CommandContext, CommandRegistry
 from result import is_ok
-from backend.alpaca.sdk.loaders import get_account, query_asset, get_positions, get_assets, get_portfolio_history, get_watchlists
+from backend.alpaca.sdk.loaders import (
+    get_account, query_asset, get_positions, get_assets, 
+    get_portfolio_history, get_watchlists
+)
 import argparse
-
 registry = CommandRegistry()
 
 def handle_response(func: Callable[[], Any]) -> Dict[str, Any]:

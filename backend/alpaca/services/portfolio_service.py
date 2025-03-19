@@ -17,7 +17,7 @@ from backend.alpaca.sdk.loaders import (
     get_trading_client,
     get_historical_data_client
 )
-from serializers import serialize_position, serialize_account
+from backend.alpaca.serializers import serialize_position, serialize_account
 from result import Ok, Err
 
 app = FastAPI(title="Portfolio Optimization Service")
