@@ -1,6 +1,4 @@
-from datetime import datetime
-from typing import Dict, List, Optional, Union
-from uuid import UUID
+from typing import Dict, List, Union
 
 from backend.alpaca.serializers.Asset import serialize_asset
 

@@ -1,12 +1,10 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-import numpy as np
 from pypfopt import EfficientFrontier, expected_returns, risk_models
-from typing import Dict, List, Optional
+from typing import Dict
 import asyncio
 import logging
-from datetime import datetime, timedelta
 
 from backend.alpaca.sdk.loaders import (
     ALPACA_KEY,
@@ -14,10 +12,8 @@ from backend.alpaca.sdk.loaders import (
     get_account, 
     get_positions, 
     get_history,
-    get_trading_client,
-    get_historical_data_client
+    get_trading_client
 )
-from backend.alpaca.serializers import serialize_position, serialize_account
 from result import Ok, Err
 
 app = FastAPI(title="Portfolio Optimization Service")

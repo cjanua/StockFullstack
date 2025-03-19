@@ -3,10 +3,8 @@
 
 import { 
   createClient, CreateClientOptions, Client,
-  Account, Watchlist, PortfolioHistory, Direction,
-  CreateOrderOptions,
-  Order, Position,
-  GetOrderOptions
+  Account, Watchlist, PortfolioHistory,
+  Order, Position
 } from "@/types/alpaca";
 
 import { env } from "process";

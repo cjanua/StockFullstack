@@ -1,19 +1,16 @@
 # alpaca/loaders.py
 
 from datetime import datetime, timedelta
-import logging
 from typing import List, Any, Callable
-from dotenv import load_dotenv
 import os
 from alpaca.trading.client import TradingClient
 from alpaca.common.exceptions import APIError
-from alpaca.trading.models import Position, Asset, PortfolioHistory, TradeAccount, Watchlist
+from alpaca.trading.models import Position, Asset, TradeAccount, Watchlist
 from alpaca.trading.requests import GetPortfolioHistoryRequest
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
 from result import Ok, Result, Err
-import requests
 from backend.alpaca.serializers import (
     serialize_account, serialize_asset, serialize_position, 
     serialize_portfolio_history, serialize_watchlist

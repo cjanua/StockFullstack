@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as alpacaApi from '@/lib/api/alpaca';
 import * as authApi from '@/lib/api/auth';
 import { toast } from '@/hooks/use-toast';
-import { Account, Position, PortfolioHistory, Watchlist, Order } from '@/types/alpaca';
 
 // Query key factory for better organization and type safety
 export const queryKeys = {

@@ -3,10 +3,7 @@
 
 import click
 import requests
-import pandas as pd
-import json
 from tabulate import tabulate
-from result import Ok
 
 @click.group()
 def cli():

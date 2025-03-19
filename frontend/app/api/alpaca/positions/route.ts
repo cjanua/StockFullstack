@@ -1,6 +1,6 @@
 // frontend/app/api/alpaca/positions/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAlpacaPositions, closeAlpacaPosition } from "@/lib/alpaca";
+import { getAlpacaPositions } from "@/lib/alpaca";
 
 // Get all positions
 export async function GET(request: NextRequest) {

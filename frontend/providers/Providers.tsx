@@ -2,13 +2,12 @@
 "use client";
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
-import * as React from "react";
 import Sidebar from "../components/Sidebar";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode, useState } from 'react';
 
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
       {children}
@@ -16,7 +15,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function NavbarProvider({ children }: { children: React.ReactNode }) {
+export function NavbarProvider({ children }: { children: ReactNode }) {
   return (
     <div className="flex">
       <Sidebar />

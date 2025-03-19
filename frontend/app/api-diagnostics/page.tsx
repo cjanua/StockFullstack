@@ -2,13 +2,10 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle, XCircle, AlertTriangle, Activity } from 'lucide-react';
 import { ServiceInspector } from '@/components/ServiceInspector';
 import { DirectApiTest } from '@/components/DirectApiTest';
-import Link from 'next/link';
 
 // Define the type for your state
 interface CheckStatus {

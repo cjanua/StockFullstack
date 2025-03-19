@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import {useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,11 +8,8 @@ import {
   TrendingUp,
   ShoppingCart,
   List,
-  // Contact,
   Settings,
   Search,
-  Home,
-  LineChart,
   Activity
 } from "lucide-react";
 
@@ -32,9 +29,9 @@ import { cn } from "@/lib/utils";
 import { useOnClickOutside } from "@/hooks/useOnClickOutside";
 
 export default function Sidebar() {
-  const [isExpanded, setIsExpanded] = React.useState(false);
-  const [dropdownOpen, setDropdownOpen] = React.useState(false);
-  const sidebarRef = React.useRef<HTMLDivElement>(null!);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null!);
   const pathname = usePathname();
   const { data: watchlists, isLoading, isError, error } = useWatchlists();
 
@@ -64,7 +61,7 @@ export default function Sidebar() {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     setIsExpanded(false);
   }, [pathname]);
 
