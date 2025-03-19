@@ -3,7 +3,10 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import * as React from "react";
-import Sidebar from "../../components/Sidebar";
+import Sidebar from "../components/Sidebar";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode, useState } from 'react';
+
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -23,3 +26,13 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export function QueryProvider({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+} 
