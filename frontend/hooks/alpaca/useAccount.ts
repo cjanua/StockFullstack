@@ -1,7 +1,7 @@
 // hooks/useAccount.ts
 "use client";
 import { getError } from "@/types/error";
-import { Account } from "@alpacahq/typescript-sdk";
+import { Account } from "@/types/alpaca";
 import { useState, useEffect } from "react";
 
 export function useAccount() {

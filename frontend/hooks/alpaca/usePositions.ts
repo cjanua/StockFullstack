@@ -1,6 +1,6 @@
 "use client";
 import { getError } from "@/types/error";
-import { Position } from "@/lib/alpaca";
+import { Position } from "@/types/alpaca";
 import { useState, useEffect } from "react";
 
 export function usePositions() {

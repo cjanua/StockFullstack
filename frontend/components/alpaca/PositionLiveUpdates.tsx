@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Position } from "@/lib/alpaca";
 import { useWebSocket } from "@/lib/websocket";
 import { AlertCircle, ArrowDown, ArrowUp, Wifi, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

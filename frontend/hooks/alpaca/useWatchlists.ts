@@ -1,6 +1,6 @@
 "use client";
 import { getError } from "@/types/error";
-import { Watchlist } from "@alpacahq/typescript-sdk";
+import { Watchlist } from "@/types/alpaca";
 import { useState, useEffect } from "react";
 
 export function useWatchlists() {

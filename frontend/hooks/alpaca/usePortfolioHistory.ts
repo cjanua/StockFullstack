@@ -1,6 +1,6 @@
 "use client";
 import { getError } from "@/types/error";
-import { PortfolioHistory } from "@alpacahq/typescript-sdk";
+import { PortfolioHistory } from "@/types/alpaca";
 import { useState, useEffect } from "react";
 
 export function usePortfolioHistory(days: number, timeframe: string) {

@@ -1,11 +1,11 @@
 // frontend/components/alpaca/PositionTable.tsx
-import { usePositions } from "@/hooks/alpaca/usePositions";
-import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
-import { Position } from "@/lib/alpaca";
-import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { useState } from "react";
+import { usePositions } from "@/hooks/queries/useAlpacaQueries";
+import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
+import { Position } from "@/types/alpaca";
+import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, ArrowUpDown, Loader2, Search } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Loader2, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SortDirection = "asc" | "desc";
 
@@ -36,17 +37,75 @@ interface SortState {
 }
 
 export function PositionTable({ count }: { count: number }) {
-  const { positions, isLoading, isError, error, mutate } = usePositions();
+  // Simple usage of the hook without any custom options
+  const { 
+    data: positions, 
+    isLoading, 
+    isError, 
+    error, 
+    refetch, 
+    closePosition, 
+    isClosing 
+  } = usePositions();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [sortState, setSortState] = useState<SortState>({ 
     column: "market_value", 
     direction: "desc" 
   });
-  const [closingPosition, setClosingPosition] = useState<string | null>(null);
+  const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
   
-  if (isLoading) return <div>Loading positions data...</div>;
-  if (isError) return error.fallback;
-  if (!positions) return <div>No positions data available</div>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="border rounded-md p-4">
+          <Skeleton className="h-8 w-full mb-4" />
+          {Array(count).fill(0).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full mb-2" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  if (isError) {
+    return (
+      <div className="rounded-md bg-destructive/10 p-4 flex items-start">
+        <AlertCircle className="h-5 w-5 text-destructive mr-2 mt-0.5" />
+        <div>
+          <h3 className="font-medium text-destructive">Error loading positions</h3>
+          <p className="text-sm text-destructive/80">
+            {error instanceof Error ? error.message : "An unknown error occurred. Please try again."}
+          </p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => refetch()} 
+            className="mt-2"
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!positions || positions.length === 0) {
+    return (
+      <div className="border rounded-md p-8 text-center">
+        <h3 className="font-medium text-lg mb-2">No positions found</h3>
+        <p className="text-muted-foreground mb-4">You don't have any open positions in your portfolio.</p>
+        <Button onClick={() => refetch()} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+    );
+  }
 
   // Filter positions based on search query
   const filteredPositions = positions.filter(p => 
@@ -111,48 +170,22 @@ export function PositionTable({ count }: { count: number }) {
   };
   
   // Function to close a position
-  const handleClosePosition = async (symbol: string) => {
-    try {
-      setClosingPosition(symbol);
-      
-      // Find position to get side information
-      const position = positions.find(p => p.symbol === symbol);
-      if (!position) {
-        throw new Error(`Position for ${symbol} not found`);
-      }
-      
-      // Determine if long or short position
-      const positionSide = position.side === 'long' ? 'long' : 'short';
-      
-      // Make API call to close position
-      const response = await fetch(`/api/alpaca/positions/${symbol}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || `Failed to close ${symbol} position`);
-      }
-      
-      // Show success message
-      toast({
-        title: "Position Closed",
-        description: `Successfully closed ${symbol} position with market order`,
-      });
-      
-      // Refresh positions data
-      mutate();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : `Failed to close ${symbol} position`,
-        variant: "destructive",
-      });
-    } finally {
-      setClosingPosition(null);
-    }
+  const handleClosePosition = (symbol: string) => {
+    setClosingPositionSymbol(symbol);
+    
+    closePosition(symbol);
+    
+    // Show immediate feedback
+    toast({
+      title: "Closing Position",
+      description: `Closing ${symbol} position...`,
+    });
+    
+    // Clear the closing state after a timeout (this should be handled by the mutation in a real app)
+    setTimeout(() => {
+      setClosingPositionSymbol(null);
+    }, 2000);
   };
-  
   
   // Create a sortable header
   const SortableHeader = ({ column, label }: { column: string, label: string }) => (
@@ -166,6 +199,12 @@ export function PositionTable({ count }: { count: number }) {
       <ArrowUpDown className={`ml-1 h-3 w-3 ${sortState.column === column ? 'opacity-100' : 'opacity-30'}`} />
     </Button>
   );
+
+  // Calculate portfolio summary
+  const totalMarketValue = positions.reduce((sum, p) => sum + parseFloat(p.market_value), 0);
+  const totalCostBasis = positions.reduce((sum, p) => sum + (parseFloat(p.avg_entry_price) * parseFloat(p.qty)), 0);
+  const totalPL = positions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
+  const totalPLPercent = (totalPL / totalCostBasis) * 100;
 
   const tableDef: ColDef<Position>[] = [
     {
@@ -252,10 +291,10 @@ export function PositionTable({ count }: { count: number }) {
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => handleClosePosition(p.symbol)}
-                    disabled={closingPosition === p.symbol}
+                    disabled={closingPositionSymbol === p.symbol || isClosing}
                     className="bg-red-500 hover:bg-red-600"
                   >
-                    {closingPosition === p.symbol ? (
+                    {closingPositionSymbol === p.symbol ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Closing...
@@ -273,12 +312,6 @@ export function PositionTable({ count }: { count: number }) {
     }
   ];
   
-  // Calculate portfolio summary
-  const totalMarketValue = positions.reduce((sum, p) => sum + parseFloat(p.market_value), 0);
-  const totalCostBasis = positions.reduce((sum, p) => sum + (parseFloat(p.avg_entry_price) * parseFloat(p.qty)), 0);
-  const totalPL = positions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
-  const totalPLPercent = (totalPL / totalCostBasis) * 100;
-  
   return (
     <>
       <div className="flex justify-between items-center mb-4">
@@ -288,14 +321,20 @@ export function PositionTable({ count }: { count: number }) {
             {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})
           </span></span>
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search symbol..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search symbol..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
       

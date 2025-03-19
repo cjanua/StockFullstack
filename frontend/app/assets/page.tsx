@@ -1,10 +1,10 @@
 "use client"
 import { SymbolOverviewNoSSR } from "@/components/plotting/SymbolOverview";
 import { useWatchlists } from "@/hooks/alpaca/useWatchlists";
-import { Asset, Watchlist } from "@alpacahq/typescript-sdk";
 import { useEffect, useState } from "react";
 import { useSearchParam } from "react-use"
 import "./styles.css";
+import { Asset, Watchlist } from "@/types/alpaca";
 
 export default function Home() {
   const watchlist = useSearchParam("watchlist");

@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CreateOrderOptions } from "@alpacahq/typescript-sdk";
+import { CreateOrderOptions } from "@/types/alpaca";
 
 const formSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),

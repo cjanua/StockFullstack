@@ -1,4 +1,4 @@
-import { Client, createClient, CreateClientOptions } from '@alpacahq/typescript-sdk';
+import { Client, createClient, CreateClientOptions } from '@/types/alpaca';
 import { updateAlpacaCredentials, User } from '../db/sqlite';
 import { env } from 'process';
 
