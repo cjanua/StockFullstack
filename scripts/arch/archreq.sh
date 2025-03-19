@@ -52,7 +52,7 @@ cd frontend
 bun install
 cd ..
 
-chmod +x ./backend/alpaca/apca.py
+# chmod +x ./backend/alpaca/apca.py
 chmod +x ./run.sh
 
 has_systemd=$(ps -p 1 | grep -c systemd)

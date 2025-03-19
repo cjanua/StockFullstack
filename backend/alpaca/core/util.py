@@ -2,11 +2,10 @@
 
 import logging
 from logging import Logger as L
-from backend.alpaca.cli.commands import CommandContext
-from tabulate import tabulate
 import json
 import csv
 from io import StringIO
+from tabulate import tabulate
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -18,16 +17,20 @@ class Logger(L):
 
 logger = Logger(__name__)
 
-def format_output(data: dict, ctx: CommandContext) -> str:
+# Removed CommandContext dependency - define format_output with a generic parameter
+def format_output(data: dict, ctx=None) -> str:
     """Format the output according to the specified format"""
-    if ctx.format == 'json':
-        return json.dumps(data, indent=2) if ctx.pretty else json.dumps(data)
-    elif ctx.format == 'csv':
+    format_type = getattr(ctx, 'format', 'json') if ctx else 'json'
+    pretty = getattr(ctx, 'pretty', False) if ctx else False
+    
+    if format_type == 'json':
+        return json.dumps(data, indent=2) if pretty else json.dumps(data)
+    elif format_type == 'csv':
         output = StringIO()
         writer = csv.DictWriter(output, fieldnames=data.keys() if isinstance(data, dict) else data[0].keys())
         writer.writeheader()
         writer.writerow(data) if isinstance(data, dict) else writer.writerows(data)
         return output.getvalue()
-    elif ctx.format == 'table':
+    elif format_type == 'table':
         return tabulate([(k, v) for k, v in data.items()], headers=['Field', 'Value']) if isinstance(data, dict) else tabulate(data, headers='keys')
     return str(data)

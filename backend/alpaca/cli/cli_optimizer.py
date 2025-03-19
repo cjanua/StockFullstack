@@ -7,7 +7,6 @@ import pandas as pd
 import json
 from tabulate import tabulate
 from result import Ok
-from backend.alpaca.sdk.loaders import get_account, get_positions
 
 @click.group()
 def cli():
@@ -48,7 +47,7 @@ def optimize(lookback, min_change, cash_reserve):
 
 def calculate_recommendations(lookback, min_change, cash_reserve):
     """Calculate portfolio recommendations directly (for CLI fallback)"""
-    # This is a simplified version - in production, import the shared logic from portfolio_service.py
+    from backend.alpaca.sdk.loaders import get_account, get_positions
     from backend.alpaca.services.portfolio_service import get_optimal_portfolio
     import asyncio
     

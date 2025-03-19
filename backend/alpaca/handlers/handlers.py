@@ -3,11 +3,6 @@
 from typing import Dict, Any, Callable
 from backend.alpaca.cli.commands import CommandContext, CommandRegistry
 from result import is_ok
-from backend.alpaca.sdk.loaders import (
-    get_account, query_asset, get_positions, get_assets, 
-    get_portfolio_history, get_watchlists
-)
-import argparse
 registry = CommandRegistry()
 
 def handle_response(func: Callable[[], Any]) -> Dict[str, Any]:
@@ -24,21 +19,25 @@ def handle_response(func: Callable[[], Any]) -> Dict[str, Any]:
 @registry.register('trading', 'account')
 def get_trading_account(*args) -> Dict[str, Any]:
     """Get account information"""
+    from backend.alpaca.sdk.loaders import get_account  # Import inside function
     return handle_response(get_account)
 
 @registry.register('trading', 'account', 'positions')
 def get_trading_positions(*args) -> Dict[str, Any]:
     """Get positions information"""
+    from backend.alpaca.sdk.loaders import get_positions  # Import inside function
     return handle_response(get_positions)
 
 @registry.register('trading', 'assets')
 def get_trading_assets(*args) -> Dict[str, Any]:
     """Get list of assets"""
+    from backend.alpaca.sdk.loaders import get_assets  # Import inside function
     return handle_response(get_assets)
 
 @registry.register('trading', 'account', 'history')
-def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
+def get_account_history(args: CommandContext, ctx) -> Dict[str, Any]:
     """Get account history"""
+    from backend.alpaca.sdk.loaders import get_portfolio_history  # Import inside function
     days = args.days or 7
     timeframe = args.timeframe or '1D'
     if timeframe.endswith('Min'):
@@ -60,11 +59,13 @@ def get_account_history(args: argparse.Namespace, ctx: CommandContext) -> Dict[s
 @registry.register('trading', 'account', 'watchlists')
 def get_account_watchlists(*args) -> Dict[str, Any]:
     """Get account watchlists"""
+    from backend.alpaca.sdk.loaders import get_watchlists  # Import inside function
     return handle_response(get_watchlists)
 
 @registry.register('trading', 'assets', 'search')
-def search_assets(args: argparse.Namespace, ctx: CommandContext) -> Dict[str, Any]:
+def search_assets(args, ctx) -> Dict[str, Any]:
     """Search assets"""
+    from backend.alpaca.sdk.loaders import query_asset  # Import inside function
     query = args.query
     if not query:
         return {
