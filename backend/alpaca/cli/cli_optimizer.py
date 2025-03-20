@@ -45,7 +45,7 @@ def optimize(lookback, min_change, cash_reserve):
 def calculate_recommendations(lookback, min_change, cash_reserve):
     """Calculate portfolio recommendations directly (for CLI fallback)"""
     from backend.alpaca.sdk.loaders import get_account, get_positions
-    from backend.alpaca.services.portfolio_service import get_optimal_portfolio
+    from backend.alpaca.api.portfolio_service import get_optimal_portfolio
     import asyncio
     
     # Get account and positions

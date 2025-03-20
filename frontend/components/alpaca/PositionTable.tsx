@@ -1,11 +1,13 @@
 // frontend/components/alpaca/PositionTable.tsx
 import { useState } from "react";
 import { usePositions } from "@/hooks/queries/useAlpacaQueries";
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
 import { Position } from "@/types/alpaca";
-import { fmtCurrency, fmtPercent } from "@/lib/utils";
+import { fmtCurrency, fmtPercent, fmtCurrencyPrecise, fmtShares } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, ArrowUpDown, Loader2, RefreshCw, Search } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Loader2, RefreshCw, Search, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,12 +30,29 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 type SortDirection = "asc" | "desc";
 
 interface SortState {
   column: string;
   direction: SortDirection;
+}
+
+interface PortfolioRecommendation {
+  symbol: string;
+  current_shares: number;
+  target_shares: number;
+  difference: number;
+  action: 'Buy' | 'Sell';
+  quantity: number;
+}
+
+interface RecommendationResponse {
+  portfolio_value: number;
+  cash: number;
+  target_cash: number;
+  recommendations: PortfolioRecommendation[];
 }
 
 export function PositionTable({ count }: { count: number }) {
@@ -47,6 +66,27 @@ export function PositionTable({ count }: { count: number }) {
     closePosition, 
     isClosing 
   } = usePositions();
+
+  // Fetch recommendations data
+  const { 
+    data: recommendationsData, 
+    isLoading: isLoadingRecs, 
+    refetch: refetchRecs 
+  } = useQuery<RecommendationResponse>({
+    queryKey: ['portfolioRecommendations'],
+    queryFn: async () => {
+      const response = await axios.get('/api/alpaca/portfolio/recommendations', {
+        params: {
+          lookback_days: 365,
+          min_change_percent: 0.01,
+          cash_reserve_percent: 0.05
+        }
+      });
+      return response.data;
+    },
+    enabled: true,
+    refetchOnWindowFocus: false,
+  });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sortState, setSortState] = useState<SortState>({ 
@@ -107,6 +147,12 @@ export function PositionTable({ count }: { count: number }) {
     );
   }
 
+  // Create a map of recommendations by symbol for quick lookup
+  const recommendationsMap = new Map<string, PortfolioRecommendation>();
+  recommendationsData?.recommendations.forEach(rec => {
+    recommendationsMap.set(rec.symbol, rec);
+  });
+
   // Filter positions based on search query
   const filteredPositions = positions.filter(p => 
     p.symbol.toLowerCase().includes(searchQuery.toLowerCase())
@@ -147,6 +193,36 @@ export function PositionTable({ count }: { count: number }) {
         valueA = parseFloat(a.unrealized_pl);
         valueB = parseFloat(b.unrealized_pl);
         break;
+      case "recommendation":
+        const recA = recommendationsMap.get(a.symbol);
+        const recB = recommendationsMap.get(b.symbol);
+        
+        // Get correct per-share price
+        const priceA = a.current_price 
+          ? parseFloat(a.current_price) 
+          : (parseFloat(a.market_value) / parseFloat(a.qty));
+        const priceB = b.current_price 
+          ? parseFloat(b.current_price) 
+          : (parseFloat(b.market_value) / parseFloat(b.qty));
+        
+        // Calculate the absolute monetary values
+        const moneyValueA = recA ? Math.abs(recA.quantity * priceA) : 0;
+        const moneyValueB = recB ? Math.abs(recB.quantity * priceB) : 0;
+        
+        // Store the action type (Buy=1, Sell=-1, None=0) for secondary sorting
+        const actionTypeA = recA ? (recA.action === 'Buy' ? 1 : -1) : 0;
+        const actionTypeB = recB ? (recB.action === 'Buy' ? 1 : -1) : 0;
+        
+        // First compare by absolute monetary value
+        if (Math.abs(moneyValueA - moneyValueB) > 0.0001) {
+          valueA = moneyValueA;
+          valueB = moneyValueB;
+        } else {
+          // If monetary values are approximately equal, sort by action type (Buy first, then Sell)
+          valueA = actionTypeA;
+          valueB = actionTypeB;
+        }
+        break;
       default:
         valueA = 0;
         valueB = 0;
@@ -185,6 +261,16 @@ export function PositionTable({ count }: { count: number }) {
     setTimeout(() => {
       setClosingPositionSymbol(null);
     }, 2000);
+  };
+
+  // Function to execute recommended action
+  const executeRecommendedAction = (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
+    toast({
+      title: `${action} Order Placed`,
+      description: `${action === 'Buy' ? 'Buying' : 'Selling'} ${fmtShares(quantity)} shares of ${symbol}...`,
+    });
+    
+    // This would typically call an API endpoint to execute the trade
   };
   
   // Create a sortable header
@@ -253,62 +339,184 @@ export function PositionTable({ count }: { count: number }) {
       className: (p: Position) => parseFloat(p.unrealized_pl) > 0 ? "text-green-400" : "text-red-400"
     },
     {
+      label: <SortableHeader column="recommendation" label="Recommended Action" />,
+      value: (p: Position) => {
+        const rec = recommendationsMap.get(p.symbol);
+        if (!rec) return "—";
+        
+        // Calculate accurate per-share price
+        const currentPrice = p.current_price 
+          ? parseFloat(p.current_price) 
+          : parseFloat(p.market_value) / parseFloat(p.qty);
+          
+        // Calculate monetary value of recommendation
+        const moneyValue = rec.quantity * currentPrice;
+        
+        return `${rec.action} ${fmtShares(rec.quantity)} (${fmtCurrency(moneyValue)})`;
+      },
+      align: "right",
+      render: (p: Position) => {
+        const rec = recommendationsMap.get(p.symbol);
+        if (!rec) return <span className="text-muted-foreground">—</span>;
+        
+        // Calculate accurate per-share price
+        const currentPrice = p.current_price 
+          ? parseFloat(p.current_price) 
+          : parseFloat(p.market_value) / parseFloat(p.qty);
+          
+        // Calculate monetary value of recommendation
+        const moneyValue = rec.quantity * currentPrice;
+        
+        return (
+          <Badge 
+            variant={rec.action === 'Buy' ? "outline" : "secondary"} 
+            className={`
+              ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
+              ml-auto inline-flex
+            `}
+          >
+            <div className="flex flex-col items-end">
+              <span>{rec.action} {fmtShares(rec.quantity)}</span>
+              <span className="text-xs">{fmtCurrency(moneyValue)}</span>
+            </div>
+          </Badge>
+        );
+      }
+    },
+    {
       label: "Actions",
       value: (_p: Position) => "",
       align: "right",
-      render: (p: Position) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <span className="text-sm">...</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.open(`https://finance.yahoo.com/quote/${p.symbol}`, '_blank')}>
-              View Details
-            </DropdownMenuItem>
-            <DropdownMenuItem>Add Note</DropdownMenuItem>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem 
-                  className="text-red-500" 
-                  onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
-                >
-                  Close Position
-                </DropdownMenuItem>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Close {p.symbol} Position</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will create a market order to {p.side === 'long' ? 'sell' : 'buy'} your entire position of {p.qty} shares.
-                    Are you sure you want to proceed?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => handleClosePosition(p.symbol)}
-                    disabled={closingPositionSymbol === p.symbol || isClosing}
-                    className="bg-red-500 hover:bg-red-600"
+      render: (p: Position) => {
+        const rec = recommendationsMap.get(p.symbol);
+        
+        // Calculate accurate per-share price
+        const currentPrice = p.current_price 
+          ? parseFloat(p.current_price) 
+          : parseFloat(p.market_value) / parseFloat(p.qty);
+          
+        // Calculate monetary value of recommendation
+        const estimatedValue = rec ? rec.quantity * currentPrice : 0;
+    
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <span className="text-sm">...</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => window.open(`https://finance.yahoo.com/quote/${p.symbol}`, '_blank')}>
+                View Details
+              </DropdownMenuItem>
+              {rec && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem 
+                      className={rec.action === 'Buy' ? "text-green-500" : "text-red-500"}
+                      onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
+                    >
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      {rec.action} {fmtShares(rec.quantity)} Shares
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
+                        of {p.symbol}.
+                      </AlertDialogDescription>
+                      
+                      <div className="mt-4 p-3 bg-muted rounded-md">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>Symbol:</div>
+                          <div className="font-medium text-right">{p.symbol}</div>
+                          
+                          <div>Current Price:</div>
+                          <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
+                          
+                          <div>Quantity:</div>
+                          <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
+                          
+                          <div className="font-medium">Estimated Value:</div>
+                          <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
+                            {fmtCurrency(estimatedValue)}
+                          </div>
+                        </div>
+                      </div>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => executeRecommendedAction(p.symbol, rec.action, rec.quantity)}
+                        className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
+                      >
+                        {rec.action} Shares
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem 
+                    className="text-red-500" 
+                    onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
                   >
-                    {closingPositionSymbol === p.symbol ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Closing...
-                      </>
-                    ) : (
-                      'Close Position'
-                    )}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
+                    Close Position
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Close {p.symbol} Position</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will create a market order to {p.side === 'long' ? 'sell' : 'buy'} your entire position of {fmtShares(p.qty)} shares.
+                    </AlertDialogDescription>
+                    
+                    <div className="mt-4 p-3 bg-muted rounded-md">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>Symbol:</div>
+                        <div className="font-medium text-right">{p.symbol}</div>
+                        
+                        <div>Current Price:</div>
+                        <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
+                        
+                        <div>Quantity:</div>
+                        <div className="font-medium text-right">{fmtShares(p.qty)} shares</div>
+                        
+                        <div className="font-medium">Market Value:</div>
+                        <div className="font-medium text-right text-red-500">
+                          {fmtCurrency(parseFloat(p.market_value))}
+                        </div>
+                      </div>
+                    </div>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleClosePosition(p.symbol)}
+                      disabled={closingPositionSymbol === p.symbol || isClosing}
+                      className="bg-red-500 hover:bg-red-600"
+                    >
+                      {closingPositionSymbol === p.symbol ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Closing...
+                        </>
+                      ) : (
+                        'Close Position'
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      }
     }
   ];
   
@@ -320,6 +528,9 @@ export function PositionTable({ count }: { count: number }) {
           <span className="mr-4">P/L: <span className={`font-medium ${totalPL > 0 ? 'text-green-400' : 'text-red-400'}`}>
             {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})
           </span></span>
+          {recommendationsData && (
+            <span className="mr-4">Cash: <span className="font-medium">{fmtCurrency(recommendationsData.cash)}</span></span>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="relative w-64">
@@ -331,7 +542,14 @@ export function PositionTable({ count }: { count: number }) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              refetch();
+              refetchRecs();
+            }}
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>

@@ -14,5 +14,5 @@ export PYTHONPATH=/app
 pip install --no-cache-dir -r req.txt
 
 # Start the Uvicorn server with the correct module path
-exec python -m uvicorn backend.alpaca.services.portfolio_service:app --host 0.0.0.0 --port 8001 --reload
+exec python -m uvicorn backend.alpaca.api.portfolio_service:app --host 0.0.0.0 --port 8001 --reload
 

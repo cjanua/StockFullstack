@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
+import { fmtShares, fmtCurrency } from '@/lib/utils'; // Import the formatting functions
 import {
   Card,
   CardContent,
@@ -116,15 +117,15 @@ export function PortfolioRecommendations() {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Portfolio Value</div>
-                <div className="text-xl font-bold mt-1">${data?.portfolio_value.toFixed(2)}</div>
+                <div className="text-xl font-bold mt-1">{fmtCurrency(data?.portfolio_value || 0)}</div>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Current Cash</div>
-                <div className="text-xl font-bold mt-1">${data?.cash.toFixed(2)}</div>
+                <div className="text-xl font-bold mt-1">{fmtCurrency(data?.cash || 0)}</div>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <div className="text-sm text-muted-foreground">Target Cash</div>
-                <div className="text-xl font-bold mt-1">${data?.target_cash.toFixed(2)}</div>
+                <div className="text-xl font-bold mt-1">{fmtCurrency(data?.target_cash || 0)}</div>
               </div>
             </div>
             
@@ -163,10 +164,10 @@ export function PortfolioRecommendations() {
                       {buyRecommendations.map((rec) => (
                         <TableRow key={rec.symbol}>
                           <TableCell className="font-medium">{rec.symbol}</TableCell>
-                          <TableCell>{rec.current_shares.toFixed(2)}</TableCell>
-                          <TableCell>{rec.target_shares.toFixed(2)}</TableCell>
+                          <TableCell>{fmtShares(rec.current_shares)}</TableCell>
+                          <TableCell>{fmtShares(rec.target_shares)}</TableCell>
                           <TableCell className="text-right font-bold text-green-600">
-                            {rec.quantity.toFixed(2)}
+                            {fmtShares(rec.quantity)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -194,10 +195,10 @@ export function PortfolioRecommendations() {
                       {sellRecommendations.map((rec) => (
                         <TableRow key={rec.symbol}>
                           <TableCell className="font-medium">{rec.symbol}</TableCell>
-                          <TableCell>{rec.current_shares.toFixed(2)}</TableCell>
-                          <TableCell>{rec.target_shares.toFixed(2)}</TableCell>
+                          <TableCell>{fmtShares(rec.current_shares)}</TableCell>
+                          <TableCell>{fmtShares(rec.target_shares)}</TableCell>
                           <TableCell className="text-right font-bold text-red-600">
-                            {rec.quantity.toFixed(2)}
+                            {fmtShares(rec.quantity)}
                           </TableCell>
                         </TableRow>
                       ))}

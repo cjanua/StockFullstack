@@ -1,6 +1,6 @@
 from typing import Dict, List, Union
 
-from backend.alpaca.serializers.Asset import serialize_asset
+from .Asset import serialize_asset
 
 
 def serialize_watchlist(watchlist) -> Dict[str, Union[str, List[Dict]]]:

@@ -1,7 +1,7 @@
 // frontend/hooks/queries/useAlpacaQueries.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import * as alpacaApi from '@/lib/api/alpaca';
-import * as authApi from '@/lib/api/auth';
+import { alpaca } from '@/lib/api';
+import { auth } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 // Query key factory for better organization and type safety
@@ -12,7 +12,7 @@ export const queryKeys = {
     ['portfolioHistory', days.toString(), timeframe] as const,
   watchlists: ['watchlists'] as const,
   orders: (status?: string) => ['orders', status ?? 'all'] as const,
-  recommendations: (params: alpacaApi.PortfolioRecommendationsParams) => 
+  recommendations: (params: alpaca.PortfolioRecommendationsParams) => 
     ['portfolioRecommendations', JSON.stringify(params)] as const,
   user: ['user'] as const,
 };
@@ -33,7 +33,7 @@ const defaultErrorHandler = (error: unknown) => {
 export function useAccount() {
   return useQuery({
     queryKey: queryKeys.account,
-    queryFn: () => alpacaApi.getAccount(),
+    queryFn: () => alpaca.getAccount(),
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -44,12 +44,12 @@ export function usePositions() {
   
   const query = useQuery({
     queryKey: queryKeys.positions,
-    queryFn: () => alpacaApi.getPositions(),
+    queryFn: () => alpaca.getPositions(),
     staleTime: 30 * 1000, // 30 seconds
   });
   
   const closePositionMutation = useMutation({
-    mutationFn: (symbol: string) => alpacaApi.closePosition(symbol),
+    mutationFn: (symbol: string) => alpaca.closePosition(symbol),
     onSuccess: () => {
       // Invalidate positions query to refetch after closing a position
       queryClient.invalidateQueries({ queryKey: queryKeys.positions });
@@ -74,7 +74,7 @@ export function usePositions() {
 export function usePortfolioHistory(days: number, timeframe: string) {
   return useQuery({
     queryKey: queryKeys.portfolioHistory(days, timeframe),
-    queryFn: () => alpacaApi.getPortfolioHistory(days, timeframe),
+    queryFn: () => alpaca.getPortfolioHistory(days, timeframe),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -83,7 +83,7 @@ export function usePortfolioHistory(days: number, timeframe: string) {
 export function useWatchlists() {
   return useQuery({
     queryKey: queryKeys.watchlists,
-    queryFn: () => alpacaApi.getWatchlists(),
+    queryFn: () => alpaca.getWatchlists(),
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 }
@@ -94,12 +94,12 @@ export function useOrders(status?: string) {
   
   const query = useQuery({
     queryKey: queryKeys.orders(status),
-    queryFn: () => alpacaApi.getOrders({ status }),
+    queryFn: () => alpaca.getOrders({ status }),
     staleTime: 30 * 1000, // 30 seconds
   });
   
   const createOrderMutation = useMutation({
-    mutationFn: alpacaApi.createOrder,
+    mutationFn: alpaca.createOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
       toast({
@@ -113,7 +113,7 @@ export function useOrders(status?: string) {
   });
   
   const cancelOrderMutation = useMutation({
-    mutationFn: alpacaApi.cancelOrder,
+    mutationFn: alpaca.cancelOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
       toast({
@@ -127,7 +127,7 @@ export function useOrders(status?: string) {
   });
   
   const cancelAllOrdersMutation = useMutation({
-    mutationFn: alpacaApi.cancelAllOrders,
+    mutationFn: alpaca.cancelAllOrders,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
       toast({
@@ -152,10 +152,10 @@ export function useOrders(status?: string) {
 }
 
 // Portfolio recommendations hooks
-export function usePortfolioRecommendations(params: alpacaApi.PortfolioRecommendationsParams = {}) {
+export function usePortfolioRecommendations(params: alpaca.PortfolioRecommendationsParams = {}) {
   return useQuery({
     queryKey: queryKeys.recommendations(params),
-    queryFn: () => alpacaApi.getPortfolioRecommendations(params),
+    queryFn: () => alpaca.getPortfolioRecommendations(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -164,7 +164,7 @@ export function usePortfolioRecommendations(params: alpacaApi.PortfolioRecommend
 export function useUser() {
   return useQuery({
     queryKey: queryKeys.user,
-    queryFn: () => authApi.getCurrentUser(),
+    queryFn: () => auth.getCurrentUser(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry if unauthorized
   });
@@ -175,7 +175,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
   
   const loginMutation = useMutation({
-    mutationFn: authApi.login,
+    mutationFn: auth.login,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.user });
       toast({
@@ -189,7 +189,7 @@ export function useAuth() {
   });
   
   const registerMutation = useMutation({
-    mutationFn: authApi.register,
+    mutationFn: auth.register,
     onSuccess: () => {
       toast({
         title: 'Registration Successful',
@@ -202,7 +202,7 @@ export function useAuth() {
   });
   
   const logoutMutation = useMutation({
-    mutationFn: authApi.logout,
+    mutationFn: auth.logout,
     onSuccess: () => {
       // Clear all queries on logout
       queryClient.clear();
@@ -217,7 +217,7 @@ export function useAuth() {
   });
   
   const connectAlpacaMutation = useMutation({
-    mutationFn: authApi.connectAlpaca,
+    mutationFn: auth.connectAlpaca,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.user });
       toast({
