@@ -17,14 +17,14 @@ from .serializers import (
 )
 
 from backend.alpaca.core.util import logger
-from backend.alpaca.core.config import config
+from backend.alpaca.core.config import AlpacaConfig
 import pandas as pd
 
 import redis
 import json
 import traceback
 
-ALPACA_KEY, ALPACA_SECRET, _ = config.get_credentials()
+ALPACA_KEY, ALPACA_SECRET, _ = AlpacaConfig().get_credentials()
 
 # Initialize Redis client with the host from environment variables
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")

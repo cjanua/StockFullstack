@@ -4,8 +4,8 @@ from alpaca.trading.client import TradingClient
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.common.exceptions import APIError
 
-from backend.alpaca.core.config import AlpacaConfig
-from backend.alpaca.core.util import logger
+from backend.alpaca.core import AlpacaConfig
+from backend.alpaca.core import logger
 
 class AlpacaClientManager:
     """Centralized management of Alpaca API clients"""

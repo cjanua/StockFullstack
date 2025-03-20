@@ -6,7 +6,7 @@ from typing import Dict
 import asyncio
 import logging
 
-from backend.alpaca.core import config
+from backend.alpaca.core import AlpacaConfig
 from backend.alpaca.sdk.loaders import (
     get_account, 
     get_positions, 
@@ -15,7 +15,7 @@ from backend.alpaca.sdk.loaders import (
 )
 from result import Ok, Err
 
-ALPACA_KEY, ALPACA_SECRET, _ = config.get_credentials()
+ALPACA_KEY, ALPACA_SECRET, _ = AlpacaConfig().get_credentials()
 
 app = FastAPI(title="Portfolio Optimization Service")
 
