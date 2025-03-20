@@ -94,6 +94,7 @@ export function PositionTable({ count }: { count: number }) {
     direction: "desc" 
   });
   const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
+  const [executingOrderSymbol, setExecutingOrderSymbol] = useState<string | null>(null);
   
   if (isLoading) {
     return (
@@ -105,7 +106,7 @@ export function PositionTable({ count }: { count: number }) {
         <div className="border rounded-md p-4">
           <Skeleton className="h-8 w-full mb-4" />
           {Array(count).fill(0).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full mb-2" />
+            <Skeleton key={i} className="h-10 w-full mb-2" />
           ))}
         </div>
       </div>
@@ -264,15 +265,51 @@ export function PositionTable({ count }: { count: number }) {
   };
 
   // Function to execute recommended action
-  const executeRecommendedAction = (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
-    toast({
-      title: `${action} Order Placed`,
-      description: `${action === 'Buy' ? 'Buying' : 'Selling'} ${fmtShares(quantity)} shares of ${symbol}...`,
-    });
-    
-    // This would typically call an API endpoint to execute the trade
+  const executeRecommendedAction = async (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
+    try {
+      setExecutingOrderSymbol(symbol);
+      
+      // Show immediate feedback
+      toast({
+        title: `${action} Order Submitted`,
+        description: `${action === 'Buy' ? 'Buying' : 'Selling'} ${fmtShares(quantity)} shares of ${symbol}...`,
+      });
+      
+      // Execute the actual order
+      await axios.post('/api/alpaca/orders', {
+        symbol,
+        qty: quantity,
+        side: action.toLowerCase(),
+        type: 'market',
+        time_in_force: 'day'
+      });
+      
+      // Success feedback
+      toast({
+        title: "Order Placed Successfully",
+        description: `Your ${action.toLowerCase()} order for ${fmtShares(quantity)} shares of ${symbol} has been submitted.`,
+        variant: "default",
+      });
+      
+      // Refresh data after the order
+      setTimeout(() => {
+        refetch();
+        refetchRecs();
+      }, 1000);
+      
+    } catch (err) {
+      // Error handling
+      console.error("Order execution error:", err);
+      toast({
+        title: "Order Execution Failed",
+        description: err instanceof Error ? err.message : "Failed to place order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExecutingOrderSymbol(null);
+    }
   };
-  
+
   // Create a sortable header
   const SortableHeader = ({ column, label }: { column: string, label: string }) => (
     <Button
@@ -366,20 +403,69 @@ export function PositionTable({ count }: { count: number }) {
           
         // Calculate monetary value of recommendation
         const moneyValue = rec.quantity * currentPrice;
+        const estimatedValue = rec.quantity * currentPrice;
         
         return (
-          <Badge 
-            variant={rec.action === 'Buy' ? "outline" : "secondary"} 
-            className={`
-              ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
-              ml-auto inline-flex
-            `}
-          >
-            <div className="flex flex-col items-end">
-              <span>{rec.action} {fmtShares(rec.quantity)}</span>
-              <span className="text-xs">{fmtCurrency(moneyValue)}</span>
-            </div>
-          </Badge>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Badge 
+                variant={rec.action === 'Buy' ? "outline" : "secondary"} 
+                className={`
+                  ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
+                  ml-auto inline-flex w-24 justify-end cursor-pointer hover:opacity-80
+                `}
+              >
+                <div className="flex flex-col items-end group">
+                  <span className="group-hover:hidden">{fmtCurrency(moneyValue)}</span>
+                  <span className="hidden group-hover:block">{rec.action} {fmtShares(rec.quantity)}</span>
+                </div>
+              </Badge>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
+                  of {p.symbol}.
+                </AlertDialogDescription>
+                
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>Symbol:</div>
+                    <div className="font-medium text-right">{p.symbol}</div>
+                    
+                    <div>Current Price:</div>
+                    <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
+                    
+                    <div>Quantity:</div>
+                    <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
+                    
+                    <div className="font-medium">Estimated Value:</div>
+                    <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtCurrency(estimatedValue)}
+                    </div>
+                  </div>
+                </div>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => executeRecommendedAction(p.symbol, rec.action, rec.quantity)}
+                  disabled={executingOrderSymbol === p.symbol}
+                  className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
+                >
+                  {executingOrderSymbol === p.symbol ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    `${rec.action} Shares`
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         );
       }
     },
@@ -394,9 +480,6 @@ export function PositionTable({ count }: { count: number }) {
         const currentPrice = p.current_price 
           ? parseFloat(p.current_price) 
           : parseFloat(p.market_value) / parseFloat(p.qty);
-          
-        // Calculate monetary value of recommendation
-        const estimatedValue = rec ? rec.quantity * currentPrice : 0;
     
         return (
           <DropdownMenu>
@@ -411,55 +494,7 @@ export function PositionTable({ count }: { count: number }) {
               <DropdownMenuItem onClick={() => window.open(`https://finance.yahoo.com/quote/${p.symbol}`, '_blank')}>
                 View Details
               </DropdownMenuItem>
-              {rec && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem 
-                      className={rec.action === 'Buy' ? "text-green-500" : "text-red-500"}
-                      onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
-                    >
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      {rec.action} {fmtShares(rec.quantity)} Shares
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
-                        of {p.symbol}.
-                      </AlertDialogDescription>
-                      
-                      <div className="mt-4 p-3 bg-muted rounded-md">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Symbol:</div>
-                          <div className="font-medium text-right">{p.symbol}</div>
-                          
-                          <div>Current Price:</div>
-                          <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
-                          
-                          <div>Quantity:</div>
-                          <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
-                          
-                          <div className="font-medium">Estimated Value:</div>
-                          <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
-                            {fmtCurrency(estimatedValue)}
-                          </div>
-                        </div>
-                      </div>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => executeRecommendedAction(p.symbol, rec.action, rec.quantity)}
-                        className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
-                      >
-                        {rec.action} Shares
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
+              {/* Removed the Recommended Action menu item as it's now accessible via the badge */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem 

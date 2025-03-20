@@ -12,12 +12,10 @@ export default function PositionsPage() {
           <h1 className="text-3xl font-bold">Open Positions</h1>
           <OrderForm />
         </div>
-        
-        <div className="mb-8">
+        <PositionTable count={15} />
+        <div className="mb-8 pt-4">
           <PortfolioRecommendations />
         </div>
-        
-        <PositionTable count={15} />
       </div>
     </div>
   );
