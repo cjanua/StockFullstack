@@ -353,7 +353,12 @@ export function PositionTable({ count }: { count: number }) {
       label: <SortableHeader column="change_today" label="% TDY" />,
       value: (p: Position) => `${fmtPercent(parseFloat(p.change_today))}`,
       align: "right",
-      className: (p: Position) => parseFloat(p.change_today) > 0 ? "text-green-400" : "text-red-400"
+      className: (p: Position) => {
+        const value = parseFloat(p.change_today);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
     },
     {
       label: <SortableHeader column="unrealized_intraday_pl" label="TDY $ PL" />,
@@ -361,19 +366,34 @@ export function PositionTable({ count }: { count: number }) {
         parseFloat(p.unrealized_intraday_pl),
       ),
       align: "right",
-      className: (p: Position) => parseFloat(p.unrealized_intraday_pl) > 0 ? "text-green-400" : "text-red-400"
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_intraday_pl);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
     },
     {
       label: <SortableHeader column="unrealized_plpc" label="Net PL %" />,
       value: (p: Position) => fmtPercent(parseFloat(p.unrealized_plpc)),
       align: "right",
-      className: (p: Position) => parseFloat(p.unrealized_plpc) > 0 ? "text-green-400" : "text-red-400"
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_plpc);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
     },
     {
       label: <SortableHeader column="unrealized_pl" label="Net PL $" />,
       value: (p: Position) => fmtCurrency(parseFloat(p.unrealized_pl)),
       align: "right",
-      className: (p: Position) => parseFloat(p.unrealized_pl) > 0 ? "text-green-400" : "text-red-400"
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_pl);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
     },
     {
       label: <SortableHeader column="recommendation" label="Recommended Action" />,
@@ -560,7 +580,11 @@ export function PositionTable({ count }: { count: number }) {
       <div className="flex justify-between items-center mb-4">
         <div className="text-sm">
           <span className="mr-4">Total Value: <span className="font-medium">{fmtCurrency(totalMarketValue)}</span></span>
-          <span className="mr-4">P/L: <span className={`font-medium ${totalPL > 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className="mr-4">P/L: <span className={`font-medium ${
+            totalPL > 0 ? 'text-green-400' : 
+            totalPL < 0 ? 'text-red-400' : 
+            'text-gray-400'
+          }`}>
             {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})
           </span></span>
           {recommendationsData && (
