@@ -11,10 +11,11 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
 from result import Ok, Result, Err
-from serializers import (
+from .serializers import (
     serialize_account, serialize_asset, serialize_position, 
     serialize_portfolio_history, serialize_watchlist
 )
+
 from backend.alpaca.core.util import logger
 from backend.alpaca.core.config import config
 import pandas as pd
