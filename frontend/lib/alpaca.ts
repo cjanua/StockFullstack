@@ -6,6 +6,7 @@ import {
   Account, Watchlist, PortfolioHistory,
   Order, Position
 } from "@/types/alpaca";
+import { Clock } from "@alpacahq/typescript-sdk";
 
 import { env } from "process";
 
@@ -234,3 +235,12 @@ export async function getAlpacaLatestQuote(symbol: string): Promise<any> {
     throw error;
   }
 }
+
+// Add a new function to get the market clock
+export async function getAlpacaClock(): Promise<Clock> {
+  return client.getClock();
+}
+
+// Export the AlpacaClient class so it can be used in routes
+export { AlpacaClient };
+

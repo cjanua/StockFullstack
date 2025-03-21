@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreateOrderOptions } from "@/types/alpaca";
+import { OrderAction } from '@/types/order';
 
 const formSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
@@ -67,9 +68,16 @@ export function OrderForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     try {
-      // Create a proper order object with Alpaca-compatible field names
-      const orderRequest: CreateOrderOptions = {
+      // Create a shared order action type for consistency
+      const orderAction: OrderAction = {
         symbol: values.symbol.toUpperCase(),
+        action: values.side === 'buy' ? 'Buy' : 'Sell',
+        quantity: parseFloat(values.qty),
+      };
+
+      // Then convert to Alpaca-specific format for API
+      const orderRequest: CreateOrderOptions = {
+        symbol: orderAction.symbol,
         qty: values.qty,
         side: values.side,
         type: values.type,

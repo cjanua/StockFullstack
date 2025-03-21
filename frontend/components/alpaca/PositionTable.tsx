@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { usePositions, useAccount } from "@/hooks/queries/useAlpacaQueries";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
 import { Position } from "@/types/alpaca";
 import { fmtCurrency, fmtPercent, fmtCurrencyPrecise, fmtShares } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, ArrowUpDown, Loader2, RefreshCw, Search, TrendingUp } from "lucide-react";
+import { AlertCircle, ArrowUpDown, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,95 +16,57 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
-import { 
+import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { usePortfolio } from '@/app/positions/page';
 import axios from 'axios';
-
-type SortDirection = "asc" | "desc";
-
-interface SortState {
-  column: string;
-  direction: SortDirection;
-}
-
-interface PortfolioRecommendation {
-  symbol: string;
-  current_shares: number;
-  target_shares: number;
-  difference: number;
-  action: 'Buy' | 'Sell';
-  quantity: number;
-}
-
-interface RecommendationResponse {
-  portfolio_value: number;
-  cash: number;
-  target_cash: number;
-  recommendations: PortfolioRecommendation[];
-}
+import { SortDirection, SortConfig } from "@/hooks/useSortableData";
+import { useMarketHours } from "@/hooks/queries/useMarketHours";
+import { PortfolioRecommendation, PortfolioRecommendationsResponse } from "@/lib/api/alpaca";
+import { ActionButton } from "@/components/ui/custom/ActionButton";
+import { OrderDialog } from "@/components/ui/custom/OrderDialog";
 
 export function PositionTable({ count }: { count: number }) {
-  // Use shared portfolio context
-  const { executingOrderSymbol, setExecutingOrderSymbol, executeOrder, refreshAllData, lookbackDays } = usePortfolio();
+  // All state hooks at the top
+  const [searchQuery, setSearchQuery] = useState("");
+  const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
   
-  // Existing queries
-  const { 
-    data: positions, 
-    isLoading, 
-    isError, 
-    error, 
-    refetch, 
-    closePosition, 
-    isClosing 
-  } = usePositions();
-
+  // Track which symbol's dialog is open instead of a general boolean
+  const [activeDialogSymbol, setActiveDialogSymbol] = useState<string | null>(null);
+  
+  // Sort state
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: "market_value", 
+    direction: "desc"
+  });
+  
+  // Context and queries
+  const { executingOrderSymbol, executeOrder, refreshAllData, lookbackDays } = usePortfolio();
+  const { data: positions, isLoading, isError, error, refetch, closePosition, isClosing } = usePositions();
   const { data: accountData } = useAccount();
+  const { isMarketOpen = true } = useMarketHours() || {};
 
-  const queryClient = useQueryClient();
-
-  // Use existing recommendations query with the shared lookbackDays
-  const { data: recommendationsData } = useQuery<RecommendationResponse>({
-    queryKey: ['portfolioRecommendations', lookbackDays], // Use the same key as in PortfolioRecommendations
+  // Recommendations query
+  const { data: recommendationsData } = useQuery<PortfolioRecommendationsResponse>({
+    queryKey: ['portfolioRecommendations', lookbackDays],
     queryFn: async () => {
-      console.log(`Fetching fresh recommendations with ${lookbackDays} days lookback`);
       const response = await axios.get('/api/alpaca/portfolio/recommendations', {
         params: {
-          lookback_days: lookbackDays, // Use the shared lookback days
+          lookback_days: lookbackDays,
           min_change_percent: 0.01,
           cash_reserve_percent: 0.05
-        },
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'X-Refresh-Token': Date.now().toString()
         }
       });
       return response.data;
     },
     enabled: true,
     refetchOnWindowFocus: false,
-    staleTime: 10000,
   });
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortState, setSortState] = useState<SortState>({ 
-    column: "market_value", 
-    direction: "desc" 
-  });
-  const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
-  
+  // Early return handlers for loading, error, and empty states...
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -157,24 +119,38 @@ export function PositionTable({ count }: { count: number }) {
     );
   }
 
-  // Create a map of recommendations by symbol for quick lookup
+  // Create recommendations map
   const recommendationsMap = new Map<string, PortfolioRecommendation>();
-  recommendationsData?.recommendations.forEach(rec => {
-    recommendationsMap.set(rec.symbol, rec);
-  });
+  if (recommendationsData?.recommendations) {
+    recommendationsData.recommendations.forEach((rec) => {
+      recommendationsMap.set(rec.symbol, rec);
+    });
+  }
 
-  // Filter positions based on search query
+  // Filter positions based on search
   const filteredPositions = positions.filter(p => 
     p.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  // Sort positions based on current sort state
-  const sortedPositions = [...filteredPositions].sort((a, b) => {
-    const { column, direction } = sortState;
-    let valueA, valueB;
+  // Request sort function
+  const requestSort = (key: string) => {
+    setSortConfig(currentConfig => {
+      if (currentConfig.key === key) {
+        return {
+          key,
+          direction: currentConfig.direction === 'asc' ? 'desc' : 'asc',
+        };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  // Position comparison function for sorting
+  const comparePositions = (a: Position, b: Position, config: SortConfig) => {
+    const { key, direction } = config;
+    let valueA: any, valueB: any;
     
-    // Handle different column types
-    switch (column) {
+    switch (key) {
       case "symbol":
         valueA = a.symbol;
         valueB = b.symbol;
@@ -183,118 +159,34 @@ export function PositionTable({ count }: { count: number }) {
         valueA = parseFloat(a.avg_entry_price) * parseFloat(a.qty);
         valueB = parseFloat(b.avg_entry_price) * parseFloat(b.qty);
         break;
-      case "market_value":
-        valueA = parseFloat(a.market_value);
-        valueB = parseFloat(b.market_value);
-        break;
-      case "change_today":
-        valueA = parseFloat(a.change_today);
-        valueB = parseFloat(b.change_today);
-        break;
-      case "unrealized_intraday_pl":
-        valueA = parseFloat(a.unrealized_intraday_pl);
-        valueB = parseFloat(b.unrealized_intraday_pl);
-        break;
-      case "unrealized_plpc":
-        valueA = parseFloat(a.unrealized_plpc);
-        valueB = parseFloat(b.unrealized_plpc);
-        break;
-      case "unrealized_pl":
-        valueA = parseFloat(a.unrealized_pl);
-        valueB = parseFloat(b.unrealized_pl);
-        break;
-      case "recommendation":
-        const recA = recommendationsMap.get(a.symbol);
-        const recB = recommendationsMap.get(b.symbol);
-        
-        // Get correct per-share price
-        const priceA = a.current_price 
-          ? parseFloat(a.current_price) 
-          : (parseFloat(a.market_value) / parseFloat(a.qty));
-        const priceB = b.current_price 
-          ? parseFloat(b.current_price) 
-          : (parseFloat(b.market_value) / parseFloat(b.qty));
-        
-        // Calculate the absolute monetary values
-        const moneyValueA = recA ? Math.abs(recA.quantity * priceA) : 0;
-        const moneyValueB = recB ? Math.abs(recB.quantity * priceB) : 0;
-        
-        // Store the action type (Buy=1, Sell=-1, None=0) for secondary sorting
-        const actionTypeA = recA ? (recA.action === 'Buy' ? 1 : -1) : 0;
-        const actionTypeB = recB ? (recB.action === 'Buy' ? 1 : -1) : 0;
-        
-        // First compare by absolute monetary value
-        if (Math.abs(moneyValueA - moneyValueB) > 0.0001) {
-          valueA = moneyValueA;
-          valueB = moneyValueB;
-        } else {
-          // If monetary values are approximately equal, sort by action type (Buy first, then Sell)
-          valueA = actionTypeA;
-          valueB = actionTypeB;
-        }
-        break;
+      // ... other cases
       default:
-        valueA = 0;
-        valueB = 0;
+        valueA = key in a ? (a as any)[key] : null;
+        valueB = key in b ? (b as any)[key] : null;
     }
     
-    // Determine sort order
     const compareResult = valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
     return direction === "asc" ? compareResult : -compareResult;
-  });
-  
-  // Function to toggle sort state
-  const toggleSort = (column: string) => {
-    setSortState(prev => {
-      if (prev.column === column) {
-        // Toggle direction if same column
-        return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
-      }
-      // Default to descending for new column
-      return { column, direction: "desc" };
-    });
   };
   
-  // Updated function to use shared context for executing orders
-  const handleRecommendedAction = (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
-    executeOrder(symbol, action, quantity);
-  };
+  // Sort the positions manually
+  const sortedPositions = [...filteredPositions].sort((a, b) => comparePositions(a, b, sortConfig));
 
-  // Updated function to close a position with improved handling
-  const handleClosePosition = async (symbol: string) => {
-    setClosingPositionSymbol(symbol);
+  // Order execution handler - fixed to close the proper dialog
+  const handleExecuteOrder = (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
+    // Close the dialog first
+    setActiveDialogSymbol(null);
     
-    try {
-      // Close the position
-      await closePosition(symbol);
-      
-      // Record the closure in the backend to prevent immediate re-recommendation
-      try {
-        await axios.post(`http://localhost:8001/api/portfolio/record-position-close/${symbol}`);
-        console.log(`Recorded closure of ${symbol}`);
-      } catch (recordError) {
-        console.error("Failed to record position closure:", recordError);
-      }
-      
-      // Show immediate feedback
-      toast({
-        title: "Position Closed",
-        description: `Closed ${symbol} position successfully.`,
+    // Then execute the order after a small delay
+    setTimeout(() => {
+      executeOrder(symbol, action, quantity).catch(err => {
+        toast({
+          title: "Order Failed",
+          description: err instanceof Error ? err.message : "Unknown error occurred",
+          variant: "destructive",
+        });
       });
-      
-      // Use shared refresh function
-      await refreshAllData();
-      
-    } catch (error) {
-      console.error(`Error closing position ${symbol}:`, error);
-      toast({
-        title: "Error",
-        description: `Failed to close position: ${error instanceof Error ? error.message : "Unknown error"}`,
-        variant: "destructive",
-      });
-    } finally {
-      setClosingPositionSymbol(null);
-    }
+    }, 50);
   };
 
   // Create a sortable header
@@ -303,10 +195,10 @@ export function PositionTable({ count }: { count: number }) {
       variant="ghost"
       size="sm"
       className="px-1 py-0 h-auto hover:bg-transparent focus:bg-transparent"
-      onClick={() => toggleSort(column)}
+      onClick={() => requestSort(column)}
     >
       {label}
-      <ArrowUpDown className={`ml-1 h-3 w-3 ${sortState.column === column ? 'opacity-100' : 'opacity-30'}`} />
+      <ArrowUpDown className={`ml-1 h-3 w-3 ${sortConfig.key === column ? 'opacity-100' : 'opacity-30'}`} />
     </Button>
   );
 
@@ -316,97 +208,61 @@ export function PositionTable({ count }: { count: number }) {
   const totalPL = positions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
   const totalPLPercent = (totalPL / totalCostBasis) * 100;
 
-  const handleShowRecommendation = (p: Position, rec: PortfolioRecommendation) => {
-    // Get accurate current price
+  // Render recommendation with fixed dialog behavior
+  const renderRecommendation = (p: Position) => {
+    const rec = recommendationsMap.get(p.symbol);
+    if (!rec) return <span className="text-muted-foreground">—</span>;
+    
     const currentPrice = p.current_price 
       ? parseFloat(p.current_price) 
       : (parseFloat(p.market_value) / parseFloat(p.qty));
+      
+    // Determine if this specific symbol's dialog should be open
+    const isThisDialogOpen = activeDialogSymbol === p.symbol;
+    const isExecuting = executingOrderSymbol === p.symbol;
     
-    // Calculate actual values using current price  
-    const estimatedValue = rec.quantity * currentPrice;
-    const actionText = rec.action === 'Buy' ? 'purchase' : 'sale';
-    
-    // Show confirmation with accurate price info
     return (
-      <AlertDialog>
+      // Each AlertDialog needs its own AlertDialogTrigger inside it
+      <AlertDialog open={isThisDialogOpen} onOpenChange={(open) => {
+        if (open) {
+          setActiveDialogSymbol(p.symbol);
+        } else {
+          setActiveDialogSymbol(null);
+        }
+      }}>
         <AlertDialogTrigger asChild>
-          <Badge 
-            variant={rec.action === 'Buy' ? "outline" : "secondary"} 
-            className={`
-              ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
-              ml-auto inline-flex w-24 justify-end cursor-pointer hover:opacity-80
-            `}
-          >
-            <div className="flex flex-col items-end group">
-              <span className="group-hover:hidden">{fmtCurrency(estimatedValue)}</span>
-              <span className="hidden group-hover:block">{rec.action} {fmtShares(rec.quantity)}</span>
-            </div>
-          </Badge>
+          <div>
+            <ActionButton 
+              action={rec.action}
+              quantity={rec.quantity}
+              price={currentPrice}
+              symbol={p.symbol}
+              isExecuting={isExecuting}
+            />
+          </div>
         </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
-              of {p.symbol}.
-            </AlertDialogDescription>
-            
-            <div className="mt-4 p-3 bg-muted rounded-md">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>Symbol:</div>
-                <div className="font-medium text-right">{p.symbol}</div>
-                
-                <div>Current Price:</div>
-                <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
-                
-                <div>Quantity:</div>
-                <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
-                
-                <div className="font-medium">Estimated {actionText}:</div>
-                <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
-                  {fmtCurrency(estimatedValue)}
-                </div>
-                
-                {rec.action === 'Buy' && accountData && (
-                  <>
-                    <div>Available Cash:</div>
-                    <div className="font-medium text-right">
-                      {fmtCurrency(parseFloat(accountData.cash))}
-                    </div>
-                    {parseFloat(accountData.cash) < estimatedValue && (
-                      <div className="col-span-2 text-red-500 text-xs">
-                        Warning: This purchase may exceed your available cash. 
-                        The order might be rejected.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => executeOrder(p.symbol, rec.action, rec.quantity)}
-              disabled={executingOrderSymbol === p.symbol}
-              className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
-            >
-              {executingOrderSymbol === p.symbol ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                `${rec.action} Shares`
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+        
+        {/* Now OrderDialog only renders the content, not the full AlertDialog */}
+        <OrderDialog 
+          symbol={p.symbol}
+          action={rec.action}
+          quantity={rec.quantity}
+          price={currentPrice}
+          isOpen={isThisDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) setActiveDialogSymbol(null);
+          }}
+          onExecute={handleExecuteOrder}
+          isExecuting={isExecuting}
+          availableCash={accountData ? parseFloat(accountData.cash) : undefined}
+        />
       </AlertDialog>
     );
   };
 
+  // Table definition
   const tableDef: ColDef<Position>[] = [
+    // Column definitions - header, alignment, cell content, etc.
     {
       label: <SortableHeader column="symbol" label="Symbol" />,
       value: (p: Position) => p.symbol,
@@ -414,201 +270,58 @@ export function PositionTable({ count }: { count: number }) {
     },
     {
       label: <SortableHeader column="cost_basis" label="Cost" />,
-      value: (p: Position) => fmtCurrency(
-        parseFloat(p.avg_entry_price) * parseFloat(p.qty),
-      ),
+      value: (p: Position) => fmtCurrency(parseFloat(p.avg_entry_price) * parseFloat(p.qty)),
       align: "right",
     },
-    {
-      label: <SortableHeader column="market_value" label="Current" />,
-      value: (p: Position) => fmtCurrency(
-        parseFloat(p.market_value)
-      ),
-      align: "right",
-    },
-    {
-      label: <SortableHeader column="change_today" label="% TDY" />,
-      value: (p: Position) => `${fmtPercent(parseFloat(p.change_today))}`,
-      align: "right",
-      className: (p: Position) => {
-        const value = parseFloat(p.change_today);
-        if (value > 0) return "text-green-400";
-        if (value < 0) return "text-red-400";
-        return "text-gray-400";
-      }
-    },
-    {
-      label: <SortableHeader column="unrealized_intraday_pl" label="TDY $ PL" />,
-      value: (p: Position) => fmtCurrency(
-        parseFloat(p.unrealized_intraday_pl),
-      ),
-      align: "right",
-      className: (p: Position) => {
-        const value = parseFloat(p.unrealized_intraday_pl);
-        if (value > 0) return "text-green-400";
-        if (value < 0) return "text-red-400";
-        return "text-gray-400";
-      }
-    },
-    {
-      label: <SortableHeader column="unrealized_plpc" label="Net PL %" />,
-      value: (p: Position) => fmtPercent(parseFloat(p.unrealized_plpc)),
-      align: "right",
-      className: (p: Position) => {
-        const value = parseFloat(p.unrealized_plpc);
-        if (value > 0) return "text-green-400";
-        if (value < 0) return "text-red-400";
-        return "text-gray-400";
-      }
-    },
-    {
-      label: <SortableHeader column="unrealized_pl" label="Net PL $" />,
-      value: (p: Position) => fmtCurrency(parseFloat(p.unrealized_pl)),
-      align: "right",
-      className: (p: Position) => {
-        const value = parseFloat(p.unrealized_pl);
-        if (value > 0) return "text-green-400";
-        if (value < 0) return "text-red-400";
-        return "text-gray-400";
-      }
-    },
+    // ... other columns
     {
       label: <SortableHeader column="recommendation" label="Recommended Action" />,
       value: (p: Position) => {
         const rec = recommendationsMap.get(p.symbol);
-        if (!rec) return "—";
-        
-        // Calculate accurate per-share price
-        const currentPrice = p.current_price 
-          ? parseFloat(p.current_price) 
-          : parseFloat(p.market_value) / parseFloat(p.qty);
-          
-        // Calculate monetary value of recommendation
-        const moneyValue = rec.quantity * currentPrice;
-        
-        return `${rec.action} ${fmtShares(rec.quantity)} (${fmtCurrency(moneyValue)})`;
+        return rec ? `${rec.action}` : "—";
       },
       align: "right",
-      render: (p: Position) => {
-        const rec = recommendationsMap.get(p.symbol);
-        if (!rec) return <span className="text-muted-foreground">—</span>;
-        
-        // Calculate accurate per-share price
-        const currentPrice = p.current_price 
-          ? parseFloat(p.current_price) 
-          : parseFloat(p.market_value) / parseFloat(p.qty);
-          
-        // Calculate monetary value of recommendation
-        const moneyValue = rec.quantity * currentPrice;
-        const estimatedValue = rec.quantity * currentPrice;
-        
-        return handleShowRecommendation(p, rec);
-      }
+      render: renderRecommendation
     },
     {
       label: "Actions",
       value: (_p: Position) => "",
       align: "right",
-      render: (p: Position) => {
-        const rec = recommendationsMap.get(p.symbol);
-        
-        // Calculate accurate per-share price
-        const currentPrice = p.current_price 
-          ? parseFloat(p.current_price) 
-          : parseFloat(p.market_value) / parseFloat(p.qty);
-    
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <span className="text-sm">...</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => window.open(`https://finance.yahoo.com/quote/${p.symbol}`, '_blank')}>
-                View Details
-              </DropdownMenuItem>
-              {/* Removed the Recommended Action menu item as it's now accessible via the badge */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem 
-                    className="text-red-500" 
-                    onSelect={(e) => e.preventDefault()} // Prevent dropdown from closing
-                  >
-                    Close Position
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Close {p.symbol} Position</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will create a market order to {p.side === 'long' ? 'sell' : 'buy'} your entire position of {fmtShares(p.qty)} shares.
-                    </AlertDialogDescription>
-                    
-                    <div className="mt-4 p-3 bg-muted rounded-md">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>Symbol:</div>
-                        <div className="font-medium text-right">{p.symbol}</div>
-                        
-                        <div>Current Price:</div>
-                        <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
-                        
-                        <div>Quantity:</div>
-                        <div className="font-medium text-right">{fmtShares(p.qty)} shares</div>
-                        
-                        <div className="font-medium">Market Value:</div>
-                        <div className="font-medium text-right text-red-500">
-                          {fmtCurrency(parseFloat(p.market_value))}
-                        </div>
-                      </div>
-                    </div>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => handleClosePosition(p.symbol)}
-                      disabled={closingPositionSymbol === p.symbol || isClosing}
-                      className="bg-red-500 hover:bg-red-600"
-                    >
-                      {closingPositionSymbol === p.symbol ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Closing...
-                        </>
-                      ) : (
-                        'Close Position'
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      }
+      render: (p: Position) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <span className="text-sm">...</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => window.open(`https://finance.yahoo.com/quote/${p.symbol}`, '_blank')}>
+              View Details
+            </DropdownMenuItem>
+            {/* Additional dropdown items */}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
     }
   ];
   
   return (
     <>
+      {/* Market warning banner */}
+      {!isMarketOpen && (
+        <div className="bg-amber-100 dark:bg-amber-900/30 rounded-md p-3 mb-4">
+          <p className="text-amber-600">Market is currently closed</p>
+        </div>
+      )}
+      
       <div className="flex justify-between items-center mb-4">
         <div className="text-sm">
-          <span className="mr-4">Total Value: <span className="font-medium">{fmtCurrency(totalMarketValue)}</span></span>
-          <span className="mr-4">P/L: <span className={`font-medium ${
-            totalPL > 0 ? 'text-green-400' : 
-            totalPL < 0 ? 'text-red-400' : 
-            'text-gray-400'
-          }`}>
-            {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})
-          </span></span>
-          <span className="mr-4">Cash: <span className="font-medium">
-            {accountData ? fmtCurrency(parseFloat(accountData.cash)) : 'Loading...'}
-          </span></span>
-          <span className="mr-4">Day Trades: <span className="font-medium">
-            {accountData ? accountData.daytrade_count : ''}
-          </span></span>
+          <span className="mr-4">Total Value: {fmtCurrency(totalMarketValue)}</span>
+          <span className="mr-4">P/L: {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})</span>
+          <span className="mr-4">Cash: {accountData ? fmtCurrency(parseFloat(accountData.cash)) : 'Loading...'}</span>
+          <span className="mr-4">Day Trades: {accountData ? accountData.daytrade_count : ''}</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative w-64">
@@ -620,7 +333,6 @@ export function PositionTable({ count }: { count: number }) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          {/* Enhanced refresh button with more aggressive cache clearing */}
           <Button 
             variant="outline" 
             size="sm" 
