@@ -57,7 +57,7 @@ interface RecommendationResponse {
 
 export function PositionTable({ count }: { count: number }) {
   // Use shared portfolio context
-  const { executingOrderSymbol, setExecutingOrderSymbol, executeOrder, refreshAllData } = usePortfolio();
+  const { executingOrderSymbol, setExecutingOrderSymbol, executeOrder, refreshAllData, lookbackDays } = usePortfolio();
   
   // Existing queries
   const { 
@@ -74,14 +74,14 @@ export function PositionTable({ count }: { count: number }) {
 
   const queryClient = useQueryClient();
 
-  // Use existing recommendations query (it will be refreshed via the shared context)
+  // Use existing recommendations query with the shared lookbackDays
   const { data: recommendationsData } = useQuery<RecommendationResponse>({
-    queryKey: ['portfolioRecommendations'],
+    queryKey: ['portfolioRecommendations', lookbackDays], // Use the same key as in PortfolioRecommendations
     queryFn: async () => {
-      console.log('Fetching fresh recommendations');
+      console.log(`Fetching fresh recommendations with ${lookbackDays} days lookback`);
       const response = await axios.get('/api/alpaca/portfolio/recommendations', {
         params: {
-          lookback_days: 365,
+          lookback_days: lookbackDays, // Use the shared lookback days
           min_change_percent: 0.01,
           cash_reserve_percent: 0.05
         },

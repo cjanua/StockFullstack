@@ -23,6 +23,7 @@ import pandas as pd
 import redis
 import json
 import traceback
+from io import StringIO
 
 ALPACA_KEY, ALPACA_SECRET, _ = AlpacaConfig().get_credentials()
 
@@ -89,9 +90,24 @@ def _fetch_portfolio_history(days: int, timeframe: str) -> Any:
     return serialize_portfolio_history(history)
 
 def get_history(days: int = 365):
-    """Get historical data for all symbols in portfolio plus benchmarks"""
+    """Get historical data for all symbols in portfolio plus benchmarks with caching"""
+    cache_key = f'history_{days}'
+    
+    # Try to get from cache first
+    cached_data = redis_client.get(cache_key)
+    if cached_data:
+        logger.info(f"Returning cached historical data for {days} days")
+        # Deserialize the cached DataFrame
+        try:
+            df = pd.read_json(StringIO(cached_data))
+            return Ok(df)
+        except Exception as e:
+            logger.warning(f"Error deserializing cached data: {e}. Fetching fresh data.")
+            # Continue to fetch fresh data if deserialization fails
+    
     try:
-        print(f"Getting historical data for {days} days")
+        # Original code to fetch data
+        logger.info(f"Getting fresh historical data for {days} days")
         
         positions_result = get_positions()
         if positions_result.is_err():
@@ -103,7 +119,7 @@ def get_history(days: int = 365):
         symbols.extend(['SPY', 'QQQ', 'IWM', 'GLD'])
         symbols = list(set(symbols))
         
-        end_date = datetime.now() - timedelta(minutes=15, seconds=5)  # Adjust end_date to 15 minutes ago
+        end_date = datetime.now() - timedelta(minutes=15, seconds=5)
         start_date = end_date - timedelta(days=days)
         
         data_client_res = get_historical_data_client()
@@ -156,6 +172,14 @@ def get_history(days: int = 365):
         
         # Fill missing values
         prices_df = prices_df.ffill().bfill()
+        
+        # Cache the result for 24 hours (since historical data doesn't change)
+        if not prices_df.empty:
+            try:
+                # Serialize and cache the DataFrame
+                redis_client.setex(cache_key, 86400, prices_df.to_json())
+            except Exception as e:
+                logger.error(f"Failed to cache historical data: {e}")
         
         return Ok(prices_df)
     
@@ -266,6 +290,29 @@ def clear_portfolio_cache() -> None:
         redis_client.delete('positions')
         redis_client.delete('account')
         redis_client.delete('portfolio_history*')
+        
+        # Don't clear history cache by default since it's expensive to rebuild
+        # Use clear_history_cache() separately when needed
+        
         logger.info("Portfolio cache cleared successfully")
     except Exception as e:
         logger.error(f"Failed to clear cache: {str(e)}")
+
+# Add this function to clear history cache
+def clear_history_cache(days=None):
+    """Clear historical data cache"""
+    try:
+        if days is None:
+            # Clear all historical data caches
+            keys = redis_client.keys("history_*")
+            if keys:
+                redis_client.delete(*keys)
+                logger.info(f"Cleared {len(keys)} historical data cache entries")
+        else:
+            # Clear specific days cache
+            cache_key = f'history_{days}'
+            redis_client.delete(cache_key)
+            logger.info(f"Cleared historical data cache for {days} days")
+            
+    except Exception as e:
+        logger.error(f"Failed to clear history cache: {e}")

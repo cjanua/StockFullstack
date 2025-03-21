@@ -53,22 +53,21 @@ interface RecommendationResponse {
   cash: number;
   target_cash: number;
   recommendations: PortfolioRecommendation[];
+  processing_time_seconds?: number; // Add this property as optional
 }
 
 export function PortfolioRecommendations() {
-  const [lookbackDays, setLookbackDays] = useState(365);
-  
   // Use shared portfolio context
-  const { executingOrderSymbol, executeOrder, refreshAllData } = usePortfolio();
+  const { executingOrderSymbol, executeOrder, refreshAllData, lookbackDays, isProcessingRecommendations } = usePortfolio();
   
   // Add refetch to the destructured values from useQuery
-  const { data, isLoading, isError, error, refetch } = useQuery<RecommendationResponse>({
-    queryKey: ['portfolioRecommendations', lookbackDays],
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<RecommendationResponse>({
+    queryKey: ['portfolioRecommendations', lookbackDays], // Use context value
     queryFn: async () => {
-      console.log('Fetching fresh recommendations');
+      console.log(`Fetching fresh recommendations with ${lookbackDays} days lookback`);
       const response = await axios.get('/api/alpaca/portfolio/recommendations', {
         params: {
-          lookback_days: lookbackDays,
+          lookback_days: lookbackDays, // Use the shared context value
           min_change_percent: 0.01,
           cash_reserve_percent: 0.05
         },
@@ -174,6 +173,9 @@ export function PortfolioRecommendations() {
   const buyRecommendations = data?.recommendations.filter(r => r.action === 'Buy') || [];
   const sellRecommendations = data?.recommendations.filter(r => r.action === 'Sell') || [];
   
+  // Show better loading states
+  const showLoading = isLoading || isFetching || isProcessingRecommendations;
+  
   return (
     <Card className="w-full">
       <CardHeader>
@@ -185,15 +187,20 @@ export function PortfolioRecommendations() {
             </CardTitle>
             <CardDescription>
               Recommended trades to optimize your portfolio
+              {data?.processing_time_seconds && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  (Processed in {data.processing_time_seconds}s)
+                </span>
+              )}
             </CardDescription>
           </div>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={refreshAllData} 
-            disabled={isLoading}
+            disabled={showLoading}
           >
-            {isLoading ? (
+            {showLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -203,9 +210,19 @@ export function PortfolioRecommendations() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {showLoading ? (
           <div className="flex justify-center items-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                {lookbackDays > 1000 ? "Optimizing portfolio with extended history data..." : "Loading recommendations..."}
+              </p>
+              {lookbackDays > 3000 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  This may take a minute when using 10 years of historical data
+                </p>
+              )}
+            </div>
           </div>
         ) : isError ? (
           <Alert variant="destructive">

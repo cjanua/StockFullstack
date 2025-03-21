@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import { PositionTable } from "@/components/alpaca/PositionTable";
 import { OrderForm } from "@/components/alpaca/OrderForm";
 import { PortfolioRecommendations } from "@/components/alpaca/PortfolioRecommendations";
@@ -14,6 +14,8 @@ export interface PortfolioContextType {
   setExecutingOrderSymbol: (symbol: string | null) => void;
   executeOrder: (symbol: string, action: 'Buy' | 'Sell', quantity: number) => Promise<void>;
   refreshAllData: () => Promise<void>;
+  lookbackDays: number; // Add this to the context
+  isProcessingRecommendations: boolean; // Add loading state for recommendations
 }
 
 export const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
@@ -29,7 +31,11 @@ export function usePortfolio() {
 
 export default function PositionsPage() {
   const [executingOrderSymbol, setExecutingOrderSymbol] = useState<string | null>(null);
+  const [isProcessingRecommendations, setIsProcessingRecommendations] = useState<boolean>(false);
   const queryClient = useQueryClient();
+  
+  // Define the standardized lookback period to use everywhere
+  const lookbackDays = 365 * 10; // 10 years
 
   // Enhanced order execution function with better error handling
   const executeOrder = async (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
@@ -166,30 +172,46 @@ export default function PositionsPage() {
     });
   };
 
-  // Shared function to refresh all portfolio data
-  const refreshAllData = async () => {
-    // Remove all cached data
-    queryClient.removeQueries({ queryKey: ['portfolioRecommendations'] });
-    queryClient.removeQueries({ queryKey: ['positions'] });
-    queryClient.removeQueries({ queryKey: ['account'] });
+  // Optimized shared function to refresh all portfolio data
+  const refreshAllData = useCallback(async () => {
+    // Set processing state
+    setIsProcessingRecommendations(true);
     
-    // Refetch fresh data
-    await Promise.all([
-      queryClient.refetchQueries({ queryKey: ['positions'] }),
-      queryClient.refetchQueries({ queryKey: ['account'] }),
-      queryClient.refetchQueries({ queryKey: ['portfolioRecommendations'] }),
-    ]);
-    
-    // Setup additional refresh polling to ensure data consistency
-    const pollTimes = [2000, 5000];
-    for (const delay of pollTimes) {
+    try {
+      // Remove all cached data
+      queryClient.removeQueries({ queryKey: ['portfolioRecommendations'] });
+      queryClient.removeQueries({ queryKey: ['positions'] });
+      queryClient.removeQueries({ queryKey: ['account'] });
+      
+      // When refetching portfolio recommendations, ensure the lookback period is passed
+      // and use a short timeout to allow UI to update
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['positions'] }),
+        queryClient.refetchQueries({ queryKey: ['account'] }),
+      ]);
+      
+      // Fetch recommendations with a slight delay to allow other data to load first
       setTimeout(() => {
-        queryClient.refetchQueries({ queryKey: ['positions'] });
-        queryClient.refetchQueries({ queryKey: ['account'] });
-        queryClient.refetchQueries({ queryKey: ['portfolioRecommendations'] });
-      }, delay);
+        queryClient.refetchQueries({ queryKey: ['portfolioRecommendations', lookbackDays] })
+          .finally(() => {
+            setIsProcessingRecommendations(false);
+          });
+      }, 100);
+      
+      // Setup additional refresh polling to ensure data consistency
+      const pollTimes = [2000, 5000];
+      for (const delay of pollTimes) {
+        setTimeout(() => {
+          queryClient.refetchQueries({ queryKey: ['positions'] });
+          queryClient.refetchQueries({ queryKey: ['account'] });
+          queryClient.refetchQueries({ queryKey: ['portfolioRecommendations', lookbackDays] });
+        }, delay);
+      }
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      setIsProcessingRecommendations(false);
     }
-  };
+  }, [queryClient]);
 
   // Create the context value
   const contextValue: PortfolioContextType = {
@@ -197,6 +219,8 @@ export default function PositionsPage() {
     setExecutingOrderSymbol,
     executeOrder,
     refreshAllData,
+    lookbackDays,  // Add this to the context value
+    isProcessingRecommendations,
   };
 
   return (

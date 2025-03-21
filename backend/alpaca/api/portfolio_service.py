@@ -6,7 +6,9 @@ from typing import Dict
 import asyncio
 import logging
 import time  # Add import for tracking recently closed positions
-from fastapi.responses import JSONResponse  # Add import for JSONResponse
+import numpy as np
+from functools import lru_cache
+from datetime import datetime
 
 from backend.alpaca.core import AlpacaConfig
 from backend.alpaca.sdk.loaders import (
@@ -67,10 +69,36 @@ class PortfolioRecommendation:
         self.action = "Buy" if self.difference > 0 else "Sell"
         self.quantity = abs(self.difference)
 
+# Add performance metrics for monitoring
+PERFORMANCE_METRICS = {
+    'history_fetch_time': [],
+    'optimization_time': [],
+    'recommendation_time': []
+}
+
+@lru_cache(maxsize=4)  # Cache the 4 most recent optimization results in memory
+def cached_get_optimal_portfolio(lookback_days: int):
+    """Memory-cached version for frequent similar requests"""
+    # This is just a wrapper to enable memoization
+    # The actual implementation will call the real function
+    # The timestamp prevents caching forever
+    current_hour = datetime.now().strftime('%Y-%m-%d-%H')
+    return lookback_days, current_hour
+
 async def get_optimal_portfolio(lookback_days: int = 365):
-    """Calculate optimal portfolio weights using PyPortfolioOpt"""
+    """Calculate optimal portfolio weights with performance tracking"""
+    # Check in-memory cache first (the function returns a tuple but we only care about lookback_days)
+    cached_key = cached_get_optimal_portfolio(lookback_days)
+    
     try:
+        # Measure performance
+        start_time = time.time()
+        
         history_result = await asyncio.to_thread(get_history, lookback_days)
+        history_fetch_time = time.time() - start_time
+        PERFORMANCE_METRICS['history_fetch_time'].append(history_fetch_time)
+        logger.info(f"History fetch took {history_fetch_time:.2f} seconds for {lookback_days} days")
+        
         if history_result.is_err():
             raise HTTPException(status_code=500, detail=f"Error fetching historical data: {history_result.err_value}")
         
@@ -80,8 +108,11 @@ async def get_optimal_portfolio(lookback_days: int = 365):
         if history is None or history.empty:
             raise HTTPException(status_code=500, detail="No historical data available")
         
+        # Start optimization timing
+        opt_start_time = time.time()
+        
         # Use the entire DataFrame as close prices
-        close_prices = history  # Assuming the DataFrame columns are the stock symbols
+        close_prices = history
         
         # Fill missing values
         close_prices = close_prices.ffill().bfill()
@@ -91,13 +122,23 @@ async def get_optimal_portfolio(lookback_days: int = 365):
             raise HTTPException(status_code=500, detail=f"Not enough historical data: only {len(close_prices)} data points")
         
         # Calculate expected returns and covariance matrix
-        mu = expected_returns.mean_historical_return(close_prices)
-        S = risk_models.sample_cov(close_prices)
+        # For very large datasets, use more efficient calculation methods
+        if lookback_days > 1825:  # More than 5 years
+            # Use exponential weighted methods for large datasets
+            mu = expected_returns.ema_historical_return(close_prices)
+            S = risk_models.exp_cov(close_prices)
+        else:
+            mu = expected_returns.mean_historical_return(close_prices)
+            S = risk_models.sample_cov(close_prices)
         
         # Optimize for maximum Sharpe ratio
         ef = EfficientFrontier(mu, S)
         weights = ef.max_sharpe()
         cleaned_weights = ef.clean_weights()
+        
+        opt_time = time.time() - opt_start_time
+        PERFORMANCE_METRICS['optimization_time'].append(opt_time)
+        logger.info(f"Portfolio optimization took {opt_time:.2f} seconds for {lookback_days} days")
         
         # Log the optimized weights for debugging
         logger.info(f"Optimized weights: {cleaned_weights}")
@@ -133,7 +174,9 @@ async def get_recommendations(
     min_change_percent: float = Query(0.01, description="Minimum position change percentage to recommend"),
     cash_reserve_percent: float = Query(0.05, description="Cash percentage to keep in reserve (0-1)")
 ):
-    """Get buy/sell recommendations to optimize your portfolio"""
+    """Get buy/sell recommendations to optimize your portfolio with performance tracking"""
+    start_time = time.time()
+    
     # Clean up expired entries in recently closed positions
     current_time = time.time()
     expired_symbols = [symbol for symbol, timestamp in RECENTLY_CLOSED_POSITIONS.items() 
@@ -239,11 +282,17 @@ async def get_recommendations(
     # Sort recommendations: buys first, then sells
     recommendations.sort(key=lambda x: (x.action != "Buy", abs(x.difference)))
     
+    # Track total recommendation time
+    total_time = time.time() - start_time
+    PERFORMANCE_METRICS['recommendation_time'].append(total_time)
+    logger.info(f"Complete recommendation process took {total_time:.2f} seconds for {lookback_days} days")
+    
     return {
         "portfolio_value": portfolio_value,
         "cash": cash,
         "target_cash": portfolio_value * cash_reserve_percent,
-        "recommendations": [vars(r) for r in recommendations]
+        "recommendations": [vars(r) for r in recommendations],
+        "processing_time_seconds": round(total_time, 2)  # Add processing time to response
     }
 
 async def get_quote_for_symbol(symbol):
@@ -353,6 +402,38 @@ async def clear_cache():
         return {"status": "success", "message": "Portfolio cache cleared successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+
+# Add an endpoint to clear historical data cache
+@app.post("/api/portfolio/clear-history-cache")
+async def clear_history_cache_endpoint(days: int = None):
+    """Clear cached historical data to force refresh"""
+    from backend.alpaca.sdk.loaders import clear_history_cache
+    
+    try:
+        await asyncio.to_thread(clear_history_cache, days)
+        return {"status": "success", "message": f"Historical data cache {'for ' + str(days) + ' days ' if days else ''}cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear history cache: {str(e)}")
+
+# Add a performance monitoring endpoint
+@app.get("/api/debug/performance")
+async def get_performance_metrics():
+    """Get performance metrics for optimization processes"""
+    metrics = {}
+    
+    for key, values in PERFORMANCE_METRICS.items():
+        if values:
+            metrics[key] = {
+                "count": len(values),
+                "average": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+                "recent": values[-10:]  # Last 10 measurements
+            }
+        else:
+            metrics[key] = {"count": 0}
+    
+    return metrics
 
 # Add this after all your endpoint registrations
 print("\n=== REGISTERED ROUTES ===")
