@@ -5,13 +5,16 @@ from pypfopt import EfficientFrontier, expected_returns, risk_models
 from typing import Dict
 import asyncio
 import logging
+import time  # Add import for tracking recently closed positions
+from fastapi.responses import JSONResponse  # Add import for JSONResponse
 
 from backend.alpaca.core import AlpacaConfig
 from backend.alpaca.sdk.loaders import (
     get_account, 
     get_positions, 
     get_history,
-    get_trading_client
+    get_trading_client,
+    clear_portfolio_cache  # Import the new function
 )
 from result import Ok, Err
 
@@ -110,6 +113,20 @@ async def optimize_portfolio(lookback_days: int = Query(365, description="Days o
     """Get optimized portfolio weights"""
     return await get_optimal_portfolio(lookback_days)
 
+# Add a cache to track recently closed positions
+# Format: {"SYMBOL": timestamp_closed}
+RECENTLY_CLOSED_POSITIONS = {}
+COOLING_PERIOD = 300  # 5 minutes in seconds
+
+# Add endpoint to record position closures
+@app.post("/api/portfolio/record-position-close/{symbol}")
+async def record_position_close(symbol: str):
+    """Record that a position was recently closed to prevent immediate re-recommendation"""
+    symbol = symbol.upper()
+    RECENTLY_CLOSED_POSITIONS[symbol] = time.time()
+    logger.info(f"Recorded closure of position {symbol}")
+    return {"status": "success", "message": f"Recorded closure of {symbol}"}
+
 @app.get("/api/portfolio/recommendations")
 async def get_recommendations(
     lookback_days: int = Query(365, description="Days of historical data to use"),
@@ -117,6 +134,13 @@ async def get_recommendations(
     cash_reserve_percent: float = Query(0.05, description="Cash percentage to keep in reserve (0-1)")
 ):
     """Get buy/sell recommendations to optimize your portfolio"""
+    # Clean up expired entries in recently closed positions
+    current_time = time.time()
+    expired_symbols = [symbol for symbol, timestamp in RECENTLY_CLOSED_POSITIONS.items() 
+                      if current_time - timestamp > COOLING_PERIOD]
+    for symbol in expired_symbols:
+        del RECENTLY_CLOSED_POSITIONS[symbol]
+    
     # Get current account info and positions
     account_result = get_account()
     if account_result.is_err():
@@ -130,6 +154,12 @@ async def get_recommendations(
     
     # Calculate optimal weights
     optimal_weights = await get_optimal_portfolio(lookback_days)
+    
+    # Remove recently closed positions from optimal weights
+    for symbol in list(RECENTLY_CLOSED_POSITIONS.keys()):
+        if symbol in optimal_weights:
+            logger.info(f"Removing recently closed position {symbol} from recommendations")
+            del optimal_weights[symbol]
     
     # Get account values
     portfolio_value = float(account['portfolio_value'])
@@ -312,6 +342,17 @@ async def debug_client():
             "api_key_present": bool(ALPACA_KEY),
             "api_secret_present": bool(ALPACA_SECRET)
         }
+
+# Add a cache clear endpoint
+@app.post("/api/portfolio/clear-cache")
+async def clear_cache():
+    """Force clear Redis cache for portfolio data"""
+    try:
+        # Call the function to clear cache
+        await asyncio.to_thread(clear_portfolio_cache)
+        return {"status": "success", "message": "Portfolio cache cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
 
 # Add this after all your endpoint registrations
 print("\n=== REGISTERED ROUTES ===")

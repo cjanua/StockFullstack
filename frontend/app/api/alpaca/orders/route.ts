@@ -11,18 +11,105 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    // Pass the request body directly to the Alpaca client
-    // This preserves all the field names as expected by the Alpaca API
-    const order = await createAlpacaOrder(body);
+    // Add validation for required fields
+    if (!body.symbol) {
+      return NextResponse.json(
+        { error: "Missing required field: symbol" },
+        { status: 400 }
+      );
+    }
     
-    return NextResponse.json(order, { status: 201 });
+    if (!body.qty && !body.notional) {
+      return NextResponse.json(
+        { error: "Either qty or notional must be provided" },
+        { status: 400 }
+      );
+    }
+    
+    if (!body.side || !['buy', 'sell'].includes(body.side.toLowerCase())) {
+      return NextResponse.json(
+        { error: "Side must be either 'buy' or 'sell'" },
+        { status: 400 }
+      );
+    }
+    
+    // Log the order request for debugging
+    console.log(`Creating order: ${JSON.stringify(body, null, 2)}`);
+    
+    try {
+      // Pass the request body directly to the Alpaca client
+      const order = await createAlpacaOrder(body);
+      
+      // After order is placed, clear the backend cache
+      try {
+        await fetch('http://localhost:8001/api/portfolio/clear-cache', {
+          method: 'POST',
+          cache: 'no-store',
+        });
+      } catch (cacheError) {
+        console.error('Failed to clear cache:', cacheError);
+      }
+      
+      return NextResponse.json(order, { status: 201 });
+      
+    } catch (alpacaError) {
+      // Handle specific Alpaca API errors
+      console.error("Alpaca API error:", alpacaError);
+      
+      // Format alpaca error for better debugging and client response
+      const errorDetails = formatAlpacaError(alpacaError);
+      
+      return NextResponse.json(
+        { 
+          error: "Order rejected by Alpaca", 
+          details: errorDetails 
+        },
+        { status: 422 } // Unprocessable Entity - order was understood but rejected
+      );
+    }
   } catch (error) {
     console.error("Order placement error:", error);
     return NextResponse.json(
-      { error: "Failed to place order", details: error instanceof Error ? error.message : "Unknown error" },
+      { 
+        error: "Failed to place order", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      },
       { status: 500 }
     );
   }
+}
+
+// Helper function to format Alpaca error messages
+function formatAlpacaError(error: unknown): string {
+  if (error instanceof Error) {
+    const errorMsg = error.message;
+    
+    // Common Alpaca API error patterns to make more user-friendly
+    if (errorMsg.includes("insufficient buying power")) {
+      return "Insufficient funds to execute this order.";
+    }
+    
+    if (errorMsg.includes("position is not found")) {
+      return "You don't have a position in this security.";
+    }
+    
+    // Check for JSON-formatted error messages
+    try {
+      if (errorMsg.includes("{") && errorMsg.includes("}")) {
+        const jsonStart = errorMsg.indexOf('{');
+        const errorObj = JSON.parse(errorMsg.slice(jsonStart));
+        if (errorObj.message) {
+          return errorObj.message;
+        }
+      }
+    } catch (e) {
+      // Parsing failed, continue with normal error handling
+    }
+    
+    return errorMsg;
+  }
+  
+  return "Unknown error occurred while processing your order";
 }
 
 export async function GET(request: NextRequest) {

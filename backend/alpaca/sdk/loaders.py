@@ -103,7 +103,7 @@ def get_history(days: int = 365):
         symbols.extend(['SPY', 'QQQ', 'IWM', 'GLD'])
         symbols = list(set(symbols))
         
-        end_date = datetime.now() - timedelta(minutes=15)  # Adjust end_date to 15 minutes ago
+        end_date = datetime.now() - timedelta(minutes=15, seconds=5)  # Adjust end_date to 15 minutes ago
         start_date = end_date - timedelta(days=days)
         
         data_client_res = get_historical_data_client()
@@ -179,7 +179,8 @@ def _fetch_watchlists() -> List[Watchlist]:
 
 def get_account() -> Result[TradeAccount, str]:
     """Get account information"""
-    return cache_result('account', 3600, _fetch_account)
+    # Reduce cache TTL from 3600 to 30 seconds
+    return cache_result('account', 30, _fetch_account)
 
 def _fetch_account() -> TradeAccount:
     client_res = get_trading_client()
@@ -193,7 +194,8 @@ def _fetch_account() -> TradeAccount:
 
 def get_positions() -> Result[List[Position], str]:
     """Get positions information"""
-    return cache_result('positions', 3600, _fetch_positions)
+    # Reduce cache TTL from 3600 to 30 seconds
+    return cache_result('positions', 30, _fetch_positions)
 
 def _fetch_positions() -> List[Position]:
     client_res = get_trading_client()
@@ -255,3 +257,15 @@ def get_historical_data_client():
     except Exception as e:
         logger.error(f"Error creating historical data client: {type(e).__name__}: {str(e)}")
         return Err(str(e))
+
+# Add a function to clear the Redis cache
+def clear_portfolio_cache() -> None:
+    """Clear portfolio-related cached data from Redis"""
+    try:
+        # Delete the specific cached data we need fresh
+        redis_client.delete('positions')
+        redis_client.delete('account')
+        redis_client.delete('portfolio_history*')
+        logger.info("Portfolio cache cleared successfully")
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {str(e)}")

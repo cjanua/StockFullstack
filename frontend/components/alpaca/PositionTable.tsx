@@ -1,8 +1,6 @@
-// frontend/components/alpaca/PositionTable.tsx
 import { useState } from "react";
-import { usePositions } from "@/hooks/queries/useAlpacaQueries";
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { usePositions, useAccount } from "@/hooks/queries/useAlpacaQueries";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
 import { Position } from "@/types/alpaca";
 import { fmtCurrency, fmtPercent, fmtCurrencyPrecise, fmtShares } from "@/lib/utils";
@@ -31,6 +29,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { usePortfolio } from '@/app/positions/page';
+import axios from 'axios';
 
 type SortDirection = "asc" | "desc";
 
@@ -56,7 +56,10 @@ interface RecommendationResponse {
 }
 
 export function PositionTable({ count }: { count: number }) {
-  // Simple usage of the hook without any custom options
+  // Use shared portfolio context
+  const { executingOrderSymbol, setExecutingOrderSymbol, executeOrder, refreshAllData } = usePortfolio();
+  
+  // Existing queries
   const { 
     data: positions, 
     isLoading, 
@@ -67,25 +70,32 @@ export function PositionTable({ count }: { count: number }) {
     isClosing 
   } = usePositions();
 
-  // Fetch recommendations data
-  const { 
-    data: recommendationsData, 
-    isLoading: isLoadingRecs, 
-    refetch: refetchRecs 
-  } = useQuery<RecommendationResponse>({
+  const { data: accountData } = useAccount();
+
+  const queryClient = useQueryClient();
+
+  // Use existing recommendations query (it will be refreshed via the shared context)
+  const { data: recommendationsData } = useQuery<RecommendationResponse>({
     queryKey: ['portfolioRecommendations'],
     queryFn: async () => {
+      console.log('Fetching fresh recommendations');
       const response = await axios.get('/api/alpaca/portfolio/recommendations', {
         params: {
           lookback_days: 365,
           min_change_percent: 0.01,
           cash_reserve_percent: 0.05
+        },
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'X-Refresh-Token': Date.now().toString()
         }
       });
       return response.data;
     },
     enabled: true,
     refetchOnWindowFocus: false,
+    staleTime: 10000,
   });
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,7 +104,6 @@ export function PositionTable({ count }: { count: number }) {
     direction: "desc" 
   });
   const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
-  const [executingOrderSymbol, setExecutingOrderSymbol] = useState<string | null>(null);
   
   if (isLoading) {
     return (
@@ -246,67 +255,45 @@ export function PositionTable({ count }: { count: number }) {
     });
   };
   
-  // Function to close a position
-  const handleClosePosition = (symbol: string) => {
-    setClosingPositionSymbol(symbol);
-    
-    closePosition(symbol);
-    
-    // Show immediate feedback
-    toast({
-      title: "Closing Position",
-      description: `Closing ${symbol} position...`,
-    });
-    
-    // Clear the closing state after a timeout (this should be handled by the mutation in a real app)
-    setTimeout(() => {
-      setClosingPositionSymbol(null);
-    }, 2000);
+  // Updated function to use shared context for executing orders
+  const handleRecommendedAction = (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
+    executeOrder(symbol, action, quantity);
   };
 
-  // Function to execute recommended action
-  const executeRecommendedAction = async (symbol: string, action: 'Buy' | 'Sell', quantity: number) => {
+  // Updated function to close a position with improved handling
+  const handleClosePosition = async (symbol: string) => {
+    setClosingPositionSymbol(symbol);
+    
     try {
-      setExecutingOrderSymbol(symbol);
+      // Close the position
+      await closePosition(symbol);
+      
+      // Record the closure in the backend to prevent immediate re-recommendation
+      try {
+        await axios.post(`http://localhost:8001/api/portfolio/record-position-close/${symbol}`);
+        console.log(`Recorded closure of ${symbol}`);
+      } catch (recordError) {
+        console.error("Failed to record position closure:", recordError);
+      }
       
       // Show immediate feedback
       toast({
-        title: `${action} Order Submitted`,
-        description: `${action === 'Buy' ? 'Buying' : 'Selling'} ${fmtShares(quantity)} shares of ${symbol}...`,
+        title: "Position Closed",
+        description: `Closed ${symbol} position successfully.`,
       });
       
-      // Execute the actual order
-      await axios.post('/api/alpaca/orders', {
-        symbol,
-        qty: quantity,
-        side: action.toLowerCase(),
-        type: 'market',
-        time_in_force: 'day'
-      });
+      // Use shared refresh function
+      await refreshAllData();
       
-      // Success feedback
+    } catch (error) {
+      console.error(`Error closing position ${symbol}:`, error);
       toast({
-        title: "Order Placed Successfully",
-        description: `Your ${action.toLowerCase()} order for ${fmtShares(quantity)} shares of ${symbol} has been submitted.`,
-        variant: "default",
-      });
-      
-      // Refresh data after the order
-      setTimeout(() => {
-        refetch();
-        refetchRecs();
-      }, 1000);
-      
-    } catch (err) {
-      // Error handling
-      console.error("Order execution error:", err);
-      toast({
-        title: "Order Execution Failed",
-        description: err instanceof Error ? err.message : "Failed to place order. Please try again.",
+        title: "Error",
+        description: `Failed to close position: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive",
       });
     } finally {
-      setExecutingOrderSymbol(null);
+      setClosingPositionSymbol(null);
     }
   };
 
@@ -328,6 +315,96 @@ export function PositionTable({ count }: { count: number }) {
   const totalCostBasis = positions.reduce((sum, p) => sum + (parseFloat(p.avg_entry_price) * parseFloat(p.qty)), 0);
   const totalPL = positions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
   const totalPLPercent = (totalPL / totalCostBasis) * 100;
+
+  const handleShowRecommendation = (p: Position, rec: PortfolioRecommendation) => {
+    // Get accurate current price
+    const currentPrice = p.current_price 
+      ? parseFloat(p.current_price) 
+      : (parseFloat(p.market_value) / parseFloat(p.qty));
+    
+    // Calculate actual values using current price  
+    const estimatedValue = rec.quantity * currentPrice;
+    const actionText = rec.action === 'Buy' ? 'purchase' : 'sale';
+    
+    // Show confirmation with accurate price info
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Badge 
+            variant={rec.action === 'Buy' ? "outline" : "secondary"} 
+            className={`
+              ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
+              ml-auto inline-flex w-24 justify-end cursor-pointer hover:opacity-80
+            `}
+          >
+            <div className="flex flex-col items-end group">
+              <span className="group-hover:hidden">{fmtCurrency(estimatedValue)}</span>
+              <span className="hidden group-hover:block">{rec.action} {fmtShares(rec.quantity)}</span>
+            </div>
+          </Badge>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
+              of {p.symbol}.
+            </AlertDialogDescription>
+            
+            <div className="mt-4 p-3 bg-muted rounded-md">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>Symbol:</div>
+                <div className="font-medium text-right">{p.symbol}</div>
+                
+                <div>Current Price:</div>
+                <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
+                
+                <div>Quantity:</div>
+                <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
+                
+                <div className="font-medium">Estimated {actionText}:</div>
+                <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
+                  {fmtCurrency(estimatedValue)}
+                </div>
+                
+                {rec.action === 'Buy' && accountData && (
+                  <>
+                    <div>Available Cash:</div>
+                    <div className="font-medium text-right">
+                      {fmtCurrency(parseFloat(accountData.cash))}
+                    </div>
+                    {parseFloat(accountData.cash) < estimatedValue && (
+                      <div className="col-span-2 text-red-500 text-xs">
+                        Warning: This purchase may exceed your available cash. 
+                        The order might be rejected.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => executeOrder(p.symbol, rec.action, rec.quantity)}
+              disabled={executingOrderSymbol === p.symbol}
+              className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
+            >
+              {executingOrderSymbol === p.symbol ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                `${rec.action} Shares`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
 
   const tableDef: ColDef<Position>[] = [
     {
@@ -425,68 +502,7 @@ export function PositionTable({ count }: { count: number }) {
         const moneyValue = rec.quantity * currentPrice;
         const estimatedValue = rec.quantity * currentPrice;
         
-        return (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Badge 
-                variant={rec.action === 'Buy' ? "outline" : "secondary"} 
-                className={`
-                  ${rec.action === 'Buy' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
-                  ml-auto inline-flex w-24 justify-end cursor-pointer hover:opacity-80
-                `}
-              >
-                <div className="flex flex-col items-end group">
-                  <span className="group-hover:hidden">{fmtCurrency(moneyValue)}</span>
-                  <span className="hidden group-hover:block">{rec.action} {fmtShares(rec.quantity)}</span>
-                </div>
-              </Badge>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{rec.action} {p.symbol} Shares</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will create a market order to {rec.action.toLowerCase()} {fmtShares(rec.quantity)} shares
-                  of {p.symbol}.
-                </AlertDialogDescription>
-                
-                <div className="mt-4 p-3 bg-muted rounded-md">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Symbol:</div>
-                    <div className="font-medium text-right">{p.symbol}</div>
-                    
-                    <div>Current Price:</div>
-                    <div className="font-medium text-right">{fmtCurrencyPrecise(currentPrice)}</div>
-                    
-                    <div>Quantity:</div>
-                    <div className="font-medium text-right">{fmtShares(rec.quantity)} shares</div>
-                    
-                    <div className="font-medium">Estimated Value:</div>
-                    <div className={`font-medium text-right ${rec.action === 'Buy' ? 'text-green-500' : 'text-red-500'}`}>
-                      {fmtCurrency(estimatedValue)}
-                    </div>
-                  </div>
-                </div>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => executeRecommendedAction(p.symbol, rec.action, rec.quantity)}
-                  disabled={executingOrderSymbol === p.symbol}
-                  className={rec.action === 'Buy' ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
-                >
-                  {executingOrderSymbol === p.symbol ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    `${rec.action} Shares`
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        );
+        return handleShowRecommendation(p, rec);
       }
     },
     {
@@ -587,9 +603,12 @@ export function PositionTable({ count }: { count: number }) {
           }`}>
             {fmtCurrency(totalPL)} ({fmtPercent(totalPLPercent/100)})
           </span></span>
-          {recommendationsData && (
-            <span className="mr-4">Cash: <span className="font-medium">{fmtCurrency(recommendationsData.cash)}</span></span>
-          )}
+          <span className="mr-4">Cash: <span className="font-medium">
+            {accountData ? fmtCurrency(parseFloat(accountData.cash)) : 'Loading...'}
+          </span></span>
+          <span className="mr-4">Day Trades: <span className="font-medium">
+            {accountData ? accountData.daytrade_count : ''}
+          </span></span>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative w-64">
@@ -601,13 +620,11 @@ export function PositionTable({ count }: { count: number }) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          {/* Enhanced refresh button with more aggressive cache clearing */}
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => {
-              refetch();
-              refetchRecs();
-            }}
+            onClick={refreshAllData}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh

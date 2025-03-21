@@ -82,13 +82,73 @@ export async function closeAlpacaPosition(symbol: string, qty: string, side: 'lo
   }
 }
 
-// Orders
+// Orders with improved error handling
 export async function createAlpacaOrder(params: any): Promise<Order> {
   try {
+    // Validate the order parameters
+    validateOrderParams(params);
+    
+    // Create the order
     return await client.createOrder(params);
   } catch (error) {
-    console.error("Error creating order:", error);
+    console.error("Error creating order:", formatErrorForLogging(error));
+    
+    // Enhance error with more context
+    if (error instanceof Error) {
+      // Preserve the original error message but add context
+      error.message = `Order creation failed: ${error.message}`;
+    }
+    
     throw error;
+  }
+}
+
+// Helper function to validate order parameters
+function validateOrderParams(params: any): void {
+  // Required fields for all order types
+  if (!params.symbol) {
+    throw new Error("Symbol is required");
+  }
+  
+  if (!params.side || !['buy', 'sell'].includes(params.side.toLowerCase())) {
+    throw new Error("Side must be 'buy' or 'sell'");
+  }
+  
+  if (!params.type || !['market', 'limit', 'stop', 'stop_limit'].includes(params.type.toLowerCase())) {
+    throw new Error("Type must be one of: 'market', 'limit', 'stop', 'stop_limit'");
+  }
+  
+  if (!params.time_in_force) {
+    throw new Error("Time in force is required");
+  }
+  
+  // Check quantity-related fields
+  if (!params.qty && !params.notional) {
+    throw new Error("Either qty or notional must be provided");
+  }
+  
+  // Limit orders must have a limit price
+  if (params.type === 'limit' && !params.limit_price) {
+    throw new Error("Limit orders must specify a limit_price");
+  }
+  
+  // Stop orders must have a stop price
+  if ((params.type === 'stop' || params.type === 'stop_limit') && !params.stop_price) {
+    throw new Error("Stop orders must specify a stop_price");
+  }
+  
+  // Additional validations could be added here
+}
+
+// Format error for logging to avoid [custom formatter threw an exception]
+function formatErrorForLogging(error: unknown): string {
+  try {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
+  } catch (_) {
+    return "Error details could not be formatted";
   }
 }
 
@@ -140,6 +200,37 @@ export async function cancelAllAlpacaOrders(): Promise<void> {
     return;
   } catch (error) {
     console.error("Error canceling all orders:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get latest quote for a symbol
+ */
+export async function getAlpacaLatestQuote(symbol: string): Promise<any> {
+  try {
+    // Since getLatestTrade doesn't exist on Client type, use a more compatible approach
+    // Get the latest price from the REST API instead
+    const resp = await fetch(
+      `${process.env.ALPACA_URL}/v2/stocks/${symbol}/trades/latest`,
+      {
+        headers: {
+          'APCA-API-KEY-ID': process.env.ALPACA_KEY || '',
+          'APCA-API-SECRET-KEY': process.env.ALPACA_SECRET || '',
+        },
+      }
+    );
+    
+    const data = await resp.json();
+    
+    return {
+      symbol,
+      price: data.trade?.p || 0, // p is the price in the Alpaca API response
+      timestamp: data.trade?.t || new Date().toISOString(),
+      source: 'latestTrade'
+    };
+  } catch (error) {
+    console.error(`Error getting latest quote for ${symbol}:`, formatErrorForLogging(error));
     throw error;
   }
 }
