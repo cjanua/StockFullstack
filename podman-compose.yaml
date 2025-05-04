@@ -1,7 +1,7 @@
 services:
   redis:
     image: redis:latest
-    container_name: redis
+    container_name: redis-stockfullstack
     ports:
       - "6379:6379"
     volumes:
@@ -11,11 +11,11 @@ services:
     build:
       context: ./backend/alpaca
       dockerfile: Dockerfile
-    container_name: portfolio-service-py
+    container_name: portfolio-service-py-stockfullstack
     restart: unless-stopped
     ports:
       - "8001:8001"
     environment:
       - ALPACA_KEY=${ALPACA_KEY}
       - ALPACA_SECRET=${ALPACA_SECRET}
-      - REDIS_HOST=redis  # Use the Redis container's name as the hostname
+      - REDIS_HOST=redis-stockfullstack  # Updated to match the new Redis container name

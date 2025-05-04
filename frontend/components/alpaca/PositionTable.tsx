@@ -66,7 +66,7 @@ export function PositionTable({ count }: { count: number }) {
     refetchOnWindowFocus: false,
   });
 
-  // Early return handlers for loading, error, and empty states...
+  // Early return handlers for loading, error, and empty states
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -149,7 +149,6 @@ export function PositionTable({ count }: { count: number }) {
   const comparePositions = (a: Position, b: Position, config: SortConfig) => {
     const { key, direction } = config;
     let valueA: any, valueB: any;
-    
     switch (key) {
       case "symbol":
         valueA = a.symbol;
@@ -159,7 +158,52 @@ export function PositionTable({ count }: { count: number }) {
         valueA = parseFloat(a.avg_entry_price) * parseFloat(a.qty);
         valueB = parseFloat(b.avg_entry_price) * parseFloat(b.qty);
         break;
-      // ... other cases
+        case "market_value":
+        valueA = parseFloat(a.market_value);
+        valueB = parseFloat(b.market_value);
+        break;
+      case "change_today":
+        valueA = parseFloat(a.change_today);
+        valueB = parseFloat(b.change_today);
+        break;
+      case "unrealized_intraday_pl":
+        valueA = parseFloat(a.unrealized_intraday_pl);
+        valueB = parseFloat(b.unrealized_intraday_pl);
+        break;
+      case "unrealized_plpc":
+        valueA = parseFloat(a.unrealized_plpc);
+        valueB = parseFloat(b.unrealized_plpc);
+        break;
+      case "unrealized_pl":
+        valueA = parseFloat(a.unrealized_pl);
+        valueB = parseFloat(b.unrealized_pl);
+        break;
+      case "recommendation":
+        const recA = recommendationsMap.get(a.symbol);
+        const recB = recommendationsMap.get(b.symbol);
+        // Get correct per-share price
+        const priceA = a.current_price 
+          ? parseFloat(a.current_price) 
+          : (parseFloat(a.market_value) / parseFloat(a.qty));
+        const priceB = b.current_price 
+          ? parseFloat(b.current_price) 
+          : (parseFloat(b.market_value) / parseFloat(b.qty));
+        // Calculate the absolute monetary values
+        const moneyValueA = recA ? Math.abs(recA.quantity * priceA) : 0;
+        const moneyValueB = recB ? Math.abs(recB.quantity * priceB) : 0;
+        // Store the action type (Buy=1, Sell=-1, None=0) for secondary sorting
+        const actionTypeA = recA ? (recA.action === 'Buy' ? 1 : -1) : 0;
+        const actionTypeB = recB ? (recB.action === 'Buy' ? 1 : -1) : 0;
+        // First compare by absolute monetary value
+        if (Math.abs(moneyValueA - moneyValueB) > 0.0001) {
+          valueA = moneyValueA;
+          valueB = moneyValueB;
+        } else {
+          // If monetary values are approximately equal, sort by action type (Buy first, then Sell)
+          valueA = actionTypeA;
+          valueB = actionTypeB;
+        }
+        break;
       default:
         valueA = key in a ? (a as any)[key] : null;
         valueB = key in b ? (b as any)[key] : null;
@@ -270,10 +314,64 @@ export function PositionTable({ count }: { count: number }) {
     },
     {
       label: <SortableHeader column="cost_basis" label="Cost" />,
-      value: (p: Position) => fmtCurrency(parseFloat(p.avg_entry_price) * parseFloat(p.qty)),
+      value: (p: Position) => fmtCurrency(
+        parseFloat(p.avg_entry_price) * parseFloat(p.qty),
+      ),
       align: "right",
     },
-    // ... other columns
+    {
+      label: <SortableHeader column="market_value" label="Current" />,
+      value: (p: Position) => fmtCurrency(
+        parseFloat(p.market_value)
+      ),
+      align: "right",
+    },
+    {
+      label: <SortableHeader column="change_today" label="% TDY" />,
+      value: (p: Position) => `${fmtPercent(parseFloat(p.change_today))}`,
+      align: "right",
+      className: (p: Position) => {
+        const value = parseFloat(p.change_today);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
+    },
+    {
+      label: <SortableHeader column="unrealized_intraday_pl" label="TDY $ PL" />,
+      value: (p: Position) => fmtCurrency(
+        parseFloat(p.unrealized_intraday_pl),
+      ),
+      align: "right",
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_intraday_pl);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
+    },
+    {
+      label: <SortableHeader column="unrealized_plpc" label="Net PL %" />,
+      value: (p: Position) => fmtPercent(parseFloat(p.unrealized_plpc)),
+      align: "right",
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_plpc);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
+    },
+    {
+      label: <SortableHeader column="unrealized_pl" label="Net PL $" />,
+      value: (p: Position) => fmtCurrency(parseFloat(p.unrealized_pl)),
+      align: "right",
+      className: (p: Position) => {
+        const value = parseFloat(p.unrealized_pl);
+        if (value > 0) return "text-green-400";
+        if (value < 0) return "text-red-400";
+        return "text-gray-400";
+      }
+    },
     {
       label: <SortableHeader column="recommendation" label="Recommended Action" />,
       value: (p: Position) => {

@@ -6,7 +6,7 @@ import {
   Account, Watchlist, PortfolioHistory,
   Order, Position
 } from "@/types/alpaca";
-import { Clock } from "@alpacahq/typescript-sdk";
+import { Clock, GetStocksQuotesLatestOptions, StocksQuotesLatest } from "@alpacahq/typescript-sdk";
 
 import { env } from "process";
 
@@ -210,25 +210,32 @@ export async function cancelAllAlpacaOrders(): Promise<void> {
  */
 export async function getAlpacaLatestQuote(symbol: string): Promise<any> {
   try {
-    // Since getLatestTrade doesn't exist on Client type, use a more compatible approach
-    // Get the latest price from the REST API instead
-    const resp = await fetch(
-      `${process.env.ALPACA_URL}/v2/stocks/${symbol}/trades/latest`,
-      {
-        headers: {
-          'APCA-API-KEY-ID': process.env.ALPACA_KEY || '',
-          'APCA-API-SECRET-KEY': process.env.ALPACA_SECRET || '',
-        },
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        'APCA-API-KEY-ID': `${env.ALPACA_KEY}`,
+        'APCA-API-SECRET-KEY': `${env.ALPACA_SECRET}`
       }
-    );
-    
-    const data = await resp.json();
+    };
+
+    const res_raw = await fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${symbol}`, options)
+    const res: StocksQuotesLatest = await res_raw.json();
+    if (!res_raw.ok) {
+      throw new Error(`Failed to fetch latest quote for ${symbol}`);
+    }
+    // console.log(`Latest quote for ${symbol}:`, res);
+
+
+    const quote = res.quotes[symbol];
+    if (!quote) {
+      throw new Error(`No quote found for ${symbol}`);
+    }
     
     return {
       symbol,
-      price: data.trade?.p || 0, // p is the price in the Alpaca API response
-      timestamp: data.trade?.t || new Date().toISOString(),
-      source: 'latestTrade'
+      price: quote.ap,
+      timestamp: new Date(quote.t).toISOString(),
     };
   } catch (error) {
     console.error(`Error getting latest quote for ${symbol}:`, formatErrorForLogging(error));

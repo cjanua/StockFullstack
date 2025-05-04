@@ -28,16 +28,14 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Configure middleware to run on specific paths
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
-  ],
-};
+// Replace the deprecated config export with the new matcher export
+export const matcher = [
+  /*
+   * Match all request paths except for the ones starting with:
+   * - _next/static (static files)
+   * - _next/image (image optimization files)
+   * - favicon.ico (favicon file)
+   * - public folder
+   */
+  '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+];

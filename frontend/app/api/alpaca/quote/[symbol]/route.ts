@@ -1,28 +1,36 @@
+import { getAlpacaLatestQuote } from '@/lib/alpaca';
 import { NextRequest, NextResponse } from 'next/server';
+
+// Define the expected structure for route parameters
+interface RouteParams {
+  symbol: string;
+}
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  context: { params: RouteParams } // Use context object directly
 ) {
-  const { symbol } = params;
-  
+  // Await the context.params object before accessing its properties
+  const params = await context.params;
+  const symbol = params.symbol;
   if (!symbol) {
     return NextResponse.json(
       { error: 'Symbol is required' },
       { status: 400 }
     );
   }
-  
+  // console.log(`Fetching quote for symbol: ${symbol}`);
   try {
-    // Since we're having issues with the Alpaca API for quotes, let's provide a fallback
-    // This is a temporary solution until the actual quote API is working
-    const mockPrice = 100 + (Math.random() * 50); // Random price between $100-$150
-    
+    const quote = await getAlpacaLatestQuote(symbol);
+    const price = quote.price;
+    // console.log(`Quote for ${symbol}:`, quote);
+
+
     return NextResponse.json({
       symbol,
-      price: mockPrice,
+      price: price,
       timestamp: new Date().toISOString(),
-      source: 'mockData'
+      source: 'sip'
     });
   } catch (error) {
     console.error(`Error fetching quote for ${symbol}:`, error);
