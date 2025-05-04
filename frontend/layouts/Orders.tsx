@@ -61,29 +61,29 @@ export function OrdersLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
-
-  const fetchOrders = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/alpaca/orders?status=${statusFilter}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch orders');
-      }
-      
-      const data = await response.json();
-      setOrders(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [doUpdate, setDoUpdate] = useState(0);
 
   useEffect(() => {
+    const fetchOrders = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`/api/alpaca/orders?status=${statusFilter}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch orders');
+        }
+        
+        const data = await response.json();
+        setOrders(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchOrders();
-  }, [statusFilter]);
+  }, [statusFilter, doUpdate]);
 
   const handleCancelOrder = async (orderId: string) => {
     try {
@@ -101,7 +101,7 @@ export function OrdersLayout() {
       });
       
       // Refresh the orders list
-      fetchOrders();
+      setDoUpdate(doUpdate + 1);
     } catch (err) {
       toast({
         title: "Error",
@@ -131,7 +131,7 @@ export function OrdersLayout() {
       });
       
       // Refresh the orders list
-      fetchOrders();
+      setDoUpdate(doUpdate + 1);
     } catch (err) {
       toast({
         title: "Error",
@@ -176,7 +176,7 @@ export function OrdersLayout() {
           <OrderForm />
           <Button 
             variant="outline" 
-            onClick={fetchOrders}
+            onClick={() => setDoUpdate(doUpdate + 1)}
             disabled={isLoading}
           >
             {/* <Reload className="h-4 w-4 mr-2" /> */}
