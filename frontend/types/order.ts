@@ -1,5 +1,3 @@
-import { Position } from './alpaca';
-
 export interface OrderAction {
   symbol: string;
   action: 'Buy' | 'Sell';
@@ -25,7 +23,7 @@ export interface ActionButtonProps {
   action: 'Buy' | 'Sell';
   quantity: number;
   price: number;
-  symbol: string;
+  // symbol: string;
   onClick?: () => void;
   isExecuting?: boolean;
 }

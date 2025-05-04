@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // lib/db/sqlite.ts
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';

@@ -93,38 +93,34 @@ export function ScrollBar({
   };
   
   // Handle mouse movement during dragging
-  const handleScrollMove = (e: MouseEvent) => {
-    try {
-      if (!isGrabbing || !scrollAreaRef.current || !dragStartRef.current) return;
-      
-      // Calculate the movement delta from the start of the drag
-      const deltaY = e.clientY - dragStartRef.current.y;
-      
-      // Calculate the corresponding value change based on the ratio
-      const valueRange = maxValue;
-      const pixelRange = areaHeight - thumbHeight;
-      const valueChange = Math.round((deltaY / pixelRange) * valueRange);
-      
-      // Calculate the new value
-      let newValue = dragStartRef.current.startValue + valueChange;
-      
-      // Clamp the value
-      newValue = Math.min(maxValue, Math.max(0, newValue));
-      
-      setValue(newValue);
-    } catch (err) {
-      console.error("ScrollBar drag error:", err);
-    }
-  };
-
-  // Handle drag end
-  const handleScrollRelease = () => {
-    setIsGrabbing(false);
-    dragStartRef.current = null;
-  };
+  
 
   // Set up and clean up event listeners
   useEffect(() => {
+    const handleScrollMove = (e: MouseEvent) => {
+      try {
+        if (!isGrabbing || !scrollAreaRef.current || !dragStartRef.current) return;
+        
+        // Calculate the movement delta from the start of the drag
+        const deltaY = e.clientY - dragStartRef.current.y;
+        
+        // Calculate the corresponding value change based on the ratio
+        const valueRange = maxValue;
+        const pixelRange = areaHeight - thumbHeight;
+        const valueChange = Math.round((deltaY / pixelRange) * valueRange);
+        
+        // Calculate the new value
+        let newValue = dragStartRef.current.startValue + valueChange;
+        
+        // Clamp the value
+        newValue = Math.min(maxValue, Math.max(0, newValue));
+        
+        setValue(newValue);
+      } catch (err) {
+        console.error("ScrollBar drag error:", err);
+      }
+    };
+
     const handleGlobalMouseUp = () => {
       if (isGrabbing) {
         setIsGrabbing(false);
@@ -145,7 +141,7 @@ export function ScrollBar({
       document.removeEventListener('mouseup', handleGlobalMouseUp);
       document.removeEventListener('mousemove', handleGlobalMouseMove);
     };
-  }, [isGrabbing]);
+  }, [isGrabbing, areaHeight, thumbHeight, maxValue, setValue]);
 
   // Handle document body styles
   useEffect(() => {

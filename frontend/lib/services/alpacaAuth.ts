@@ -15,6 +15,9 @@ export async function verifyAlpacaCredentials(key: string, secret: string, paper
 
     // Try to access account info to verify credentials
     const account = await alpaca.getAccount();
+    if (!account) {
+      return false;
+    }
 
     // If we get here, the credentials are valid
     return true;

@@ -16,6 +16,7 @@ export function useMarketHours() {
         const response = await axios.get('/api/alpaca/market/clock');
         return response.data;
       } catch (error) {
+        console.error('Error fetching market clock:', error);
         // Return default values on error to prevent UI from breaking
         return { is_open: true }; // Default to open on error
       }

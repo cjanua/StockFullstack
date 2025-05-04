@@ -91,6 +91,7 @@ export default function ApiDiagnosticsPage() {
       try {
         recommendationsData = await recommendationsResponse.json();
       } catch (e) {
+        console.log("Failed to parse JSON response:", e);
         // If we can't parse JSON, capture the text
         recommendationsData = await recommendationsResponse.text();
       }

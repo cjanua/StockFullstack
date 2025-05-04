@@ -2,9 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { fmtShares, fmtCurrency, fmtCurrencyPrecise } from '@/lib/utils';
+import { fmtShares, fmtCurrency } from '@/lib/utils';
 import {
   Card,
   CardContent,

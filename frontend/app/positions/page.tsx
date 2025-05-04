@@ -6,7 +6,6 @@ import { PortfolioRecommendations } from "@/components/alpaca/PortfolioRecommend
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import axios from "axios";
-import { alpaca } from '@/lib/api'; // Import the API client
 
 // Create a shared context for portfolio data management
 export interface PortfolioContextType {
@@ -211,7 +210,7 @@ export default function PositionsPage() {
       console.error("Error refreshing data:", error);
       setIsProcessingRecommendations(false);
     }
-  }, [queryClient]);
+  }, [queryClient, lookbackDays]);
 
   // Create the context value
   const contextValue: PortfolioContextType = {

@@ -40,6 +40,15 @@ export default function AccountCards() {
             <p className="text-xs text-muted-foreground">
               Account #{account.account_number}
             </p>
+            {/* TODO: NEED TO CALCULATE CASH INVESTMENT */}
+            <Progress value={equityPercentage} className="mt-2" />
+            <p className="text-xs text-muted-foreground mt-1 flex flex-row" style={{ color: parseFloat(account.portfolio_value) - 1250 > 0 ? "green" : "red"}}>
+              {parseFloat(account.portfolio_value) - 1250 > 0 ? "+" : ""}{formatCurrency(parseFloat(account.portfolio_value) - 1250)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {((parseFloat(account.portfolio_value) - 1250)*100/1250).toPrecision(2)}% growth from initial
+            </p>
+            {formatCurrency(parseFloat('1250'))}
           </CardContent>
         </Card>
         <Card>

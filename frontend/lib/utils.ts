@@ -109,7 +109,6 @@ export function fmtShares(quantity: number | string): string {
   if (absNum < 0.0001) {
     // For extremely small values, find the first non-zero digit
     const decimalStr = numStr.split('.')[1] || '';
-    let significantDigits = 2;
     
     // Count leading zeros after decimal point
     let leadingZeros = 0;

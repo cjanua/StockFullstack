@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         errorMessage = errorData.detail || errorMessage;
       } catch (e) {
         // If parsing JSON fails, use the status text
+        console.error("Failed to parse error response:", e);
         errorMessage = response.statusText || errorMessage;
       }
       

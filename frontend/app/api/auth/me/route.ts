@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { getUserBySessionToken } from '@/lib/db/sqlite';
 import { checkAlpacaConnection } from '@/lib/services/alpacaAuth';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Get auth token from cookies using the async cookies API
     const cookieStore = await cookies();

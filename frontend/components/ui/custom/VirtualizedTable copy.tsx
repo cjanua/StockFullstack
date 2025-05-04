@@ -1,4 +1,4 @@
-import React, { ReactNode, useRef, useEffect, useState, JSX } from 'react';
+import React, { ReactNode, useRef, useState, JSX } from 'react';
 
 export interface ColDef<T> {
   label: ReactNode;
@@ -28,22 +28,22 @@ export default function VirtualizedTable<T>({
 }: VirtualizedTableProps<T>): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
+  // const [containerWidth, setContainerWidth] = useState(0);
 
-  useEffect(() => {
-    if (containerRef.current) {
-      const resizeObserver = new ResizeObserver((entries) => {
-        setContainerWidth(entries[0].contentRect.width);
-      });
-      resizeObserver.observe(containerRef.current);
-      return () => {
-        resizeObserver.disconnect();
-      };
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (containerRef.current) {
+  //     const resizeObserver = new ResizeObserver((entries) => {
+  //       setContainerWidth(entries[0].contentRect.width);
+  //     });
+  //     resizeObserver.observe(containerRef.current);
+  //     return () => {
+  //       resizeObserver.disconnect();
+  //     };
+  //   }
+  // }, []);
 
   // Calculate column widths
-  const calculatedWidths = tableDef.map((col, i) => {
+  const calculatedWidths = tableDef.map((col, _i) => {
     if (col.width) return col.width;
     return 1; // Default flex value
   });

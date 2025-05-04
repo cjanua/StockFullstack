@@ -66,7 +66,7 @@ export default function VirtualizedTable<T>({
       setLastGoodItems(items);
       if (errorState) setErrorState(false);
     }
-  }, [items]);
+  }, [items, errorState]);
 
   // Ensure range is valid when items change
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function VirtualizedTable<T>({
         setRange(maxValidRange);
       }
     }
-  }, [items, count]);
+  }, [items, count, range]);
 
   // Safe wheel event handler with error protection
   const handleWheel: WheelEventHandler = (e) => {
@@ -171,6 +171,7 @@ export default function VirtualizedTable<T>({
     try {
       return document.querySelector('.tbody')?.clientWidth ?? 0 / (tableDef.length-1);
     } catch (e) {
+      console.error("Error getting table width:", e);
       return 100; // Fallback width
     }
   })();

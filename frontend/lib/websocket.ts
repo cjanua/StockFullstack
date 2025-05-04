@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // frontend/lib/websocket.ts
 "use client";
 
@@ -57,7 +58,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       const apiSecret = process.env.NEXT_PUBLIC_ALPACA_SECRET || "";
       
       // Using basic auth format: apiKey:apiSecret
-      const authInfo = btoa(`${apiKey}:${apiSecret}`);
+      // const authInfo = btoa(`${apiKey}:${apiSecret}`);
       
       const socket = new WebSocket("wss://stream.alpaca.markets/v2/iex");
       
@@ -145,6 +146,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       
       set({ socket });
     } catch (error) {
+      console.error("Failed to connect WebSocket", error);
       set({ error: "Failed to connect to WebSocket" });
     }
   },
@@ -220,14 +222,14 @@ export function useWebSocket(symbols?: string[]) {
     return () => {
       disconnect();
     };
-  }, []);
+  }, [connect, disconnect, subscribe, symbols]);
   
   // Subscribe to new symbols when they change
   React.useEffect(() => {
     if (symbols && symbols.length > 0) {
       subscribe(symbols);
     }
-  }, [symbols]);
+  }, [symbols, subscribe]);
   
   return { connected, messages, error };
 }

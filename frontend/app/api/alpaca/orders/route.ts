@@ -102,7 +102,8 @@ function formatAlpacaError(error: unknown): string {
           return errorObj.message;
         }
       }
-    } catch (e) {
+    } catch (jsonError) {
+      console.error("Failed to parse Alpaca error JSON:", jsonError);
       // Parsing failed, continue with normal error handling
     }
     
@@ -116,32 +117,34 @@ export async function GET(request: NextRequest) {
   try {
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const params: any = {};
-    
-    // Add parameters if present
+    type AlpacaOrderParams = {
+      status?: string;
+      limit?: number;
+      direction?: string;
+      after?: Date;
+      until?: Date;
+    };
+    const params: Partial<AlpacaOrderParams> = {};
+
     if (searchParams.has('status')) {
-      params.status = searchParams.get('status');
+      params.status = searchParams.get('status')!;
     }
-    
     if (searchParams.has('limit')) {
       params.limit = parseInt(searchParams.get('limit')!);
     }
-    
     if (searchParams.has('direction')) {
-      params.direction = searchParams.get('direction');
+      params.direction = searchParams.get('direction')!;
     }
-    
     if (searchParams.has('after')) {
       params.after = new Date(searchParams.get('after')!);
     }
-    
     if (searchParams.has('until')) {
       params.until = new Date(searchParams.get('until')!);
     }
-    
+
     // Get orders
     const orders = await getAlpacaOrders(params);
-    
+
     return NextResponse.json(orders);
   } catch (error) {
     console.error("Orders fetch error:", error);

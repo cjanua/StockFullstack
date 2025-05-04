@@ -3,7 +3,7 @@ import { usePositions, useAccount } from "@/hooks/queries/useAlpacaQueries";
 import { useQuery } from '@tanstack/react-query';
 import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
 import { Position } from "@/types/alpaca";
-import { fmtCurrency, fmtPercent, fmtCurrencyPrecise, fmtShares } from "@/lib/utils";
+import { fmtCurrency, fmtPercent } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, ArrowUpDown, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortfolio } from '@/app/positions/page';
 import axios from 'axios';
-import { SortDirection, SortConfig } from "@/hooks/useSortableData";
+import { SortConfig } from "@/hooks/useSortableData";
 import { useMarketHours } from "@/hooks/queries/useMarketHours";
 import { PortfolioRecommendation, PortfolioRecommendationsResponse } from "@/lib/api/alpaca";
 import { ActionButton } from "@/components/ui/custom/ActionButton";
@@ -32,7 +32,7 @@ import { OrderDialog } from "@/components/ui/custom/OrderDialog";
 export function PositionTable({ count }: { count: number }) {
   // All state hooks at the top
   const [searchQuery, setSearchQuery] = useState("");
-  const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
+  // const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
   
   // Track which symbol's dialog is open instead of a general boolean
   const [activeDialogSymbol, setActiveDialogSymbol] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export function PositionTable({ count }: { count: number }) {
   
   // Context and queries
   const { executingOrderSymbol, executeOrder, refreshAllData, lookbackDays } = usePortfolio();
-  const { data: positions, isLoading, isError, error, refetch, closePosition, isClosing } = usePositions();
+  const { data: positions, isLoading, isError, error, refetch } = usePositions();
   const { data: accountData } = useAccount();
   const { isMarketOpen = true } = useMarketHours() || {};
 
@@ -110,7 +110,7 @@ export function PositionTable({ count }: { count: number }) {
     return (
       <div className="border rounded-md p-8 text-center">
         <h3 className="font-medium text-lg mb-2">No positions found</h3>
-        <p className="text-muted-foreground mb-4">You don't have any open positions in your portfolio.</p>
+        <p className="text-muted-foreground mb-4">You dont have any open positions in your portfolio.</p>
         <Button onClick={() => refetch()} variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
@@ -148,7 +148,7 @@ export function PositionTable({ count }: { count: number }) {
   // Position comparison function for sorting
   const comparePositions = (a: Position, b: Position, config: SortConfig) => {
     const { key, direction } = config;
-    let valueA: any, valueB: any;
+    let valueA: string | number, valueB: string | number;
     switch (key) {
       case "symbol":
         valueA = a.symbol;
@@ -205,7 +205,9 @@ export function PositionTable({ count }: { count: number }) {
         }
         break;
       default:
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         valueA = key in a ? (a as any)[key] : null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         valueB = key in b ? (b as any)[key] : null;
     }
     
@@ -280,7 +282,7 @@ export function PositionTable({ count }: { count: number }) {
               action={rec.action}
               quantity={rec.quantity}
               price={currentPrice}
-              symbol={p.symbol}
+              // symbol={p.symbol}
               isExecuting={isExecuting}
             />
           </div>

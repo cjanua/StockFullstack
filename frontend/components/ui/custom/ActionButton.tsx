@@ -7,7 +7,7 @@ export function ActionButton({
   action,
   quantity,
   price,
-  symbol,
+  // symbol,
   onClick,
   isExecuting = false
 }: ActionButtonProps) {

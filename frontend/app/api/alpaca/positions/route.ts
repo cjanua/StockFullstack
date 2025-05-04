@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAlpacaPositions } from "@/lib/alpaca";
 
 // Get all positions
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const positions = await getAlpacaPositions();
     return NextResponse.json(positions);

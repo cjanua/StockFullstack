@@ -6,7 +6,7 @@ import {
   Account, Watchlist, PortfolioHistory,
   Order, Position
 } from "@/types/alpaca";
-import { Clock, GetStocksQuotesLatestOptions, StocksQuotesLatest } from "@alpacahq/typescript-sdk";
+import { Clock, StocksQuotesLatest } from "@alpacahq/typescript-sdk";
 
 import { env } from "process";
 
@@ -219,26 +219,88 @@ export async function getAlpacaLatestQuote(symbol: string): Promise<any> {
       }
     };
 
-    const res_raw = await fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${symbol}`, options)
-    const res: StocksQuotesLatest = await res_raw.json();
-    if (!res_raw.ok) {
-      throw new Error(`Failed to fetch latest quote for ${symbol}`);
-    }
-    // console.log(`Latest quote for ${symbol}:`, res);
+    let attempt = 0;
+    const maxRetries = 3;
 
+    while (attempt < maxRetries) {
+      const res_raw = await fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${symbol}`, options);
 
-    const quote = res.quotes[symbol];
-    if (!quote) {
-      throw new Error(`No quote found for ${symbol}`);
+      if (res_raw.ok) {
+        const res: StocksQuotesLatest = await res_raw.json();
+        const quote = res.quotes[symbol];
+        if (!quote) {
+          throw new Error(`No quote found for ${symbol}`);
+        }
+
+        return {
+          symbol,
+          price: quote.ap,
+          timestamp: new Date(quote.t).toISOString(),
+        };
+      } else if (res_raw.status === 429) {
+        console.warn(`Too many requests to API. Retrying Latest Quote for ${symbol}... (${attempt + 1}/${maxRetries})`);
+        attempt++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+      } else {
+        const res = await res_raw.json();
+        console.error(`Failed to fetch latest quote for ${symbol}:`, res);
+        throw new Error(`Failed to fetch latest quote for ${symbol}`);
+      }
     }
-    
-    return {
-      symbol,
-      price: quote.ap,
-      timestamp: new Date(quote.t).toISOString(),
-    };
+
+    throw new Error(`Exceeded maximum retries for ${symbol}`);
   } catch (error) {
     console.error(`Error getting latest quote for ${symbol}:`, formatErrorForLogging(error));
+    throw error;
+  }
+}
+export async function getAlpacaLatestQuotes(symbols: string[]): Promise<any[]> {
+  try {
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        'APCA-API-KEY-ID': `${env.ALPACA_KEY}`,
+        'APCA-API-SECRET-KEY': `${env.ALPACA_SECRET}`
+      }
+    };
+
+    let attempt = 0;
+    const maxRetries = 3;
+
+    while (attempt < maxRetries) {
+      const symbolsParam = symbols.map(encodeURIComponent).join('%2C');
+      const res_raw = await fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${symbolsParam}`, options);
+
+      if (res_raw.ok) {
+        const res: StocksQuotesLatest = await res_raw.json();
+        const quotes = symbols.map(symbol => {
+          const quote = res.quotes[symbol];
+          if (!quote) {
+            throw new Error(`No quote found for ${symbol}`);
+          }
+          return {
+            symbol,
+            price: quote.ap,
+            timestamp: new Date(quote.t).toISOString(),
+          };
+        });
+
+        return quotes;
+      } else if (res_raw.status === 429) {
+        console.warn(`Too many requests to API. Retrying Latest Quotes... (${attempt + 1}/${maxRetries})`);
+        attempt++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+      } else {
+        const res = await res_raw.json();
+        console.error(`Failed to fetch latest quotes:`, res);
+        throw new Error(`Failed to fetch latest quotes`);
+      }
+    }
+
+    throw new Error(`Exceeded maximum retries`);
+  } catch (error) {
+    console.error(`Error getting latest quotes:`, formatErrorForLogging(error));
     throw error;
   }
 }

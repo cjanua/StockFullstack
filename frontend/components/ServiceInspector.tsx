@@ -4,9 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+interface Result {
+  status: number;
+  statusText: string;
+  data: object;
+}
+
 export function ServiceInspector() {
   const [url, setUrl] = useState('http://localhost:8001/health');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Result>({} as Result);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +30,7 @@ export function ServiceInspector() {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setResult(null);
+      setResult({} as Result);
     } finally {
       setLoading(false);
     }

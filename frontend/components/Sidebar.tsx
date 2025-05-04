@@ -33,7 +33,7 @@ export default function Sidebar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null!);
   const pathname = usePathname();
-  const { data: watchlists, isLoading, isError, error } = useWatchlists();
+  const { data: watchlists } = useWatchlists();
 
   // Render cached data immediately if available
   const cachedWatchlists = typeof window !== "undefined" ? localStorage.getItem("watchlists") : null;

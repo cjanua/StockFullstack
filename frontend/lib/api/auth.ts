@@ -41,11 +41,11 @@ export interface AlpacaCredentials {
 }
 
 // User authentication
-export const login = (credentials: LoginCredentials): ApiResponse<{ success: boolean; user: any }> => {
+export const login = (credentials: LoginCredentials): ApiResponse<{ success: boolean; user: unknown }> => {
   return apiClient.post(AUTH_ENDPOINTS.LOGIN, credentials).then(res => res.data);
 };
 
-export const register = (data: RegisterData): ApiResponse<{ success: boolean; user: any }> => {
+export const register = (data: RegisterData): ApiResponse<{ success: boolean; user: unknown }> => {
   return apiClient.post(AUTH_ENDPOINTS.REGISTER, data).then(res => res.data);
 };
 

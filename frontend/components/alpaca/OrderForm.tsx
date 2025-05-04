@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CreateOrderOptions } from "@/types/alpaca";
+import { CreateOrderOptions, Order } from "@/types/alpaca";
 import { OrderAction } from '@/types/order';
 
 const formSchema = z.object({
@@ -107,11 +107,11 @@ export function OrderForm() {
         throw new Error(errorData.details || "Failed to place order");
       }
 
-      const data = await response.json();
+      const data: Order = await response.json();
       
       toast({
         title: "Order Placed Successfully",
-        description: `${values.side.toUpperCase()} ${values.qty} shares of ${values.symbol}`,
+        description: `${data.id}: ${data.side.toUpperCase()} ${data.filled_qty}@${data.filled_avg_price} shares of ${data.symbol}`,
       });
       
       setOpen(false);

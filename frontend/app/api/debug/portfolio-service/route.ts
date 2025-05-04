@@ -7,7 +7,7 @@ export async function GET() {
     "http://localhost:8001/optimize",
   ];
   
-  const results: Record<string, any> = {};
+  const results: Record<string, object> = {};
   
   for (const endpoint of endpoints) {
     try {
