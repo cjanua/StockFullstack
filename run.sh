@@ -4,7 +4,7 @@ pwd
 source ./scripts/arch/archreq.sh
 direnv allow
 
-cd frontend
+cd trading-platform
 
 
 # Function to print usage instructions

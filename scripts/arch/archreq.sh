@@ -48,7 +48,7 @@ fi
 
 uv pip install -r req.txt
 
-cd frontend
+cd trading-platform
 bun install
 cd ..
 
