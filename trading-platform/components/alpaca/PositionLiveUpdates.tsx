@@ -1,4 +1,4 @@
-// // frontend/components/alpaca/PositionLiveUpdates.tsx
+// // trading-platform/components/alpaca/PositionLiveUpdates.tsx
 // "use client";
 
 // import { useEffect, useState } from "react";

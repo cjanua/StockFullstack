@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// frontend/lib/api/client.ts
+// trading-platform/lib/api/client.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 
 // API error type for consistent error handling

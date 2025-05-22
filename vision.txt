@@ -1,0 +1,47 @@
+Stock data - Exploratory Data Analysis
+	- Cool Data visualization dashboard
+	- All da data
+	- Overarching performance (years - fundamentals to stock price)
+
+Some sort of classification
+	- Classify company into evaluation category (yk the box/gaph)
+	- Bull, Bear, or Neutral market
+	- + more !
+
+Sentiment Analysis
+	- Twitter / Reddit / IDK
+
+Stock price prediction (time-series)
+	- Trends / Cyclical / Seasonal
+	- Feature engineering (candles patterns / Temporal features / technicals)
+	- Temporal Splits (Not regular cross-validation)
+
+Neural net
+	- back propogration
+	- Calculating dimensions
+
+ML pipeline
+	- Automatically select features
+	- Choose model
+	- Hyperparamter tuning
+
+A/B testing
+	- P-tests
+	- Experiments
+
+Synthetic Stock data
+	- Normal distribution w/ Brownian motion (Black-Scholes)
+	- Markov / Market states / cycles
+	- Monte-Carlos Simulations
+
+Reinforcement Agent to "play" the stock market
+	- Rewards
+	- Policy Gradients
+
+MLOps
+	- Getting model into production being live updated
+
+UNDERSTAND MODEL ASSUMPTION <-> Financial Model Assumptions
+UNDERSTAND DOMAIN KNOWLEDGE - OPTIMIZE FOR CORRECT METRICS AND CRITICAL CONSTRAINTS
+Bonus
+- Build linear regression in rust?

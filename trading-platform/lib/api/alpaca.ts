@@ -1,4 +1,4 @@
-// frontend/lib/api/alpaca.ts
+// trading-platform/lib/api/alpaca.ts
 import { apiClient, ApiResponse } from './client';
 import { Position, Account, PortfolioHistory, Watchlist } from '@/types/alpaca';
 

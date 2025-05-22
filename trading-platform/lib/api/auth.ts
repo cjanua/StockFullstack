@@ -1,4 +1,4 @@
-// frontend/lib/api/auth.ts
+// trading-platform/lib/api/auth.ts
 import { apiClient, ApiResponse } from './client';
 
 const AUTH_ENDPOINTS = {

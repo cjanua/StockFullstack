@@ -1,4 +1,4 @@
-// frontend/hooks/queries/useAlpacaQueries.ts
+// trading-platform/hooks/queries/useAlpacaQueries.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { alpaca } from '@/lib/api';
 import { auth } from '@/lib/api';

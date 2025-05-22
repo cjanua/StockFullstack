@@ -1,4 +1,4 @@
-// frontend/app/api/alpaca/orders/route.ts
+// trading-platform/app/api/alpaca/orders/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { 
   createAlpacaOrder, 
