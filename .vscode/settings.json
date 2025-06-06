@@ -1,3 +1,4 @@
+// .vscode/settings.json
 {
     "files.exclude": {
         "**/.git": true,
@@ -8,8 +9,10 @@
         "**/*.next": true,
         "**/next-env.d.ts": true,
         "**/venv": true,
-
-
+        "**/.prettier": true,
+        "**/bin": true,
+        "**/__pycache__": true,
+        "!**/data": true
     },
     "prettier.configPath": ".prettier/.prettierrc",
     "css.validate": false,

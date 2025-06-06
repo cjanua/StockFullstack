@@ -5,6 +5,8 @@ import { open, Database } from 'sqlite';
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
 
 // Define database directory and path
 const DB_DIR = join(process.cwd(), 'data');
@@ -158,18 +160,49 @@ export async function updateAlpacaCredentials(
 export async function createSession(userId: number, expiresInHours = 24): Promise<string | null> {
   const db = await getDb();
   
-  // Generate a random token
-  const token = Buffer.from(Math.random().toString(36) + Date.now().toString(36)).toString('base64');
+  // Generate a cryptographically secure token
+  const tokenBytes = crypto.randomBytes(32);
+  const token = tokenBytes.toString('base64url'); // URL-safe base64 encoding
   
   // Calculate expiration date
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + expiresInHours);
   
   try {
+    // First, clean up any expired sessions for this user
+    await db.run(
+      'DELETE FROM sessions WHERE user_id = ? AND expires_at < CURRENT_TIMESTAMP',
+      [userId]
+    );
+    
+    // Limit active sessions per user (security measure)
+    const activeSessions = await db.get(
+      'SELECT COUNT(*) as count FROM sessions WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP',
+      [userId]
+    );
+    
+    if (activeSessions.count >= 3) {
+      // Delete oldest session if user has too many active sessions
+      await db.run(
+        `DELETE FROM sessions 
+         WHERE user_id = ? 
+         AND id = (
+           SELECT id FROM sessions 
+           WHERE user_id = ? 
+           ORDER BY created_at ASC 
+           LIMIT 1
+         )`,
+        [userId, userId]
+      );
+    }
+    
+    // Create new session
     await db.run(
       'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)',
       [userId, token, expiresAt.toISOString()]
     );
+    
+    console.log(`[SECURITY] Session created for user ${userId}, expires at ${expiresAt.toISOString()}`);
     
     return token;
   } catch (error) {
