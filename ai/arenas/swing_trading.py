@@ -1,3 +1,4 @@
+# ai/arena/swing_trading.py
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -7,8 +8,8 @@ from stable_baselines3 import A2C
 from stable_baselines3.common.vec_env import SubprocVecEnv
 import multiprocessing as mp
 
-from ai.arenas.swing_trading import SwingTradingEnv
-# from ai.models.a3c import A3CTradingAgent
+from ai.clean_data.preprocessing import split_data_by_periods 
+
 
 
 class SwingTradingEnv(gym.Env):
@@ -117,7 +118,7 @@ def create_vectorized_env(data_splits, n_envs=8):
     return SubprocVecEnv(env_fns)
 
 # Training with vectorized environments
-def train_agent_parallel():
+def train_agent_parallel(stock_data, total_timesteps=500000):
     # Split data across different time periods
     data_splits = split_data_by_periods(stock_data, n_periods=8)
     vec_env = create_vectorized_env(data_splits)
@@ -132,5 +133,5 @@ def train_agent_parallel():
         verbose=1
     )
     
-    model.learn(total_timesteps=500000)
+    model.learn(total_timesteps=total_timesteps)
     return model

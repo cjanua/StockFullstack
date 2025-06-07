@@ -1,3 +1,4 @@
+# ai/config/settings.py
 import os
 from dataclasses import dataclass
 

@@ -17,7 +17,8 @@ redis
 # Data / Math
 scipy
 pandas
-numpy
+numpy==1.26.4
+quantstats
 
 # Finance
 pyportfolioopt
@@ -40,3 +41,6 @@ stable-baselines3
 
 # AI
 mcp
+
+# Prototype Visual
+streamlit

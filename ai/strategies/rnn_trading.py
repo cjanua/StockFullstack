@@ -1,7 +1,11 @@
+# ai/strategies/rnn_trading.py
 from backtesting import Backtest, Strategy
 import numpy as np
 import pandas as pd
 import torch
+
+from ai.monitoring.performance_metrics import get_benchmark_returns, test_statistical_significance, calculate_comprehensive_risk_metrics
+from ai.features.feature_engine import AdvancedFeatureEngine
 
 class RNNTradingStrategy(Strategy):
     def init(self):
@@ -10,7 +14,7 @@ class RNNTradingStrategy(Strategy):
         self.rnn_model.eval()
         
         # Feature engineering pipeline
-        self.feature_engine = create_feature_pipeline()
+        self.feature_engine = AdvancedFeatureEngine()
         
         # Portfolio state tracking
         self.portfolio_value_history = []
@@ -22,7 +26,7 @@ class RNNTradingStrategy(Strategy):
             return
         
         # Generate features for RNN
-        features = self.feature_engine.create_features(
+        features = self.feature_engine.create_comprehensive_features(
             self.data.df.iloc[-60:]  # 60-day lookback
         )
         
@@ -119,3 +123,34 @@ def perform_walk_forward_analysis(data, strategy_class,
         })
     
     return pd.DataFrame(results)
+
+
+def create_rnn_strategy_class(trained_model):
+    """
+    Factory function to create a new Strategy class with a specific pre-trained model.
+    
+    The backtesting library requires a class, so we can't just pass the model to an
+    instance. Instead, we dynamically create a new class that has the model
+    "baked in".
+    """
+    
+    class DynamicRNNStrategy(RNNTradingStrategy):
+        """
+        A dynamically created strategy class that uses a pre-loaded model.
+        """
+        def init(self):
+            # --- Override the parent's init method ---
+            
+            # 1. Use the trained model passed in from the factory
+            self.rnn_model = trained_model
+            self.rnn_model.eval()
+            
+            # 2. Copy the rest of the setup from the parent class
+            self.feature_engine = AdvancedFeatureEngine()
+            self.portfolio_value_history = []
+            self.signals_history = []
+
+            # Note: We do NOT call super().init() because we are
+            # intentionally overriding the model loading behavior.
+
+    return DynamicRNNStrategy
