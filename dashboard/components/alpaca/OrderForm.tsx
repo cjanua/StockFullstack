@@ -1,4 +1,4 @@
-// trading-platform/components/alpaca/OrderForm.tsx
+// dashboard/components/alpaca/OrderForm.tsx
 "use client";
 
 import { useState } from "react";

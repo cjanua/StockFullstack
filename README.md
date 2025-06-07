@@ -69,9 +69,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r backend/alpaca/req.txt
 ```
 
-4. Install trading-platform dependencies
+4. Install dashboard dependencies
 ```bash
-cd trading-platform
+cd dashboard
 npm install
 ```
 
@@ -84,7 +84,7 @@ docker-compose up -d
 
 6. Run the development server
 ```bash
-cd trading-platform
+cd dashboard
 npm run dev
 ```
 
@@ -129,7 +129,7 @@ The FastAPI portfolio service provides the following endpoints:
 
 ### Next.js API Routes
 
-The Next.js trading-platform provides these API routes:
+The Next.js dashboard provides these API routes:
 
 - `/api/alpaca/account` - Get account information
 - `/api/alpaca/positions` - Get positions
@@ -148,7 +148,7 @@ The Next.js trading-platform provides these API routes:
 │       ├── sdk/            # Alpaca SDK integration
 │       ├── serializers/    # Data serialization
 │       └── services/       # Portfolio optimization service
-├── trading-platform/
+├── dashboard/
 │   ├── app/                # Next.js app directory
 │   │   ├── api/            # API routes
 │   │   └── */              # Page components

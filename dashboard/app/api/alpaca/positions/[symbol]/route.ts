@@ -1,4 +1,4 @@
-// trading-platform/app/api/alpaca/positions/[symbol]/route.ts
+// dashboard/app/api/alpaca/positions/[symbol]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { closeAlpacaPosition, getAlpacaPositions } from "@/lib/alpaca";
 

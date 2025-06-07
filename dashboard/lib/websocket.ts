@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// trading-platform/lib/websocket.ts
+// dashboard/lib/websocket.ts
 "use client";
 
 import { create } from "zustand";

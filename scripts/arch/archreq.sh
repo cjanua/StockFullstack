@@ -48,7 +48,7 @@ fi
 
 uv pip install -r req.txt
 
-cd trading-platform
+cd dashboard
 bun install
 cd ..
 
