@@ -57,3 +57,7 @@ data/
 lean.json
 
 bin/
+
+.idea/
+
+*.egg-info
