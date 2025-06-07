@@ -18,6 +18,7 @@ from ai.arenas.swing_trading import SwingTradingEnv
 
 from ai.strategies.rnn_trading import create_rnn_strategy_class
 from ai.monitoring.performance_metrics import analyze_portfolio_performance
+from ai.utils import print_integrity_check
 from backend.alpaca.sdk.clients import AlpacaDataConnector
 from ai.clean_data.preprocessing import split_data_by_periods
 
@@ -71,9 +72,17 @@ async def main():
 
         trained_model = train_lstm_model(
             processed_data[symbol], 
+            symbol,
             config,
-            num_epochs=5 # Let's use a smaller number for faster iteration
+            num_epochs=100
         )
+
+        if trained_model: # Check if training was successful
+            models[symbol] = trained_model
+            print(f"✅ {symbol} model trained successfully")
+        else:
+            print(f"❌ {symbol} model training failed.")
+
         models[symbol] = trained_model
         
         print(f"✅ {symbol} model trained successfully")
@@ -99,8 +108,7 @@ async def main():
             'volume': 'Volume'
         })
 
-        combined_data = pd.concat([backtest_df, feature_data], axis=1)
-        combined_data.dropna(inplace=True)  # Ensure no NaN values
+        combined_data = backtest_df.join(feature_data).ffill().bfill()
 
         ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         feature_columns = [col for col in combined_data.columns if col not in ohlcv_columns]
@@ -115,19 +123,23 @@ async def main():
 
         print(f"\nDEBUG: Columns for backtesting {symbol}: {final_backtest_data.columns.to_list()}\n")
 
+        plot_filename = f"model_res/backtests/backtest_{symbol}.html"
+
+        print_integrity_check(final_backtest_data, f"Final Data for Backtest on {symbol}")
+
         strategy_class = create_rnn_strategy_class(models[symbol])
         results = run_comprehensive_backtest(
             final_backtest_data, 
-            strategy_class
+            strategy_class,
+            plot_filename
         )
         backtest_results[symbol] = results
 
-        # --- ADD THIS BLOCK TO PRINT DETAILED RESULTS ---
         print(f"\n----------- Backtest Results for {symbol} -----------")
         # The results object from backtesting.py can be printed directly
         print(results['backtest_results']) 
         print(f"--------------------------------------------------\n")
-        # --- END ADDITION ---
+
 
         # This part is still useful for a final summary
         sharpe = results.get('backtest_results', {}).get('Sharpe Ratio', 'N/A')

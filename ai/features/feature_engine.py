@@ -9,6 +9,7 @@ import yfinance as yf
 from sklearn.preprocessing import RobustScaler
 
 from ai.config.settings import config
+from ai.utils import print_integrity_check
 
 class AdvancedFeatureEngine:
     def __init__(self):
@@ -23,6 +24,16 @@ class AdvancedFeatureEngine:
         market_context_data: pd.DataFrame = None
     ) -> pd.DataFrame:
         """Generate multi-timeframe feature set for RNN"""
+
+         # --- PRE-FLIGHT CHECK DEBUG BLOCK ---
+        print("\n" + "="*80)
+        print(f"DEBUG: Pre-Flight Check for create_comprehensive_features")
+        print("Input DataFrame Info:")
+        # .info() prints the column names, non-null counts, and crucially, the Dtype
+        data.info()
+        print("="*80 + "\n")
+        # --- END DEBUG BLOCK --
+
         features = {}
         
         # 1. Core technical indicators
@@ -169,7 +180,7 @@ class AdvancedFeatureEngine:
             if (datetime.now() - file_mod_time).total_seconds() < config.CACHE_LIFESPAN_HOURS * 3600:
                 print(f"CACHE HIT: Loading benchmark '{benchmark}' from {cache_path}")
                 # When reading from CSV, 'Date' becomes a regular column, so we set it as the index
-                return pd.read_csv(cache_path, index_col='Date', parse_dates=True)
+                return pd.read_csv(cache_path, index_col=0, parse_dates=True)
 
         benchmark_sym = yf.Ticker(benchmark)
         attempts = 0
@@ -182,8 +193,12 @@ class AdvancedFeatureEngine:
                     interval="4h",
                 )
                 if not market_data.empty:
+                    market_data.index = market_data.index.normalize()
                     market_data.index = market_data.index.tz_localize(None)
+
                     market_data.to_csv(cache_path)
+                    print_integrity_check(market_data, f"Benchmark Data Load for {benchmark}")
+
                     print(f"CACHE SAVE: Saved '{benchmark}' data to {cache_path}")
                 return market_data
             except Exception as e:
@@ -199,44 +214,47 @@ class AdvancedFeatureEngine:
         context_features = {}
         asset_returns = data['close'].pct_change()
         market_returns = market_data['Close'].pct_change()
+
+        returns_df = pd.DataFrame({'asset': asset_returns, 'market': market_returns})
+        rolling_corr = returns_df['asset'].rolling(window=50).corr(returns_df['market'])
+
         
         # Rolling correlation with the market
-        context_features['market_corr'] = asset_returns.rolling(window=20).corr(market_returns)
+        context_features['market_corr'] = rolling_corr.reindex(data.index)
         return context_features
 
     def calculate_risk_features(self, data):
         """Calculates features related to risk and volatility."""
         risk_features = {}
         returns = data['close'].pct_change()
-        # Historical volatility (rolling standard deviation of returns)
         risk_features['volatility_20d'] = returns.rolling(window=20).std() * np.sqrt(252)
         return risk_features
 
     def normalize_and_structure_features(self, features: dict) -> pd.DataFrame:
         """Combines all feature series into a single, cleaned, and normalized DataFrame."""
         # 1. filter for valid features
-        valid_features = {name: series for name, series in features.items() if not series.isnull().all()}
+        valid_features = {k: v for k, v in features.items() if not v.isnull().all()}
+
         if not valid_features:
             print(f"ERROR: No valid features could be calculated for this symbol.")
             return pd.DataFrame()
         
-        df = pd.concat(features.values(), axis=1)
-        df.columns = features.keys() # Ensure column names are correct
+        df = pd.concat(valid_features.values(), axis=1)
+        df.columns = valid_features.keys() # Ensure column names are correct
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        nan_counts = df.isna().sum()
-        print(f"DEBUG: NaN counts before filling:\n{nan_counts[nan_counts > 0]}")
 
-        # 2. Handle missing values robustly
-        # First, forward-fill to propagate last known values, then back-fill for any remaining NaNs at the start
-        df.fillna(method='ffill', inplace=True)
-        df.fillna(method='bfill', inplace=True)
-        df.dropna(inplace=True)
-        
-        
+        df.dropna(thresh=int(df.shape[1] * 0.8), axis=0, inplace=True)
+
+        df.ffill(inplace=True)
+        df.bfill(inplace=True)
+
+        print_integrity_check(df, "Cleaned Features (Before Scaling)")
+
+
         if df.empty:
-            return df # Return empty if all data was dropped
+            print("ERROR: DataFrame is empty after handling NaN values.")
+            return df
 
-        # 4. Normalize the data
         # Using RobustScaler as it's less sensitive to outliers
         scaler = RobustScaler()
         df_scaled = pd.DataFrame(scaler.fit_transform(df), index=df.index, columns=df.columns)

@@ -5,10 +5,12 @@ import torch.optim as optim
 
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
 from ai.models.lstm import TradingLSTM
 from ai.clean_data.pytorch_data import create_pytorch_dataloaders
 
-def train_lstm_model(processed_data: pd.DataFrame, config, num_epochs=10):
+def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epochs=10):
     """
     Initializes and trains a TradingLSTM model.
     """
@@ -39,9 +41,14 @@ def train_lstm_model(processed_data: pd.DataFrame, config, num_epochs=10):
     # Create the data loader
     dataloader = create_pytorch_dataloaders(feature_subset, targets, config)
     
+    epoch_losses = []
+
     # --- Training Loop ---
     model.train()
     for epoch in range(num_epochs):
+        epoch_loss = 0.0
+        num_batches = 0
+
         for sequences, labels in dataloader:
             optimizer.zero_grad()
             
@@ -54,8 +61,26 @@ def train_lstm_model(processed_data: pd.DataFrame, config, num_epochs=10):
             # Backpropagate and update weights
             loss.backward()
             optimizer.step()
+            epoch_loss += loss.item()
+            num_batches += 1
+
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
-        
+        avg_epoch_loss = epoch_loss / num_batches
+        epoch_losses.append(avg_epoch_loss) # Save the average loss for the epoch
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
+
+    # --- ADD THIS: Generate and save the loss curve plot ---
+    plt.figure()
+    plt.plot(range(1, num_epochs + 1), epoch_losses, marker='o')
+    plt.title(f'Training Loss Curve for {symbol}')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.grid(True)
+    plot_filename = f'model_res/training/training_loss_{symbol}.png'
+    plt.savefig(plot_filename)
+    plt.close()
+    print(f"📉 Training loss curve saved to: {plot_filename}")
+
+
     model.eval() # Set model to evaluation mode
     return model

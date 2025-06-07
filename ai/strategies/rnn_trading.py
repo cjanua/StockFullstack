@@ -19,6 +19,9 @@ class RNNTradingStrategy(Strategy):
         # Portfolio state tracking
         self.portfolio_value_history = []
         self.signals_history = []
+
+        self.signal_strength = self.I(lambda: pd.Series(self.signals_history), name='Signal')
+
         
     def next(self):
         # Minimum data requirement
@@ -40,14 +43,16 @@ class RNNTradingStrategy(Strategy):
         # Trading logic with risk management
         signal_strength = buy_prob
         
+        self.signals_history.append(signal_strength)
+
         # Position management
-        if signal_strength > 0.52 and not self.position:
+        if signal_strength > 0.5 and not self.position:
             # Calculate position size
-            size = self.calculate_position_size(buy_prob)
-            self.buy(size=size)
+            # size = self.calculate_position_size(buy_prob)
+            self.buy(size=0.1)
             
         elif signal_strength < 0.48 and self.position:
-            self.sell(size=self.position.size)
+            self.position.close()
         
         # Track performance
         self.portfolio_value_history.append(self.equity)
@@ -65,13 +70,16 @@ class RNNTradingStrategy(Strategy):
         return base_size * vol_adjustment
 
 # Comprehensive backtesting workflow
-def run_comprehensive_backtest(data, strategy_class):
+def run_comprehensive_backtest(data, strategy_class, plt_file):
     """Execute full backtesting pipeline with performance analysis"""
     
     # Primary backtest
     bt = Backtest(data, strategy_class, cash=100000, commission=0.002)
     results = bt.run()
     
+    if plt_file:
+        bt.plot(filename=plt_file, open_browser=True)
+
     # Walk-forward analysis
     wf_results = perform_walk_forward_analysis(data, strategy_class)
     

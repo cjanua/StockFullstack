@@ -11,6 +11,7 @@ from alpaca.common.exceptions import APIError
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
+from ai.utils import print_integrity_check
 from backend.alpaca.core import AlpacaConfig
 from backend.alpaca.core import logger
 
@@ -112,9 +113,21 @@ class AlpacaDataConnector:
             """An inner async function to fetch data for a single symbol."""
             cache_path = self._get_cache_path(symbol, lookback_days)
             if self._is_cache_valid(cache_path):
-                print(f"CACHE HIT: :pading '{symbol}' from {cache_path}")
-                all_data[symbol] = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
-                return 
+                print(f"CACHE HIT: '{symbol}' from {cache_path}")
+                df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+                
+                # --- FIX: Force essential columns to be numeric after loading ---
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                # errors='coerce' will turn any non-numeric values into NaN
+                df.dropna(subset=numeric_cols, inplace=True)
+                # --- END FIX ---
+                print_integrity_check(df, f"Alpaca Data Load for {symbol}")
+                
+                all_data[symbol] = df
+                return
             
             try:
                 request_params = StockBarsRequest(
@@ -133,11 +146,12 @@ class AlpacaDataConnector:
 
                     if isinstance(df.index, pd.MultiIndex):
                         df = df.reset_index(level='symbol', drop=True)
-                    df.index = df.index.tz_convert('UTC').tz_localize(None)
+                    df.index = df.index.tz_convert('UTC').normalize()  # Normalize to remove time component
+                    df.index = df.index.tz_localize(None)
 
                     df.to_csv(cache_path)
                     print(f"API FETCH: Saved '{symbol}' to {cache_path}")
-                    # --- END SAVE ---
+                    print_integrity_check(df, f"Alpaca Data Load for {symbol}")
                     all_data[symbol] = df
 
             except Exception as e:
