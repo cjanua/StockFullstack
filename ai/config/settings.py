@@ -10,6 +10,7 @@ class TradingConfig:
     ALPACA_PAPER: bool = True
     
     # Model parameters
+    LSTM_INPUT_SIZE: int = 30
     LSTM_HIDDEN_SIZE: int = 128
     LSTM_NUM_LAYERS: int = 1
     SEQUENCE_LENGTH: int = 60
@@ -20,6 +21,9 @@ class TradingConfig:
     MAX_POSITION_SIZE: float = 0.95
     TRANSACTION_COST: float = 0.002
     RISK_PER_TRADE: float = 0.02
+
+    CACHE_DIR: str = '.cache'
+    CACHE_LIFESPAN_HOURS: int = 12
     
     # Data parameters
     SYMBOLS: list = None

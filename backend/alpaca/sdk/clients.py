@@ -1,6 +1,7 @@
 # backend/alpaca/sdk/clients.py
 import asyncio
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, Optional
 import pandas as pd
 
@@ -71,6 +72,24 @@ class AlpacaDataConnector:
         """
         self.client = AlpacaClientManager.get_historical_client()
         self.config = config
+        self.cache_dir = Path(self.config.CACHE_DIR) / 'alpaca'
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+
+    def _get_cache_path(self, symbol: str, lookback_days: int) -> Path:
+        """Creates a unique filename for a given cache request."""
+        return self.cache_dir / f"{symbol}_{lookback_days}d.csv"
+
+    def _is_cache_valid(self, path: Path) -> bool:
+        """Checks if a cache file exists and is not too old."""
+        if not path.exists():
+            return False
+        
+        file_mod_time = datetime.fromtimestamp(path.stat().st_mtime)
+        if (datetime.now() - file_mod_time).total_seconds() > self.config.CACHE_LIFESPAN_HOURS * 3600:
+            return False # Cache is stale
+        
+        return True
 
     async def get_historical_data(self, symbols: list, lookback_days: int) -> Dict[str, pd.DataFrame]:
         """
@@ -91,6 +110,12 @@ class AlpacaDataConnector:
 
         async def fetch_symbol(symbol: str):
             """An inner async function to fetch data for a single symbol."""
+            cache_path = self._get_cache_path(symbol, lookback_days)
+            if self._is_cache_valid(cache_path):
+                print(f"CACHE HIT: :pading '{symbol}' from {cache_path}")
+                all_data[symbol] = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+                return 
+            
             try:
                 request_params = StockBarsRequest(
                     symbol_or_symbols=symbol,
@@ -110,8 +135,10 @@ class AlpacaDataConnector:
                         df = df.reset_index(level='symbol', drop=True)
                     df.index = df.index.tz_convert('UTC').tz_localize(None)
 
-                    return symbol, df
-                return symbol, pd.DataFrame()
+                    df.to_csv(cache_path)
+                    print(f"API FETCH: Saved '{symbol}' to {cache_path}")
+                    # --- END SAVE ---
+                    all_data[symbol] = df
 
             except Exception as e:
                 logger.error(f"Failed to fetch historical data for {symbol}: {e}")
@@ -119,12 +146,7 @@ class AlpacaDataConnector:
 
         # Create and run all fetching tasks in parallel
         tasks = [fetch_symbol(symbol) for symbol in symbols]
-        results = await asyncio.gather(*tasks)
-
-        # Populate the final dictionary
-        for symbol, data in results:
-            if not data.empty:
-                all_data[symbol] = data
+        await asyncio.gather(*tasks)
         
         return all_data
 

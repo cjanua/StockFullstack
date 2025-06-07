@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 
+from ai.agent.pytorch_system import train_lstm_model
 from ai.features.feature_engine import AdvancedFeatureEngine
 from ai.models.a3c import A3CTradingAgent
 from ai.strategies.rnn_trading import run_comprehensive_backtest
@@ -68,9 +69,10 @@ async def main():
         if symbol not in processed_data: continue
         print(f"Training model for {symbol}...")
 
-        trained_model = train_agent_parallel(
+        trained_model = train_lstm_model(
             processed_data[symbol], 
-            total_timesteps=250000 # Let's use a smaller number for faster iteration
+            config,
+            num_epochs=5 # Let's use a smaller number for faster iteration
         )
         models[symbol] = trained_model
         
@@ -83,15 +85,56 @@ async def main():
     
     for symbol in trading_symbols:
         if symbol not in processed_data or symbol not in models: continue
+        ohlc_data = market_data[symbol]
+        feature_data = processed_data[symbol]
+
+        print(ohlc_data.head())
+        print(ohlc_data.columns)
+
+        backtest_df = ohlc_data.rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+
+        combined_data = pd.concat([backtest_df, feature_data], axis=1)
+        combined_data.dropna(inplace=True)  # Ensure no NaN values
+
+        ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        feature_columns = [col for col in combined_data.columns if col not in ohlcv_columns]
         
+        if len(feature_columns) >= config.LSTM_INPUT_SIZE:
+            final_feature_cols = feature_columns[:config.LSTM_INPUT_SIZE]
+            # Create the final dataframe with OHLCV and the fixed feature set
+            final_backtest_data = combined_data[ohlcv_columns + final_feature_cols]
+        else:
+            print(f"Warning: Not enough features for backtesting {symbol}. Skipping.")
+            continue
+
+        print(f"\nDEBUG: Columns for backtesting {symbol}: {final_backtest_data.columns.to_list()}\n")
+
         strategy_class = create_rnn_strategy_class(models[symbol])
         results = run_comprehensive_backtest(
-            processed_data[symbol], 
+            final_backtest_data, 
             strategy_class
         )
         backtest_results[symbol] = results
-        
-        print(f"📊 {symbol} backtest complete - Sharpe: {results['backtest_results']['Sharpe Ratio']:.2f}")
+
+        # --- ADD THIS BLOCK TO PRINT DETAILED RESULTS ---
+        print(f"\n----------- Backtest Results for {symbol} -----------")
+        # The results object from backtesting.py can be printed directly
+        print(results['backtest_results']) 
+        print(f"--------------------------------------------------\n")
+        # --- END ADDITION ---
+
+        # This part is still useful for a final summary
+        sharpe = results.get('backtest_results', {}).get('Sharpe Ratio', 'N/A')
+        if isinstance(sharpe, float):
+            print(f"📊 {symbol} backtest complete - Sharpe: {sharpe:.2f}")
+        else:
+            print(f"📊 {symbol} backtest complete - Sharpe: {sharpe}")
     
     # 5. Performance validation
     performance_summary = analyze_portfolio_performance(backtest_results)

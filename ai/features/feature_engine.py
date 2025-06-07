@@ -1,4 +1,6 @@
 # ai/features/feature_engine.py
+from datetime import datetime
+from pathlib import Path
 import time
 import pandas_ta as ta
 import pandas as pd
@@ -6,11 +8,15 @@ import numpy as np
 import yfinance as yf
 from sklearn.preprocessing import RobustScaler
 
+from ai.config.settings import config
+
 class AdvancedFeatureEngine:
     def __init__(self):
         self.scalers = {}
         self.lookback_window = 60
-        
+        self.cache_dir = Path(config.CACHE_DIR) / 'yahoo'
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
     def create_comprehensive_features(
         self,
         data: pd.DataFrame,
@@ -38,6 +44,7 @@ class AdvancedFeatureEngine:
         
         # 6. Risk features
         features.update(self.calculate_risk_features(data))
+        features['close'] = data['close']  # Always include close price
         
         # 7. Combine and normalize
         return self.normalize_and_structure_features(features)
@@ -149,18 +156,42 @@ class AdvancedFeatureEngine:
     
     def get_market_context_data(self, index, benchmark='SPY'):
         """Fetches benchmark data (e.g., SPY) for the given time index."""
-        try:
-            time.sleep(1)
+        if index.empty:
+            return pd.DataFrame()
 
-            market_data = yf.download(benchmark, start=index.min(), end=index.max(), progress=True)
-            if not market_data.empty:
-                print(f"Downloaded benchmark data for {benchmark} from {index.min()} to {index.max()}")
-                market_data.index = market_data.index.tz_localize(None)
-            return market_data
-        except Exception as e:
-            print(f"ERROR downloading benchmark data: {e}") # Added a print for visibility
-            return None
+        start_str = index.min().strftime('%Y-%m-%d')
+        end_str = index.max().strftime('%Y-%m-%d')
 
+        cache_path = self.cache_dir / f"{benchmark}_{start_str}_to_{end_str}.csv"
+
+        if cache_path.exists():
+            file_mod_time = datetime.fromtimestamp(cache_path.stat().st_mtime)
+            if (datetime.now() - file_mod_time).total_seconds() < config.CACHE_LIFESPAN_HOURS * 3600:
+                print(f"CACHE HIT: Loading benchmark '{benchmark}' from {cache_path}")
+                # When reading from CSV, 'Date' becomes a regular column, so we set it as the index
+                return pd.read_csv(cache_path, index_col='Date', parse_dates=True)
+
+        benchmark_sym = yf.Ticker(benchmark)
+        attempts = 0
+        max_attempts = 5
+        while attempts < max_attempts:
+            try:
+                market_data = benchmark_sym.history(
+                    start=index.min(),
+                    end=index.max(),
+                    interval="4h",
+                )
+                if not market_data.empty:
+                    market_data.index = market_data.index.tz_localize(None)
+                    market_data.to_csv(cache_path)
+                    print(f"CACHE SAVE: Saved '{benchmark}' data to {cache_path}")
+                return market_data
+            except Exception as e:
+                print(f"ERROR downloading benchmark data: {repr(e)}")
+                attempts += 1
+                time.sleep(5)
+        print(f"Failed to download benchmark data for {benchmark} after {max_attempts} attempts.")
+        return pd.DataFrame()  # Return empty DataFrame if download fails
 
 
     def calculate_market_context_features(self, data, market_data):
@@ -183,16 +214,24 @@ class AdvancedFeatureEngine:
 
     def normalize_and_structure_features(self, features: dict) -> pd.DataFrame:
         """Combines all feature series into a single, cleaned, and normalized DataFrame."""
-        # 1. Combine all features into one DataFrame
+        # 1. filter for valid features
+        valid_features = {name: series for name, series in features.items() if not series.isnull().all()}
+        if not valid_features:
+            print(f"ERROR: No valid features could be calculated for this symbol.")
+            return pd.DataFrame()
+        
         df = pd.concat(features.values(), axis=1)
         df.columns = features.keys() # Ensure column names are correct
-        
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        nan_counts = df.isna().sum()
+        print(f"DEBUG: NaN counts before filling:\n{nan_counts[nan_counts > 0]}")
+
         # 2. Handle missing values robustly
         # First, forward-fill to propagate last known values, then back-fill for any remaining NaNs at the start
-        df = df.ffill().bfill()
-        
-        # 3. Drop any rows that still have NaNs (should only be at the very beginning)
+        df.fillna(method='ffill', inplace=True)
+        df.fillna(method='bfill', inplace=True)
         df.dropna(inplace=True)
+        
         
         if df.empty:
             return df # Return empty if all data was dropped

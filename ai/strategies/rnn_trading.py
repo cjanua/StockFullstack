@@ -10,11 +10,11 @@ from ai.features.feature_engine import AdvancedFeatureEngine
 class RNNTradingStrategy(Strategy):
     def init(self):
         # Load pre-trained RNN model
-        self.rnn_model = torch.load('trained_rnn_model.pth')
-        self.rnn_model.eval()
+        # self.rnn_model = torch.load('trained_rnn_model.pth')
+        # self.rnn_model.eval()
         
-        # Feature engineering pipeline
-        self.feature_engine = AdvancedFeatureEngine()
+        # # Feature engineering pipeline
+        # self.feature_engine = AdvancedFeatureEngine()
         
         # Portfolio state tracking
         self.portfolio_value_history = []
@@ -25,32 +25,33 @@ class RNNTradingStrategy(Strategy):
         if len(self.data) < 60:
             return
         
-        # Generate features for RNN
-        features = self.feature_engine.create_comprehensive_features(
-            self.data.df.iloc[-60:]  # 60-day lookback
-        )
+        ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+
+        feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
         
+        features_df = self.data.df[feature_cols].iloc[-60:][feature_cols]
+        features = features_df.values
         # Get RNN prediction
         with torch.no_grad():
             features_tensor = torch.FloatTensor(features).unsqueeze(0)
             prediction = self.rnn_model(features_tensor)
-            signal = torch.softmax(prediction, dim=1).numpy()[0]
+            buy_prob = torch.softmax(prediction, dim=1).numpy()[0][1]
         
         # Trading logic with risk management
-        buy_prob, hold_prob, sell_prob = signal
+        signal_strength = buy_prob
         
         # Position management
-        if buy_prob > 0.7 and not self.position:
+        if signal_strength > 0.52 and not self.position:
             # Calculate position size
             size = self.calculate_position_size(buy_prob)
             self.buy(size=size)
             
-        elif sell_prob > 0.7 and self.position:
+        elif signal_strength < 0.48 and self.position:
             self.sell(size=self.position.size)
         
         # Track performance
         self.portfolio_value_history.append(self.equity)
-        self.signals_history.append(signal)
+        self.signals_history.append(signal_strength)
     
     def calculate_position_size(self, signal_strength):
         """Dynamic position sizing based on signal confidence"""
