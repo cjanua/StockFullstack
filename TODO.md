@@ -6,12 +6,14 @@ Project Description
 
 ### Todo
 
-- [ ]   
-- [ ] Some Analysis  
-- [ ] Real Watchlists  
+- [ ] [pm] deploy  
+- [ ] [dev] move py/uv to pyproject.toml  
+- [ ] [dashboard] More Analysis  
+- [ ] [dashboard] Impl my real Watchlists  
 
 ### In Progress
 
+- [ ] [Agent] RNN  
 
 ### Done ✓
 
