@@ -1,10 +1,42 @@
+# print tables
 tabulate
-alpaca-py
-python-dotenv
-result
-redis
 seaborn
+
+# broker
+alpaca-py
+
+#env
+python-dotenv
+
+# Error / Type-Safety
+result
+
+# Sys
+redis
+
+# Data / Math
 scipy
-pyportfolioopt
 pandas
 numpy
+
+# Finance
+pyportfolioopt
+backtesting
+
+pandas-ta
+
+# ML
+scikit-learn
+
+torch
+torchvision
+torchaudio
+
+# RNN
+gymnasium  # Arena
+
+# Vectorization
+stable-baselines3
+
+# AI
+mcp
