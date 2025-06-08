@@ -20,9 +20,6 @@ class RNNTradingStrategy(Strategy):
         self.portfolio_value_history = []
         self.signals_history = []
 
-        self.debug_printed = False
-
-
         
     def next(self):
         # Minimum data requirement
@@ -48,9 +45,7 @@ class RNNTradingStrategy(Strategy):
                 # Get the class with highest probability
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]
-                if not self.debug_printed:
-                    print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}")
-                    self.debug_printed = True
+                # print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}")
                 
             except Exception as e:
                 print(f"Error in model prediction: {e}")

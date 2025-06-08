@@ -79,15 +79,12 @@ async def main():
             num_epochs=100,
         )
 
-        if trained_model: # Check if training was successful
+        if trained_model:
             models[symbol] = trained_model
-            print(f"✅ {symbol} model trained successfully")
+            print(f"  - ✅ {symbol} model trained successfully.")
         else:
-            print(f"❌ {symbol} model training failed.")
-
-        models[symbol] = trained_model
+            print(f"  - ❌ {symbol} model training failed.")
         
-        print(f"✅ {symbol} model trained successfully")
 
     
     # 4. Backtesting validation
@@ -95,10 +92,30 @@ async def main():
     backtest_results = {}
     
     for symbol in trading_symbols:
-        if symbol not in processed_data or symbol not in models: continue
-        ohlc_data = market_data[symbol]
+        if symbol not in processed_data or symbol not in models:
+            continue
+        ohlc_data_raw = market_data[symbol]
         feature_data = processed_data[symbol]
-        combined_data = ohlc_data.join(feature_data, how='inner').ffill().bfill()
+
+        if ohlc_data_raw.index.has_duplicates:
+            ohlc_data_raw = ohlc_data_raw.loc[~ohlc_data_raw.index.duplicated(keep='first')]
+
+        ohlcv_for_backtest = ohlc_data_raw[['open', 'high', 'low', 'close', 'volume']]
+
+        features_only = feature_data.drop(columns=['close'], errors='ignore')
+
+        combined_data = ohlcv_for_backtest.join(features_only, how='inner')
+
+        combined_data.rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        }, inplace=True)
+
+        combined_data.ffill(inplace=True)
+        combined_data.bfill(inplace=True)
 
         if combined_data.empty or len(combined_data) < 60:
             print(f"  - WARNING: Not enough combined data for {symbol}, skipping backtest.")

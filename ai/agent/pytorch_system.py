@@ -71,7 +71,7 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
             epoch_loss += loss.item()
             num_batches += 1
 
-        if num_batches > 0:
+        if num_batches > 0 and epoch % 20 == 0:
             avg_epoch_loss = epoch_loss / num_batches
             epoch_losses.append(avg_epoch_loss)
             print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
