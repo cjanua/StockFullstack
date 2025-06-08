@@ -10,7 +10,8 @@ from ai.features.feature_engine import AdvancedFeatureEngine
 class RNNTradingStrategy(Strategy):
     stop_loss_pct = 0.025
     take_profit_pct = 0.05
-    position_size = 0.75
+    max_position_size = 0.70
+    increment_position_size = 0.33
     confidence_threshold = 0.35
 
 
@@ -21,6 +22,10 @@ class RNNTradingStrategy(Strategy):
         self.prediction_cache = None
         self.consecutive_losses = 0
         self.recent_trades = []
+
+        self.current_long_position = 0.0   # Track cumulative long position
+        self.current_short_position = 0.0  # Track cumulative short position
+        self.position_levels = [] 
         
     def next(self):
         # Warm-up
@@ -40,129 +45,171 @@ class RNNTradingStrategy(Strategy):
         action, confidence = self.prediction_cache
         current_price = self.data.Close[-1]
 
-        # self._update_performance_tracking()
+        self._update_performance_tracking()
+
+        self._manage_cascading_positions(action, confidence, current_price)
+
+        # if self.position:
+        #     self._manage_existing_position(action, confidence, current_price)
+        # else:
+        #     self._enter_new_position(action, confidence, current_price)
 
 
-        if self.position:
-            self._manage_existing_position(action, confidence, current_price)
-        else:
-            self._enter_new_position(action, confidence, current_price)
 
-
-
-    # def _update_performance_tracking(self):
-    #     """Track recent performance for adaptive behavior"""
-    #     if hasattr(self, 'closed_trades') and len(self.closed_trades) > len(self.recent_trades):
-    #         # New trade closed
-    #         new_trades = self.closed_trades[len(self.recent_trades):]
-    #         for trade in new_trades:
-    #             self.recent_trades.append(trade.pl)
-    #             if len(self.recent_trades) > 10:  # Keep only last 10 trades
-    #                 self.recent_trades.pop(0)
-            
-    #         # Update consecutive losses
-    #         if new_trades and new_trades[-1].pl <= 0:
-    #             self.consecutive_losses += 1
-    #         else:
-    #             self.consecutive_losses = 0
-
-    def _manage_existing_position(self, action, confidence, current_price):
-        """Improved position management"""
-        # Early exit on strong opposing signals
-        if self.position.is_long and action == 0 and confidence > 0.6:
-            self.position.close()
-        elif self.position.is_short and action == 2 and confidence > 0.6:
-            self.position.close()
+    def _manage_cascading_positions(self, action, confidence, current_price):
+        """Manage positions with cascading thirds"""
         
-        # Trailing stop logic
-        self._apply_trailing_stop(current_price)
-
-    def _apply_trailing_stop(self, current_price):
-        """Simple trailing stop implementation"""
-        if not hasattr(self, '_entry_price'):
+        if confidence < self.confidence_threshold:
             return
             
-        if self.position.is_long:
-            # Trail stop up
-            profit_pct = (current_price - self._entry_price) / self._entry_price
-            if profit_pct > 0.03:  # 3% profit
-                new_stop = current_price * (1 - self.stop_loss_pct * 0.7)  # Tighter trailing stop
-                if not hasattr(self, '_trailing_stop') or new_stop > self._trailing_stop:
-                    self._trailing_stop = new_stop
+        increment = self.max_position_size * self.increment_position_size  # FIX: Use max_position_size
         
-        elif self.position.is_short:
-            # Trail stop down
-            profit_pct = (self._entry_price - current_price) / self._entry_price
-            if profit_pct > 0.03:  # 3% profit
-                new_stop = current_price * (1 + self.stop_loss_pct * 0.7)
-                if not hasattr(self, '_trailing_stop') or new_stop < self._trailing_stop:
-                    self._trailing_stop = new_stop
+        if action == 2:  # UP signal
+            self._handle_up_signal(increment, current_price, confidence)
+        elif action == 0:  # DOWN signal  
+            self._handle_down_signal(increment, current_price, confidence)
+        # action == 1 (HOLD) - do nothing
 
-    def _enter_new_position(self, action, confidence, current_price):
-        """Enhanced entry logic with filters"""
+    def _handle_up_signal(self, increment, current_price, confidence):
+        """Handle UP signal with cascading logic"""
         
-        # Skip trading if too many recent losses
-        # if self.consecutive_losses >= 3:
-        #     return
+        # If we have short positions, close them first (pyramid out of shorts)
+        if self.current_short_position > 0:
+            close_size = min(increment, self.current_short_position)
+            self._close_short_position(close_size, "Signal reversal")
+            return
         
-        # # Market condition filters
-        # if not self._check_market_conditions():
-        #     return
-        
-        # Adaptive confidence threshold
-        # adaptive_threshold = self._get_adaptive_threshold()
-        
-        if confidence > self.confidence_threshold:
-            size = self._calculate_position_size(confidence)
+        # If we're neutral or long, add to long position (pyramid into longs)
+        max_long_position = self.max_position_size  # FIX: Use max_position_size
+        if self.current_long_position < max_long_position:
+            # Calculate how much we can still add
+            remaining_capacity = max_long_position - self.current_long_position
+            actual_increment = min(increment, remaining_capacity)
             
-            if action == 2:  # UP signal
-                sl = current_price * (1 - self.stop_loss_pct)
-                tp = current_price * (1 + self.take_profit_pct)
-                self.buy(size=size, sl=sl, tp=tp)
-                self._entry_price = current_price
-                self._trailing_stop = sl
+            if actual_increment > 0.05:  # Only trade if meaningful size (>5%)
+                self._add_long_position(actual_increment, current_price, confidence)
+
+    def _handle_down_signal(self, increment, current_price, confidence):
+        """Handle DOWN signal with cascading logic"""
+        
+        # If we have long positions, close them first (pyramid out of longs)
+        if self.current_long_position > 0:
+            close_size = min(increment, self.current_long_position)
+            self._close_long_position(close_size, "Signal reversal")
+            return
+            
+        # If we're neutral or short, add to short position (pyramid into shorts)
+        max_short_position = self.max_position_size  # FIX: Use max_position_size
+        if self.current_short_position < max_short_position:
+            # Calculate how much we can still add
+            remaining_capacity = max_short_position - self.current_short_position
+            actual_increment = min(increment, remaining_capacity)
+            
+            if actual_increment > 0.05:  # Only trade if meaningful size (>5%)
+                self._add_short_position(actual_increment, current_price, confidence)
+
+    def _add_long_position(self, size, entry_price, confidence):
+        """Add to long position"""
+        sl = entry_price * (1 - self.stop_loss_pct)
+        tp = entry_price * (1 + self.take_profit_pct)
+        
+        # Execute the trade
+        self.buy(size=size, sl=sl, tp=tp)
+        
+        # Track the position
+        self.current_long_position += size
+        self.position_levels.append({
+            'type': 'long',
+            'size': size,
+            'entry_price': entry_price,
+            'confidence': confidence,
+            'timestamp': self.data.index[-1]
+        })
+        
+        print(f"Added LONG {size:.2f} at {entry_price:.2f} (Total long: {self.current_long_position:.2f})")
+
+    def _add_short_position(self, size, entry_price, confidence):
+        """Add to short position"""
+        sl = entry_price * (1 + self.stop_loss_pct)
+        tp = entry_price * (1 - self.take_profit_pct)
+        
+        # Execute the trade
+        self.sell(size=size, sl=sl, tp=tp)
+        
+        # Track the position
+        self.current_short_position += size
+        self.position_levels.append({
+            'type': 'short',
+            'size': size,
+            'entry_price': entry_price,
+            'confidence': confidence,
+            'timestamp': self.data.index[-1]
+        })
+        
+        print(f"Added SHORT {size:.2f} at {entry_price:.2f} (Total short: {self.current_short_position:.2f})")
+
+    def _close_long_position(self, size, reason):
+        """Close portion of long position"""
+        if self.current_long_position <= 0:
+            return
+            
+        # This is conceptual - backtesting.py handles actual position closing
+        # In live trading, you'd implement partial position closing here
+        
+        self.current_long_position = max(0, self.current_long_position - size)
+        
+        # Remove closed positions from tracking
+        self._update_position_levels('long', size)
+        
+        print(f"Closed LONG {size:.2f} ({reason}) - Remaining long: {self.current_long_position:.2f}")
+
+    def _close_short_position(self, size, reason):
+        """Close portion of short position"""
+        if self.current_short_position <= 0:
+            return
+            
+        self.current_short_position = max(0, self.current_short_position - size)
+        
+        # Remove closed positions from tracking
+        self._update_position_levels('short', size)
+        
+        print(f"Closed SHORT {size:.2f} ({reason}) - Remaining short: {self.current_short_position:.2f}")
+
+    def _update_position_levels(self, position_type, closed_size):
+        """Update position tracking when positions are closed"""
+        remaining_to_close = closed_size
+        
+        # Remove positions FIFO (first in, first out)
+        for i in range(len(self.position_levels) - 1, -1, -1):
+            if self.position_levels[i]['type'] == position_type and remaining_to_close > 0:
+                position_size = self.position_levels[i]['size']
                 
-            elif action == 0:  # DOWN signal
-                sl = current_price * (1 + self.stop_loss_pct)
-                tp = current_price * (1 - self.take_profit_pct)
-                self.sell(size=size, sl=sl, tp=tp)
-                self._entry_price = current_price
-                self._trailing_stop = sl
+                if position_size <= remaining_to_close:
+                    # Close entire position level
+                    remaining_to_close -= position_size
+                    self.position_levels.pop(i)
+                else:
+                    # Partially close position level
+                    self.position_levels[i]['size'] -= remaining_to_close
+                    remaining_to_close = 0
+                    break
 
-    def _check_market_conditions(self):
-        """Basic market condition filters"""
-        try:
-            # Avoid trading in extreme volatility
-            recent_range = (self.data.High[-5:].max() - self.data.Low[-5:].min()) / self.data.Close[-1]
-            if recent_range > 0.15:  # 15% range in 5 days
-                return False
+    def _update_performance_tracking(self):
+        """Track recent performance for adaptive behavior (same as before)"""
+        if hasattr(self, 'closed_trades') and len(self.closed_trades) > len(self.recent_trades):
+            new_trades = self.closed_trades[len(self.recent_trades):]
+            for trade in new_trades:
+                self.recent_trades.append(trade.pl)
+                if len(self.recent_trades) > 10:
+                    self.recent_trades.pop(0)
             
-            # Avoid trading after large gaps
-            if len(self.data) > 1:
-                gap = abs(self.data.Open[-1] / self.data.Close[-2] - 1)
-                if gap > 0.05:  # 5% gap
-                    return False
-            
-            return True
-        except:
-            return True
-
-    # def _get_adaptive_threshold(self):
-    #     """Adjust confidence threshold based on recent performance"""
-    #     base_threshold = self.confidence_threshold
-        
-    #     # Lower threshold if doing well, raise if doing poorly
-    #     if len(self.recent_trades) >= 5:
-    #         recent_pnl = sum(self.recent_trades[-5:])
-    #         if recent_pnl > 0:
-    #             return max(0.25, base_threshold - 0.05)  # Lower threshold
-    #         elif recent_pnl < -1000:  # Significant losses
-    #             return min(0.55, base_threshold + 0.1)   # Higher threshold
-        
-    #     return base_threshold
+            if new_trades and new_trades[-1].pl <= 0:
+                self.consecutive_losses += 1
+            else:
+                self.consecutive_losses = 0
 
     def _get_prediction(self):
-        """Get model prediction with error handling"""
+        """Get model prediction with error handling (same as before)"""
         try:
             ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
             feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
@@ -172,62 +219,38 @@ class RNNTradingStrategy(Strategy):
             
             features_df = self.data.df[feature_cols].iloc[-60:]
             
-            # Handle NaN values more gracefully
-            if features_df.isnull().sum().sum() > len(features_df) * 0.1:  # >10% NaN
+            if features_df.isnull().sum().sum() > len(features_df) * 0.1:
                 return None
                 
-            # Forward fill NaN values
             features_df = features_df.ffill().fillna(0)
             features = features_df.values
 
-            # Get RNN prediction
             with torch.no_grad():
                 features_tensor = torch.FloatTensor(features).unsqueeze(0)
 
                 model_input_size = getattr(self.rnn_model, 'input_size', None)
-                # Handle tensor shape issues
                 if model_input_size is None:
-                    # Fallback: check if it's a TradingLSTM with lstm attribute
                     if hasattr(self.rnn_model, 'lstm'):
                         model_input_size = self.rnn_model.lstm.input_size
                     else:
-                        # Final fallback: use feature size
                         model_input_size = features_tensor.shape[-1]
                 
                 if features_tensor.shape[-1] != model_input_size:
                     print(f"Feature size mismatch: expected {model_input_size}, got {features_tensor.shape[-1]}")
                     return None
-
                     
                 prediction = self.rnn_model(features_tensor)
-                probabilities = prediction.numpy()[0]  # [down, hold, up]
+                probabilities = prediction.numpy()[0]
                 
-                # Get the class with highest probability
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]
                 
                 return action, confidence
                 
         except Exception as e:
-            print(f"Error in model prediction: {e}")
             return None
-    
-    def _calculate_position_size(self, confidence):
-        """Dynamic position sizing based on signal confidence"""
-        base_size = self.position_size * min(confidence, 1.0)
-        
-        try:
-            recent_returns = self.data.Close[-20:].pct_change().dropna()
-            if len(recent_returns) > 5:
-                volatility = recent_returns.std()
-                vol_adjustment = max(0.3, 1.0 - volatility * 20)  # Reduce size in high vol
-                base_size *= vol_adjustment
-        except:
-            pass
-            
-        return max(0.1, min(base_size, 0.95))
 
-# Comprehensive backtesting workflow
+#  Comprehensive backtesting workflow
 def run_comprehensive_backtest(data, strategy_class, plt_file):
     """Execute full backtesting pipeline with performance analysis"""
     

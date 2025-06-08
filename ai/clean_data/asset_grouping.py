@@ -27,6 +27,13 @@ def concatenate_asset_data(symbols, processed_data, add_asset_features=True):
             print(f"Warning: {symbol} has empty data, skipping...")
             continue
         
+        for col in asset_data.columns:
+            if asset_data[col].dtype == 'object':
+                print(f"Warning: Converting object column {col} to numeric for {symbol}")
+                asset_data[col] = pd.to_numeric(asset_data[col], errors='coerce')
+
+        asset_data = asset_data.fillna(0.0)
+
         if add_asset_features:
             # Add asset identifier features
             asset_data = add_asset_identifier_features(asset_data, symbol, symbols)
@@ -42,7 +49,23 @@ def concatenate_asset_data(symbols, processed_data, add_asset_features=True):
         return pd.DataFrame()
     
     # Concatenate all datasets
-    combined_df = pd.concat(combined_datasets, axis=0, ignore_index=False)
+    all_columns = [set(df.columns) for df in combined_datasets]
+    common_columns = set.intersection(*all_columns)
+
+    standardized_datasets = []
+    for i, df in enumerate(combined_datasets):
+        standardized_df = df[list(common_columns)].copy()
+        
+        # Ensure all columns are float64
+        for col in standardized_df.columns:
+            if col != '_asset_symbol':  # Skip the string column
+                standardized_df[col] = standardized_df[col].astype('float64')
+        
+        standardized_datasets.append(standardized_df)
+    
+    # Concatenate all datasets
+    combined_df = pd.concat(standardized_datasets, axis=0, ignore_index=False)
+
     
     # Sort by timestamp to maintain temporal order
     combined_df = combined_df.sort_index()
@@ -51,9 +74,22 @@ def concatenate_asset_data(symbols, processed_data, add_asset_features=True):
     print(f"Asset distribution:")
     print(combined_df['_asset_symbol'].value_counts())
     
-    # Remove the tracking column before returning (keep for debugging if needed)
-    # combined_df = combined_df.drop(columns=['_asset_symbol'])
+    for col in combined_df.columns:
+        if col != '_asset_symbol' and combined_df[col].dtype == 'object':
+            print(f"Final cleanup: Converting {col} to float64")
+            combined_df[col] = pd.to_numeric(combined_df[col], errors='coerce').astype('float64')
+
+    numeric_columns = combined_df.select_dtypes(include=[np.number]).columns
+    combined_df[numeric_columns] = combined_df[numeric_columns].fillna(0.0)
     
+    print(f"Combined dataset shape: {combined_df.shape}")
+    print(f"Data types: {combined_df.dtypes.value_counts()}")
+    print(f"Asset distribution:")
+    print(combined_df['_asset_symbol'].value_counts())
+    
+    # Remove the tracking column before returning
+    combined_df = combined_df.drop(columns=['_asset_symbol'])
+
     return combined_df
 
 def add_asset_identifier_features(data, symbol, all_symbols):
@@ -64,8 +100,8 @@ def add_asset_identifier_features(data, symbol, all_symbols):
     
     # One-hot encoding for asset type
     for asset in all_symbols:
-        data[f'is_{asset.lower()}'] = (symbol == asset).astype(int)
-    
+        data[f'is_{asset.lower()}'] = int(symbol == asset)
+
     # Asset characteristics (you can customize these based on your knowledge)
     asset_characteristics = {
         # Volatility tier (0=low, 1=medium, 2=high)
@@ -86,15 +122,15 @@ def add_asset_identifier_features(data, symbol, all_symbols):
         data['volatility_tier'] = chars['vol_tier']
         
         # Sector encoding
-        data['is_tech'] = (chars['sector'] == 'tech').astype(int)
-        data['is_etf'] = (chars['sector'] == 'etf').astype(int)
-        data['is_auto'] = (chars['sector'] == 'auto').astype(int)
+        data['is_tech'] = int(chars['sector'] == 'tech')
+        data['is_etf'] = int(chars['sector'] == 'etf')
+        data['is_auto'] = int(chars['sector'] == 'auto')
         
         # Cap size encoding
-        data['is_mega_cap'] = (chars['cap_size'] == 'mega').astype(int)
-        data['is_large_cap'] = (chars['cap_size'] == 'large').astype(int)
-        data['is_small_cap'] = (chars['cap_size'] == 'small').astype(int)
-        data['is_broad_market'] = (chars['cap_size'] == 'broad').astype(int)
+        data['is_mega_cap'] = int(chars['cap_size'] == 'mega')
+        data['is_large_cap'] = int(chars['cap_size'] == 'large')
+        data['is_small_cap'] = int(chars['cap_size'] == 'small')
+        data['is_broad_market'] = int(chars['cap_size'] == 'broad')
     else:
         # Default values for unknown assets
         data['volatility_tier'] = 1
@@ -134,7 +170,7 @@ def prepare_grouped_datasets(processed_data):
     
     for group_name, symbols in asset_groups.items():
         print(f"\nPreparing group: {group_name}")
-        combined_data = concatenate_asset_data(symbols, processed_data)
+        combined_data = concatenate_asset_data(symbols, processed_data, add_asset_features=False)
         
         if not combined_data.empty:
             grouped_datasets[group_name] = combined_data
