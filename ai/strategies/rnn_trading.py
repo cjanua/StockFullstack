@@ -1,254 +1,367 @@
 # ai/strategies/rnn_trading.py
+from collections import deque
 from backtesting import Backtest, Strategy
 import numpy as np
 import pandas as pd
 import torch
 
+import talipp.indicators as ta
+from talipp.ohlcv import OHLCV
+
+
 from ai.monitoring.performance_metrics import get_benchmark_returns, test_statistical_significance, calculate_comprehensive_risk_metrics
 from ai.features.feature_engine import AdvancedFeatureEngine
 
+def atr_indicator(open, high, low, close, volume, period=14):
+    """
+    Calculates ATR using the talipp library and formats it for backtesting.py.
+    The self.I() method will pass the data columns as numpy arrays.
+    """
+    ohlcv_list = [OHLCV(o, h, l, c, v) for o, h, l, c, v in zip(open, high, low, close, volume)]
+    atr_output = ta.ATR(period, input_values=ohlcv_list)
+    
+    # Pad the start with NaNs so the output array has the same length as the input
+    padding_size = len(close) - len(atr_output)
+    atr_padded = np.r_[[np.nan] * padding_size, [val for val in atr_output]]
+    return atr_padded
+
 class RNNTradingStrategy(Strategy):
-    stop_loss_pct = 0.025
-    take_profit_pct = 0.05
-    max_position_size = 0.70
-    increment_position_size = 0.33
-    confidence_threshold = 0.35
+    # Stop Loss
+    stop_loss_pct = 0.02
+    take_profit_pct = 0.06
+
+    # Dynamic Position Sizing
+    base_position_size = 0.5
+    max_position_size = 0.95
+    min_position_size = 0.1
+
+    high_confidence_threshold = 0.65
+    medium_confidence_threshold = 0.45
+    low_confidence_threshold = 0.35
+
+    max_consecutive_losses = 3
+    volatility_lookback = 20
+
+    regime_lookback = 60
 
 
     def init(self):
-        self.portfolio_value_history = []
-        self.signals_history = []
-        self.last_prediction_time = None
-        self.prediction_cache = None
-        self.consecutive_losses = 0
-        self.recent_trades = []
+        super().init()
+        self.signal_buffer = deque(maxlen=3)  # Signal smoothing
+        self.regime_indicator = self._calculate_market_regime()
+        self.volatility_indicator = self._calculate_volatility_regime()
 
-        self.current_long_position = 0.0   # Track cumulative long position
-        self.current_short_position = 0.0  # Track cumulative short position
-        self.position_levels = [] 
+        # INIT ATR indicator
+        self.data.ATR = self.I(
+            atr_indicator,
+            self.data.Open,
+            self.data.High,
+            self.data.Low,
+            self.data.Close,
+            self.data.Volume,
+            period=14
+        )
+        
+        # Performance tracking
+        self.consecutive_losses = 0
+        self.trade_count = 0
+        self.win_count = 0
+        
+        # Position tracking for pyramiding
+        self.position_levels = []
+        self.average_entry_price = 0
         
     def next(self):
         # Warm-up
-        if len(self.data) < 60:
+        if len(self.data) < max(60, self.volatility_lookback, self.regime_lookback):
             return
         
         current_time = self.data.index[-1]
 
-        # Cache predictions to avoid recalculation
-        if self.last_prediction_time != current_time:
-            self.prediction_cache = self._get_prediction()
-            self.last_prediction_time = current_time
-        
-        if self.prediction_cache is None:
+        prediction_data = self._get_prediction()
+        if prediction_data is None:
             return
 
-        action, confidence = self.prediction_cache
-        current_price = self.data.Close[-1]
 
-        self._update_performance_tracking()
+        action, confidence, attention_weights = prediction_data
 
-        self._manage_cascading_positions(action, confidence, current_price)
-
-        # if self.position:
-        #     self._manage_existing_position(action, confidence, current_price)
-        # else:
-        #     self._enter_new_position(action, confidence, current_price)
-
-
-
-    def _manage_cascading_positions(self, action, confidence, current_price):
-        """Manage positions with cascading thirds"""
+        self.signal_buffer.append((action, confidence))
         
-        if confidence < self.confidence_threshold:
+        # Get smoothed signal
+        smoothed_signal = self._get_smoothed_signal()
+        if smoothed_signal is None:
             return
             
-        increment = self.max_position_size * self.increment_position_size  # FIX: Use max_position_size
-        
-        if action == 2:  # UP signal
-            self._handle_up_signal(increment, current_price, confidence)
-        elif action == 0:  # DOWN signal  
-            self._handle_down_signal(increment, current_price, confidence)
-        # action == 1 (HOLD) - do nothing
+        final_action, final_confidence = smoothed_signal
 
-    def _handle_up_signal(self, increment, current_price, confidence):
-        """Handle UP signal with cascading logic"""
+        current_regime = self.regime_indicator[-1] if hasattr(self, 'regime_indicator') else 'normal'
+        volatility_regime = self.volatility_indicator[-1] if hasattr(self, 'volatility_indicator') else 'normal'
         
-        # If we have short positions, close them first (pyramid out of shorts)
-        if self.current_short_position > 0:
-            close_size = min(increment, self.current_short_position)
-            self._close_short_position(close_size, "Signal reversal")
-            return
+        # Adjust confidence based on regime
+        adjusted_confidence = self._adjust_confidence_by_regime(
+            final_confidence, current_regime, volatility_regime
+        )
         
-        # If we're neutral or long, add to long position (pyramid into longs)
-        max_long_position = self.max_position_size  # FIX: Use max_position_size
-        if self.current_long_position < max_long_position:
-            # Calculate how much we can still add
-            remaining_capacity = max_long_position - self.current_long_position
-            actual_increment = min(increment, remaining_capacity)
-            
-            if actual_increment > 0.05:  # Only trade if meaningful size (>5%)
-                self._add_long_position(actual_increment, current_price, confidence)
+        # Position management
+        if self.position:
+            self._manage_position_enhanced(final_action, adjusted_confidence, current_regime)
+        else:
+            self._enter_position_enhanced(final_action, adjusted_confidence, current_regime)
 
-    def _handle_down_signal(self, increment, current_price, confidence):
-        """Handle DOWN signal with cascading logic"""
-        
-        # If we have long positions, close them first (pyramid out of longs)
-        if self.current_long_position > 0:
-            close_size = min(increment, self.current_long_position)
-            self._close_long_position(close_size, "Signal reversal")
-            return
-            
-        # If we're neutral or short, add to short position (pyramid into shorts)
-        max_short_position = self.max_position_size  # FIX: Use max_position_size
-        if self.current_short_position < max_short_position:
-            # Calculate how much we can still add
-            remaining_capacity = max_short_position - self.current_short_position
-            actual_increment = min(increment, remaining_capacity)
-            
-            if actual_increment > 0.05:  # Only trade if meaningful size (>5%)
-                self._add_short_position(actual_increment, current_price, confidence)
-
-    def _add_long_position(self, size, entry_price, confidence):
-        """Add to long position"""
-        sl = entry_price * (1 - self.stop_loss_pct)
-        tp = entry_price * (1 + self.take_profit_pct)
-        
-        # Execute the trade
-        self.buy(size=size, sl=sl, tp=tp)
-        
-        # Track the position
-        self.current_long_position += size
-        self.position_levels.append({
-            'type': 'long',
-            'size': size,
-            'entry_price': entry_price,
-            'confidence': confidence,
-            'timestamp': self.data.index[-1]
-        })
-        
-        print(f"Added LONG {size:.2f} at {entry_price:.2f} (Total long: {self.current_long_position:.2f})")
-
-    def _add_short_position(self, size, entry_price, confidence):
-        """Add to short position"""
-        sl = entry_price * (1 + self.stop_loss_pct)
-        tp = entry_price * (1 - self.take_profit_pct)
-        
-        # Execute the trade
-        self.sell(size=size, sl=sl, tp=tp)
-        
-        # Track the position
-        self.current_short_position += size
-        self.position_levels.append({
-            'type': 'short',
-            'size': size,
-            'entry_price': entry_price,
-            'confidence': confidence,
-            'timestamp': self.data.index[-1]
-        })
-        
-        print(f"Added SHORT {size:.2f} at {entry_price:.2f} (Total short: {self.current_short_position:.2f})")
-
-    def _close_long_position(self, size, reason):
-        """Close portion of long position"""
-        if self.current_long_position <= 0:
-            return
-            
-        # This is conceptual - backtesting.py handles actual position closing
-        # In live trading, you'd implement partial position closing here
-        
-        self.current_long_position = max(0, self.current_long_position - size)
-        
-        # Remove closed positions from tracking
-        self._update_position_levels('long', size)
-        
-        print(f"Closed LONG {size:.2f} ({reason}) - Remaining long: {self.current_long_position:.2f}")
-
-    def _close_short_position(self, size, reason):
-        """Close portion of short position"""
-        if self.current_short_position <= 0:
-            return
-            
-        self.current_short_position = max(0, self.current_short_position - size)
-        
-        # Remove closed positions from tracking
-        self._update_position_levels('short', size)
-        
-        print(f"Closed SHORT {size:.2f} ({reason}) - Remaining short: {self.current_short_position:.2f}")
-
-    def _update_position_levels(self, position_type, closed_size):
-        """Update position tracking when positions are closed"""
-        remaining_to_close = closed_size
-        
-        # Remove positions FIFO (first in, first out)
-        for i in range(len(self.position_levels) - 1, -1, -1):
-            if self.position_levels[i]['type'] == position_type and remaining_to_close > 0:
-                position_size = self.position_levels[i]['size']
-                
-                if position_size <= remaining_to_close:
-                    # Close entire position level
-                    remaining_to_close -= position_size
-                    self.position_levels.pop(i)
-                else:
-                    # Partially close position level
-                    self.position_levels[i]['size'] -= remaining_to_close
-                    remaining_to_close = 0
-                    break
-
-    def _update_performance_tracking(self):
-        """Track recent performance for adaptive behavior (same as before)"""
-        if hasattr(self, 'closed_trades') and len(self.closed_trades) > len(self.recent_trades):
-            new_trades = self.closed_trades[len(self.recent_trades):]
-            for trade in new_trades:
-                self.recent_trades.append(trade.pl)
-                if len(self.recent_trades) > 10:
-                    self.recent_trades.pop(0)
-            
-            if new_trades and new_trades[-1].pl <= 0:
-                self.consecutive_losses += 1
-            else:
-                self.consecutive_losses = 0
 
     def _get_prediction(self):
         """Get model prediction with error handling (same as before)"""
         try:
+            # Extract features (excluding OHLCV)
             ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
             feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
             
             if len(feature_cols) == 0:
                 return None
             
+            # Get sequence of features
             features_df = self.data.df[feature_cols].iloc[-60:]
-            
-            if features_df.isnull().sum().sum() > len(features_df) * 0.1:
-                return None
-                
-            features_df = features_df.ffill().fillna(0)
             features = features_df.values
-
+            
+            # Prepare input
             with torch.no_grad():
                 features_tensor = torch.FloatTensor(features).unsqueeze(0)
-
-                model_input_size = getattr(self.rnn_model, 'input_size', None)
-                if model_input_size is None:
-                    if hasattr(self.rnn_model, 'lstm'):
-                        model_input_size = self.rnn_model.lstm.input_size
-                    else:
-                        model_input_size = features_tensor.shape[-1]
                 
-                if features_tensor.shape[-1] != model_input_size:
-                    print(f"Feature size mismatch: expected {model_input_size}, got {features_tensor.shape[-1]}")
-                    return None
-                    
-                prediction = self.rnn_model(features_tensor)
+                # For attention models, we might get attention weights too
+                if hasattr(self.rnn_model, 'attention'):
+                    prediction = self.rnn_model(features_tensor)
+                    attention_weights = None  # Model would need to return these
+                else:
+                    prediction = self.rnn_model(features_tensor)
+                    attention_weights = None
+                
                 probabilities = prediction.numpy()[0]
-                
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]
                 
-                return action, confidence
+                return action, confidence, attention_weights
                 
         except Exception as e:
             return None
+
+    def _get_smoothed_signal(self):
+        """Enhanced signal smoothing with weighted averaging"""
+        if len(self.signal_buffer) < 2:
+            return None
+        
+        # Weight recent signals more heavily
+        weights = np.array([0.2, 0.3, 0.5])[-len(self.signal_buffer):]
+        weights = weights / weights.sum()
+        
+        # Calculate weighted action and confidence
+        actions = [s[0] for s in self.signal_buffer]
+        confidences = [s[1] for s in self.signal_buffer]
+        
+        # Majority vote for action
+        action_counts = {0: 0, 1: 0, 2: 0}
+        for i, action in enumerate(actions):
+            action_counts[action] += weights[i]
+        
+        smoothed_action = max(action_counts, key=action_counts.get)
+        
+        # Weighted average confidence
+        smoothed_confidence = np.sum(weights * confidences)
+        
+        # Boost confidence if all signals agree
+        if len(set(actions)) == 1:
+            smoothed_confidence = min(smoothed_confidence * 1.2, 1.0)
+        
+        return smoothed_action, smoothed_confidence
+    
+    def _calculate_market_regime(self):
+        """Detect market regime using multiple indicators"""
+        closes = pd.Series(self.data.Close)
+        
+        # Trend regime
+        sma_50 = closes.rolling(50).mean()
+        sma_200 = closes.rolling(200).mean()
+        
+        # Define regimes
+        regimes = []
+        for i in range(len(closes)):
+            if i < 200:
+                regimes.append('unknown')
+            elif sma_50.iloc[i] > sma_200.iloc[i] and closes.iloc[i] > sma_50.iloc[i]:
+                regimes.append('bull')
+            elif sma_50.iloc[i] < sma_200.iloc[i] and closes.iloc[i] < sma_50.iloc[i]:
+                regimes.append('bear')
+            else:
+                regimes.append('neutral')
+        
+        return regimes
+    
+    def _calculate_volatility_regime(self):
+        """Detect volatility regime"""
+        returns = pd.Series(self.data.Close).pct_change()
+        volatility = returns.rolling(self.volatility_lookback).std()
+        
+        # Calculate volatility percentiles
+        vol_percentile = volatility.rolling(252).rank(pct=True)
+        
+        regimes = []
+        for i in range(len(vol_percentile)):
+            if pd.isna(vol_percentile.iloc[i]):
+                regimes.append('normal')
+            elif vol_percentile.iloc[i] < 0.33:
+                regimes.append('low')
+            elif vol_percentile.iloc[i] > 0.67:
+                regimes.append('high')
+            else:
+                regimes.append('normal')
+        
+        return regimes
+    
+    def _adjust_confidence_by_regime(self, confidence, market_regime, volatility_regime):
+        """Adjust confidence based on market conditions"""
+        adjusted = confidence
+        
+        # Market regime adjustments
+        if market_regime == 'bull':
+            # More confident in upward predictions during bull market
+            adjusted *= 1.1
+        elif market_regime == 'bear':
+            # Less confident overall during bear market
+            adjusted *= 0.9
+        
+        # Volatility adjustments
+        if volatility_regime == 'high':
+            # Require higher confidence in high volatility
+            adjusted *= 0.85
+        elif volatility_regime == 'low':
+            # Can be more confident in low volatility
+            adjusted *= 1.05
+        
+        # Cap at reasonable bounds
+        return max(0.1, min(adjusted, 0.95))
+    
+    def _calculate_dynamic_position_size(self, confidence, regime):
+        """Kelly Criterion-inspired position sizing"""
+        # Base position size on confidence
+        kelly_fraction = (confidence - 0.5) * 2  # Scale to 0-1
+        kelly_fraction = max(0, min(kelly_fraction, 0.25))  # Cap at 25%
+        
+        # Adjust for regime
+        if regime == 'high' or self.consecutive_losses >= self.max_consecutive_losses:
+            # Reduce position size in high volatility or after losses
+            kelly_fraction *= 0.5
+        
+        # Calculate final position size
+        position_size = self.base_position_size + (self.max_position_size - self.base_position_size) * kelly_fraction
+        
+        # Ensure within bounds
+        return max(self.min_position_size, min(position_size, self.max_position_size))
+    
+    def _enter_position_enhanced(self, action, confidence, regime):
+        """Enhanced entry logic with regime filtering"""
+        current_price = self.data.Close[-1]
+        
+        # Skip trades in unfavorable regimes with low confidence
+        if regime == 'high' and confidence < self.high_confidence_threshold:
+            return
+        
+        # Dynamic confidence threshold
+        if regime == 'bear':
+            threshold = self.high_confidence_threshold
+        elif regime == 'bull':
+            threshold = self.low_confidence_threshold
+        else:
+            threshold = self.medium_confidence_threshold
+        
+        if confidence < threshold:
+            return
+        
+        # Calculate position size
+        position_size = self._calculate_dynamic_position_size(confidence, regime)
+        
+        # Volatility-adjusted stops
+        # volatility = pd.Series(self.data.Close[-self.volatility_lookback:]).pct_change().std()
+        # vol_multiplier = max(1.0, min(2.0, volatility / 0.01))  # Scale stops with volatility
+        
+        atr = self.data.ATR[-1]
+        
+        # ATR multipliers for stop-loss and take-profit
+        stop_loss_atr_multiplier = 2.0  # Example: 2 * ATR for stop-loss
+        take_profit_atr_multiplier = 3.0  # Example: 3 * ATR for take-prof
+
+        # Place order based on signal
+        if action == 2:  # UP signal
+            stop_loss = current_price - (atr * stop_loss_atr_multiplier)
+            take_profit = current_price + (atr * take_profit_atr_multiplier)
+            
+            self.buy(size=position_size, sl=stop_loss, tp=take_profit)
+            self.position_levels.append({
+                'price': current_price,
+                'size': position_size,
+                'confidence': confidence
+            })
+
+        elif action == 0:  # DOWN signal
+            stop_loss = current_price + (atr * stop_loss_atr_multiplier)
+            take_profit = current_price - (atr * take_profit_atr_multiplier)
+            
+            self.sell(size=position_size, sl=stop_loss, tp=take_profit)
+            self.position_levels.append({
+                'price': current_price,
+                'size': position_size,
+                'confidence': action
+            })
+
+    
+    def _manage_position_enhanced(self, action, confidence, regime):
+        """Enhanced position management with trailing stops and pyramiding"""
+        current_price = self.data.Close[-1]
+        
+        # Check for exit signals
+        if self.position.is_long and action == 0 and confidence > 0.5:
+            self.position.close()
+            self._reset_position_tracking()
+        elif self.position.is_short and action == 2 and confidence > 0.5:
+            self.position.close()
+            self._reset_position_tracking()
+        
+        # Pyramiding logic (add to winners)
+        elif confidence > self.high_confidence_threshold and len(self.position_levels) < 3:
+            # Only pyramid if position is profitable
+            entry_price = self.position_levels[0]['price'] if self.position_levels else self.position.avg_fill_price
+            
+            if self.position.is_long and current_price > entry_price * 1.02:
+                # Add to long position
+                additional_size = self._calculate_dynamic_position_size(confidence, regime) * 0.5
+                self.buy(size=additional_size)
+                self.position_levels.append({
+                    'price': current_price,
+                    'size': additional_size,
+                    'confidence': confidence
+                })
+                
+            elif self.position.is_short and current_price < entry_price * 0.98:
+                # Add to short position
+                additional_size = self._calculate_dynamic_position_size(confidence, regime) * 0.5
+                self.sell(size=additional_size)
+                self.position_levels.append({
+                    'price': current_price,
+                    'size': additional_size,
+                    'confidence': confidence
+                })
+    
+    def _reset_position_tracking(self):
+        """Reset position tracking variables"""
+        self.position_levels = []
+        self.average_entry_price = 0
+        
+        # Update performance tracking
+        if hasattr(self, 'trades') and len(self.trades) > 0:
+            last_trade = self.trades[-1]
+            if last_trade.pl > 0:
+                self.win_count += 1
+                self.consecutive_losses = 0
+            else:
+                self.consecutive_losses += 1
 
 #  Comprehensive backtesting workflow
 def run_comprehensive_backtest(data, strategy_class, plt_file):

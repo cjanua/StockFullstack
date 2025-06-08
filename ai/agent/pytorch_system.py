@@ -1,5 +1,6 @@
 # ai/agent/pytorch_system.py
 from pathlib import Path
+from sklearn.model_selection import TimeSeriesSplit
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,10 +10,12 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-from ai.models.lstm import TradingLSTM
+from ai.models.lstm import CustomTradingLoss, EnsembleLSTM, TradingLSTM
 from ai.clean_data.pytorch_data import create_pytorch_dataloaders
 
-def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epochs=10):
+def train_lstm_model(
+    processed_data: pd.DataFrame, symbol: str, config, num_epochs=10
+):
     """
     Initializes and trains a TradingLSTM model.
     """
@@ -29,17 +32,42 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
     print(f"Training model for {symbol} with {input_size} features and {len(processed_data)} samples")
 
 
-    # Create the LSTM model
-    # We'll make the output size 2 for our simple classification (Up or Down)
-    model = TradingLSTM(input_size=input_size, output_size=3)
-
-    loss_function = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        patience=10,
-        factor=0.5,
+    # Create model based on symbol characteristics
+    # if symbol in ['TSLA', 'NVDA', 'META']:  # High volatility stocks
+    #     model = TradingLSTM(
+    #         input_size=input_size, 
+    #         hidden_size=160,  # Larger for complex patterns
+    #         num_layers=1,
+    #         output_size=3,
+    #         dropout=0.3  # Higher dropout for volatile stocks
+    #     )
+    # else:
+    model = TradingLSTM(
+        input_size=input_size,
+        hidden_size=128,
+        num_layers=1, 
+        output_size=3,
+        dropout=0.2
     )
+
+    loss_function = CustomTradingLoss(directional_weight=0.8, magnitude_weight=0.2)
+
+    optimizer = optim.AdamW([
+        {'params': model.lstm.parameters(), 'lr': 0.001},
+        {'params': model.attention_weight.parameters(), 'lr': 0.002},
+        {'params': model.fc1.parameters(), 'lr': 0.001},
+        {'params': model.fc2.parameters(), 'lr': 0.0005},
+    ], weight_decay=0.01)
+
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=0.003,
+        epochs=num_epochs,
+        steps_per_epoch=50,  # Approximate
+        pct_start=0.3,
+        anneal_strategy='cos'
+    )
+
     
     # Create the data loader
     dataloader = create_pytorch_dataloaders(features, targets, config)
@@ -47,32 +75,9 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
         print(f"Warning: Could not create dataloader for {symbol}. Skipping training.")
         return None
 
-    if len(dataloader.dataset) < 100:
-        print(f"Warning: Not enough training samples ({len(dataloader.dataset)}) for {symbol}")
-        return None
-    
-    try:
-        # Test the first batch to identify issues
-        first_batch = next(iter(dataloader))
-        sequences, labels = first_batch
-        print(f"First batch shapes - Sequences: {sequences.shape}, Labels: {labels.shape}")
-        print(f"Sequences dtype: {sequences.dtype}, Labels dtype: {labels.dtype}")
-        print(f"Sequences has NaN: {torch.isnan(sequences).any()}")
-        print(f"Sequences has Inf: {torch.isinf(sequences).any()}")
-        print(f"Labels range: {labels.min().item()} to {labels.max().item()}")
-        
-        # Test model forward pass with first batch
-        test_output = model(sequences)
-        print(f"Model forward pass successful. Output shape: {test_output.shape}")
-        print(f"Model output range: {test_output.min().item():.4f} to {test_output.max().item():.4f}")
-        
-    except Exception as e:
-        print(f"ERROR in first batch test: {e}")
-        print("DataLoader or model has fundamental issues")
-        return None
-
     
     epoch_losses = []
+    directional_accuracies = []
     best_loss = float('inf')
     patience_counter = 0
 
@@ -80,34 +85,11 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
     model.train()
     for epoch in range(num_epochs):
         epoch_loss = 0.0
-        tot_batches = 0
-        valid_batches = 0
+        correct_directions = 0
+        total_samples = 0
 
         for batch_idx, (sequences, labels) in enumerate(dataloader):
-            tot_batches += 1
             if len(sequences) == 0:
-                continue
-            
-            # Check for invalid values
-            if torch.isnan(sequences).any():
-                print(f"Epoch {epoch+1}, Batch {batch_idx}: NaN in sequences")
-                continue
-                
-            if torch.isinf(sequences).any():
-                print(f"Epoch {epoch+1}, Batch {batch_idx}: Inf in sequences")
-                continue
-                
-            if torch.isnan(labels).any():
-                print(f"Epoch {epoch+1}, Batch {batch_idx}: NaN in labels")
-                continue
-
-            # Check tensor shapes
-            if sequences.shape[0] == 0:
-                print(f"Epoch {epoch+1}, Batch {batch_idx}: Zero batch size")
-                continue
-                
-            if sequences.shape[-1] != input_size:
-                print(f"Epoch {epoch+1}, Batch {batch_idx}: Shape mismatch. Expected {input_size}, got {sequences.shape[-1]}")
                 continue
 
             optimizer.zero_grad()
@@ -116,89 +98,85 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
                 loss = loss_function(predictions, labels)
 
                 if torch.isnan(loss):
-                    print(f"WARNING: NaN loss detected at epoch {epoch+1}")
-                    continue
-                    
-                if torch.isinf(loss):
-                    print(f"Epoch {epoch+1}, Batch {batch_idx}: Inf loss")
                     continue
                 
                 # Backpropagate and update weights
                 loss.backward()
 
-                has_nan_grad = False
-                for name, param in model.named_parameters():
-                    if param.grad is not None and torch.isnan(param.grad).any():
-                        print(f"Epoch {epoch+1}, Batch {batch_idx}: NaN gradient in {name}")
-                        has_nan_grad = True
-                        break
-                
-                if has_nan_grad:
-                    continue
-
-
                 # Gradient clipping to prevent exploding gradients
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
                 optimizer.step()
-                epoch_loss += loss.item()
-                valid_batches += 1
-                if epoch == 0 and batch_idx < 3:
-                    print(f"Epoch {epoch+1}, Batch {batch_idx}: Loss {loss.item():.4f} - SUCCESS")
+                scheduler.step()
 
+                epoch_loss += loss.item() * sequences.size(0)
+
+                _, predicted = torch.max(predictions.data, 1)
+                correct_directions += (predicted == labels).sum().item()
+                total_samples += labels.size(0)
 
             except Exception as e:
                 print(f"Error in batch {batch_idx}: {e}")
                 continue
 
 
-        if valid_batches > 0:
-            avg_epoch_loss = epoch_loss / valid_batches
-            epoch_losses.append(avg_epoch_loss)
-            
-            # Learning rate scheduling
-            scheduler.step(avg_epoch_loss)
-            
+        if total_samples > 0:
+            avg_loss = epoch_loss / total_samples
+            directional_accuracy = correct_directions / total_samples
+
+            epoch_losses.append(avg_loss)
+            directional_accuracies.append(directional_accuracy)
+
             # Early stopping
-            if avg_epoch_loss < best_loss:
-                best_loss = avg_epoch_loss
+            if avg_loss < best_loss:
+                best_loss = avg_loss
                 patience_counter = 0
+                best_model_state = model.state_dict().copy()
             else:
                 patience_counter += 1
             
-            if epoch % 10 == 0 or patience_counter >= 15:
-                print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}, Valid Batches: {valid_batches}")
+            if epoch % 10 == 0:
+                print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, "
+                      f"Directional Accuracy: {directional_accuracy:.2%}")
+
                 
             if patience_counter >= 20:
                 print(f"Early stopping at epoch {epoch+1}")
                 break
-        else:
-            print(f"Epoch {epoch+1}/{num_epochs}, Loss: No valid batches")
-            epoch_losses.append(float('nan'))
 
-            # If first 10 epochs have no valid batches, something is fundamentally wrong
-            if epoch >= 10:
-                print(f"ERROR: No valid batches for {epoch+1} epochs. Training failed.")
-                return None
-
-
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        
 
     # --- Generate and save the loss curve plot ---
-    if epoch_losses and not all(np.isnan(epoch_losses)):
+    if epoch_losses:
         valid_losses = [loss for loss in epoch_losses if not np.isnan(loss)]
-        if valid_losses:
-            plt.figure(figsize=(10, 6))
-            plt.plot(range(1, len(valid_losses) + 1), valid_losses, marker='o')
-            plt.title(f'Training Loss Curve for {symbol}')
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.grid(True)
-            plot_filename = f'model_res/training/training_loss_{symbol}.png'
-            plt_path = Path(plot_filename)
-            plt_path.parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(plot_filename)
-            plt.close()
-            print(f"📉 Training loss curve saved to: {plot_filename}")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        
+        # Loss curve
+        ax1.plot(epoch_losses, 'b-', label='Training Loss')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Loss')
+        ax1.set_title(f'Training Loss - {symbol}')
+        ax1.grid(True)
+        ax1.legend()
+        
+        # Directional accuracy curve
+        ax2.plot(directional_accuracies, 'g-', label='Directional Accuracy')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Accuracy')
+        ax2.set_title(f'Directional Accuracy - {symbol}')
+        ax2.grid(True)
+        ax2.legend()
+        
+        plt.tight_layout()
+        plot_path = Path(f'model_res/training/enhanced_training_{symbol}.png')
+        plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(plot_path)
+        plt.close()
+        
+        print(f"📊 Training curves saved to: {plot_path}")
+
 
 
     model.eval()
@@ -230,3 +208,100 @@ def train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epoc
     
     print(f"Training completed for {symbol}. Successful epochs: {len([l for l in epoch_losses if not np.isnan(l)])}")
     return model
+
+
+def train_ensemble_model(processed_data: pd.DataFrame, symbol: str, config, num_epochs=100):
+    """Train ensemble model for improved robustness"""
+    
+    if 'close' not in processed_data.columns:
+        return None
+    
+    targets = processed_data['close'].copy()
+    features = processed_data.drop(columns=['close'], errors='ignore')
+    
+    input_size = features.shape[1]
+    print(f"Training ensemble for {symbol} with {input_size} features")
+    
+    # Create ensemble model
+    model = EnsembleLSTM(input_size=input_size, output_size=3)
+    
+    # Training setup
+    loss_function = CustomTradingLoss(directional_weight=0.85, magnitude_weight=0.15)
+    optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+    
+    # Create dataloader
+    dataloader = create_pytorch_dataloaders(features, targets, config)
+    if dataloader is None:
+        return None
+    
+    # Training loop (simplified for brevity)
+    model.train()
+    for epoch in range(num_epochs):
+        epoch_loss = 0.0
+        valid_batches = 0
+        
+        for sequences, labels in dataloader:
+            if torch.isnan(sequences).any():
+                continue
+                
+            optimizer.zero_grad()
+            predictions = model(sequences)
+            loss = loss_function(predictions, labels)
+            
+            if not torch.isnan(loss):
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+                epoch_loss += loss.item()
+                valid_batches += 1
+        
+        if valid_batches > 0 and epoch % 20 == 0:
+            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss/valid_batches:.4f}")
+    
+    model.eval()
+    return model
+
+
+def perform_walk_forward_validation(data: pd.DataFrame, symbol: str, config, 
+                                   train_months=12, test_months=3):
+    """Walk-forward validation for robust performance assessment"""
+    
+    tscv = TimeSeriesSplit(n_splits=5, test_size=int(252/12 * test_months))
+    validation_results = []
+    
+    for fold, (train_idx, test_idx) in enumerate(tscv.split(data)):
+        print(f"\nValidation Fold {fold+1}")
+        
+        train_data = data.iloc[train_idx]
+        test_data = data.iloc[test_idx]
+        
+        # Train model on fold
+        model = train_lstm_model(train_data, f"{symbol}_fold{fold}", config, num_epochs=50)
+        
+        if model is None:
+            continue
+        
+        # Evaluate on test set
+        test_targets = test_data['close'].copy()
+        test_features = test_data.drop(columns=['close'], errors='ignore')
+        
+        # Create sequences for testing
+        from ai.clean_data.pytorch_data import create_sequences
+        X_test, y_test = create_sequences(test_features, test_targets, 60)
+        
+        if len(X_test) > 0:
+            with torch.no_grad():
+                X_tensor = torch.FloatTensor(X_test)
+                predictions = model(X_tensor)
+                _, predicted = torch.max(predictions.data, 1)
+                
+                accuracy = (predicted.numpy() == y_test).mean()
+                validation_results.append({
+                    'fold': fold,
+                    'accuracy': accuracy,
+                    'test_size': len(y_test)
+                })
+                
+                print(f"Fold {fold+1} Accuracy: {accuracy:.2%}")
+    
+    return validation_results
