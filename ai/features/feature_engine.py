@@ -51,7 +51,15 @@ class AdvancedFeatureEngine:
     ) -> pd.DataFrame:
         """Generate multi-timeframe feature set for RNN"""
         if data.index.has_duplicates:
+            print("Warning: Data contains duplicate timestamps, dropping duplicates.")
             data = data.loc[~data.index.duplicated(keep='first')]
+        
+        agg_rules = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}
+        data_hourly = data.resample('D').agg(agg_rules).dropna()
+        if data_hourly.empty:
+            print("Warning: Not enough data to create hourly features.")
+            return pd.DataFrame()
+
         
         ohlcv_list = [
             OHLCV(row.open, row.high, row.low, row.close, row.volume)
@@ -61,12 +69,10 @@ class AdvancedFeatureEngine:
         features = {}
         
         features.update(self.calculate_technical_indicators(data, ohlcv_list))
-
-        if 'volume' in data.columns and not data['volume'].isnull().all():
-            features.update(self.calculate_volume_features(data))
-        
-        features.update(self.create_multitimeframe_features(data))
+        features.update(self.calculate_volume_features(data))
         features.update(self.detect_market_regime(data, ohlcv_list))
+
+        # features.update(self.create_multitimeframe_features(data))
         
         if market_context_data is not None:
             features.update(self.calculate_market_context_features(data, market_context_data))

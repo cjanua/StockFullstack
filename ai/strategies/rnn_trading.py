@@ -8,21 +8,21 @@ from ai.monitoring.performance_metrics import get_benchmark_returns, test_statis
 from ai.features.feature_engine import AdvancedFeatureEngine
 
 class RNNTradingStrategy(Strategy):
+    stop_loss_pct = 0.05  # 5% stop loss
+    take_profit_pct = 0.10 # 10% take profit 2:1
+    position_size = 0.90
+
+
     def init(self):
-        # Load pre-trained RNN model
-        # self.rnn_model = torch.load('trained_rnn_model.pth')
-        # self.rnn_model.eval()
-        
-        # # Feature engineering pipeline
-        # self.feature_engine = AdvancedFeatureEngine()
-        
-        # Portfolio state tracking
         self.portfolio_value_history = []
         self.signals_history = []
 
         
     def next(self):
         # Minimum data requirement
+        if self.position:
+            return
+
         if len(self.data) < 60:
             return
         
@@ -45,25 +45,28 @@ class RNNTradingStrategy(Strategy):
                 # Get the class with highest probability
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]
-                # print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}")
-                
+                # print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}") 
             except Exception as e:
                 print(f"Error in model prediction: {e}")
                 return
         
         CONFIDENCE_THRESHOLD = 0.55 
-        
+        current_price = self.data.Close[-1]
+
         # Trading logic
         # Action 2: UP signal
         if action == 2 and confidence > CONFIDENCE_THRESHOLD:
-            if not self.position.is_long:
-                self.position.close() # Close any short position before going long
-                self.buy()
+            sl = current_price * (1 - self.stop_loss_pct)
+            tp = current_price * (1 + self.take_profit_pct)
+            self.buy(size=self.position_size, sl=sl, tp=tp)
+
+
         # Action 0: DOWN signal        
         elif action == 0 and confidence > CONFIDENCE_THRESHOLD:
-            if not self.position.is_short:
-                self.position.close() # Close any long position before going short
-                self.sell()
+            sl = current_price * (1 + self.stop_loss_pct)
+            tp = current_price * (1 - self.take_profit_pct)
+            self.sell(size=self.position_size, sl=sl, tp=tp)
+
 
     
     def calculate_position_size(self, signal_strength):

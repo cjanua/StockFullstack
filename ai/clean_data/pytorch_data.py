@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-def create_sequences(feature_data: pd.DataFrame, target_series: pd.DataFrame, sequence_length: int, target_col='close'):
+def create_sequences(feature_data: pd.DataFrame, target_series: pd.Series, sequence_length: int, target_col='close'):
     """Creates sequences and corresponding labels for an LSTM model."""
     xs, ys = [], []
 
