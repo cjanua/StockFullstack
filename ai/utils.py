@@ -23,6 +23,6 @@ def print_integrity_check(df: pd.DataFrame, step_name: str):
     else:
         print(nan_counts[nan_counts > 0].sort_values(ascending=False))
 
-    print("\nHead (first 3 rows):")
-    print(df.head(3))
+    # print("\nHead (first 3 rows):")
+    # print(df.head(3))
     print("="*80 + "\n")

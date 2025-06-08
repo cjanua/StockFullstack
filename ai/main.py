@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from backtesting import Backtest
 
+from ai.clean_data.asset_grouping import concatenate_asset_data, prepare_grouped_datasets
 from ai.features.feature_engine import AdvancedFeatureEngine
 from ai.models.a3c import A3CTradingAgent
 from ai.strategies.rnn_trading import run_comprehensive_backtest
@@ -67,60 +68,142 @@ async def main():
 
     print("🤖 Training RNN models...")
     models = {}
-    for symbol in trading_symbols:
-        if symbol not in processed_data: continue
+
+    def train_model(data, symbol, model="lstm", num_epochs=50):
         print(f"Training model for {symbol}...")
 
         try:
-            from ai.agent.pytorch_system import train_lstm_model
-            trained_model = train_lstm_model(
-                processed_data[symbol], 
-                symbol,
-                config,
-                num_epochs=50,
-            )
-            
-            # If it fails or returns None, use simple fallback
-            if trained_model is None:
-                print(f"  - Standard training failed for {symbol}, trying simple approach...")
-                from ai.agent.simple_training import simple_train_lstm_model
-                trained_model = simple_train_lstm_model(
-                    processed_data[symbol],
+            if model == "ensemble":
+                from ai.agent.ensemble_sys import train_ensemble_model
+                trained_model = train_ensemble_model(
+                    data, 
                     symbol,
                     config,
-                    num_epochs=30,
+                    num_epochs,
                 )
+                
+                # If it fails or returns None, use simple fallback
+                if trained_model is None:
+                    print(f"  - Standard training failed for {symbol}, trying simple approach...")
+                    from ai.agent.simple_training import train_lstm_model
+                    trained_model = train_lstm_model(
+                        data,
+                        symbol,
+                        config,
+                        num_epochs,
+                    )
+        
+            if model == "lstm":
+                from ai.agent.pytorch_system import train_lstm_model
+                trained_model = train_lstm_model(
+                    data, 
+                    symbol,
+                    config,
+                    num_epochs,
+                )
+                
+                if trained_model is None:
+                    print(f"  - Standard training failed for {symbol}, trying simple approach...")
+                    from ai.agent.simple_training import simple_train_lstm_model
+                    trained_model = simple_train_lstm_model(
+                        data,
+                        symbol,
+                        config,
+                        num_epochs,
+                    )
         except Exception as e:
             print(f"  - Training error for {symbol}: {e}")
             print(f"  - Trying simple fallback approach...")
             try:
                 from ai.agent.simple_training import simple_train_lstm_model
                 trained_model = simple_train_lstm_model(
-                    processed_data[symbol],
+                    data,
                     symbol,
                     config,
-                    num_epochs=30,
+                    num_epochs,
                 )
             except Exception as e2:
                 print(f"  - Simple training also failed for {symbol}: {e2}")
                 trained_model = None
 
+        return trained_model
 
-        if trained_model:
-            models[symbol] = trained_model
-            print(f"  - ✅ {symbol} model trained successfully.")
-        else:
-            print(f"  - ❌ {symbol} model training failed.")
-        
-
+    # CHOOSE YOUR TRAINING MODE:
+    TRAINING_MODE = "individual"  # or "grouped"
     
+    if TRAINING_MODE == "individual":
+        # Individual model training (your current approach)
+        for symbol in trading_symbols:
+            if symbol not in processed_data:
+                continue
+                
+            # Flexible parameters - you can adjust these!
+            trained_model = train_model(
+                data=processed_data[symbol],
+                symbol=symbol,
+                model="lstm",        # or "ensemble"
+                num_epochs=100       # or any number you want
+            )
+            
+            if trained_model is not None:
+                models[symbol] = trained_model
+                print(f"  - ✅ {symbol} model trained successfully.")
+            else:
+                print(f"  - ❌ {symbol} model training failed.")
+
+    elif TRAINING_MODE == "grouped":
+        # Group-based training
+        print("🤖 Training group-based models...")
+        
+        # Prepare grouped datasets
+        grouped_datasets = prepare_grouped_datasets(processed_data)
+        
+        # Define asset-to-group mapping for backtesting
+        ASSET_TO_GROUP = {
+            'AAPL': 'mega_tech', 'MSFT': 'mega_tech', 'GOOGL': 'mega_tech', 'AMZN': 'mega_tech',
+            'TSLA': 'high_vol_tech', 'NVDA': 'high_vol_tech', 'META': 'high_vol_tech',
+            'QQQ': 'market_etfs', 'IWM': 'market_etfs'
+        }
+        
+        # Train group models with flexible parameters
+        for group_name, combined_data in grouped_datasets.items():
+            trained_model = train_model(
+                data=combined_data,
+                symbol=group_name,
+                model="lstm",        # or "ensemble" 
+                num_epochs=150       # More epochs since we have more data
+            )
+            
+            if trained_model is not None:
+                models[group_name] = trained_model
+                print(f"  - ✅ {group_name} group model trained successfully.")
+            else:
+                print(f"  - ❌ {group_name} group model training failed.")
+
+
     # 4. Backtesting validation
     print("📈 Running comprehensive backtests...")
     backtest_results = {}
     
     for symbol in trading_symbols:
-        if symbol not in processed_data or symbol not in models:
+        if symbol not in processed_data:
             continue
+
+        # Determine which model to use
+        if TRAINING_MODE == "individual":
+            if symbol not in models:
+                continue
+            model_to_use = models[symbol]
+            model_name = symbol
+        else:  # grouped mode
+            group_name = ASSET_TO_GROUP.get(symbol)
+            if not group_name or group_name not in models:
+                print(f"No trained model for {symbol} (group: {group_name}), skipping...")
+                continue
+            model_to_use = models[group_name]
+            model_name = f"{symbol} (using {group_name} model)"
+
+
         ohlc_data_raw = market_data[symbol]
         feature_data = processed_data[symbol]
 
@@ -147,12 +230,12 @@ async def main():
             continue
 
 
-        StrategyClass = create_rnn_strategy_class(models[symbol])
+        StrategyClass = create_rnn_strategy_class(model_to_use)
         bt = Backtest(combined_data, StrategyClass, cash=100_000, commission=.002)
         results = bt.run()
         backtest_results[symbol] = {'backtest_results': results} # Store results
 
-        print(f"\n----------- Backtest Results for {symbol} -----------")
+        print(f"\n----------- Backtest Results for {model_name} -----------")
         print(results)
         print("--------------------------------------------------\n")
 
@@ -258,6 +341,7 @@ async def main():
         avg_win_rate = df['Win %'].mean()
         avg_sharpe = df['Sharpe'].mean()
         avg_return = df['Return %'].mean()
+        worst_dd = df['Max DD %'].min()
         profitable_assets = len(df[df['Return %'] > 0])
         total_assets = len(df)
         
@@ -267,7 +351,8 @@ async def main():
         print(f"Average Win Rate:      {avg_win_rate:.1f}%")
         print(f"Average Sharpe:        {avg_sharpe:.2f}")
         print(f"Average Return:        {avg_return:.1f}%")
-        
+        print(f"Worst Drawdown:        {worst_dd:.1f}%")
+
         # Performance tiers
         excellent = len(df[df['Sharpe'] > 1.0])
         good = len(df[(df['Sharpe'] > 0.5) & (df['Sharpe'] <= 1.0)])

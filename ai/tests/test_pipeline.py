@@ -48,7 +48,7 @@ async def test_data_pipeline():
     
     print(f"Features created with shape: {features.shape}")
     print(f"Features NaN count:\n{features.isnull().sum().sort_values(ascending=False).head()}")
-    print(f"Features sample:\n{features.head()}\n")
+    # print(f"Features sample:\n{features.head()}\n")
     
     # 3. Test sequence creation
     print("3. Testing sequence creation...")
