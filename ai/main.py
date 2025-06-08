@@ -2,7 +2,9 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 import pandas as pd
+from backtesting import Backtest
 
 from ai.agent.pytorch_system import train_lstm_model
 from ai.features.feature_engine import AdvancedFeatureEngine
@@ -54,10 +56,11 @@ async def main():
     for symbol in config.SYMBOLS:
         if symbol not in market_data: continue # Skip if data failed to download
 
-        symbol_data = market_data[symbol]
-        features = feature_engine.create_comprehensive_features(symbol_data, spy_data)
-        if not features.empty:
+        features = feature_engine.create_comprehensive_features(market_data[symbol], spy_data)
+        if not features.empty and len(features) > config.SEQUENCE_LENGTH:
             processed_data[symbol] = features
+        else:
+            print(f"Warning: Insufficient features for {symbol}, skipping...")
     
     # 3. Model training
     BENCHMARK_SYMBOL = 'SPY'
@@ -65,7 +68,6 @@ async def main():
 
     print("🤖 Training RNN models...")
     models = {}
-    
     for symbol in trading_symbols:
         if symbol not in processed_data: continue
         print(f"Training model for {symbol}...")
@@ -74,7 +76,7 @@ async def main():
             processed_data[symbol], 
             symbol,
             config,
-            num_epochs=100
+            num_epochs=100,
         )
 
         if trained_model: # Check if training was successful
@@ -96,70 +98,41 @@ async def main():
         if symbol not in processed_data or symbol not in models: continue
         ohlc_data = market_data[symbol]
         feature_data = processed_data[symbol]
+        combined_data = ohlc_data.join(feature_data, how='inner').ffill().bfill()
 
-        print(ohlc_data.head())
-        print(ohlc_data.columns)
-
-        backtest_df = ohlc_data.rename(columns={
-            'open': 'Open',
-            'high': 'High',
-            'low': 'Low',
-            'close': 'Close',
-            'volume': 'Volume'
-        })
-
-        combined_data = backtest_df.join(feature_data).ffill().bfill()
-
-        ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        feature_columns = [col for col in combined_data.columns if col not in ohlcv_columns]
-        
-        if len(feature_columns) >= config.LSTM_INPUT_SIZE:
-            final_feature_cols = feature_columns[:config.LSTM_INPUT_SIZE]
-            # Create the final dataframe with OHLCV and the fixed feature set
-            final_backtest_data = combined_data[ohlcv_columns + final_feature_cols]
-        else:
-            print(f"Warning: Not enough features for backtesting {symbol}. Skipping.")
+        if combined_data.empty or len(combined_data) < 60:
+            print(f"  - WARNING: Not enough combined data for {symbol}, skipping backtest.")
             continue
 
-        print(f"\nDEBUG: Columns for backtesting {symbol}: {final_backtest_data.columns.to_list()}\n")
 
-        plot_filename = f"model_res/backtests/backtest_{symbol}.html"
-
-        print_integrity_check(final_backtest_data, f"Final Data for Backtest on {symbol}")
-
-        strategy_class = create_rnn_strategy_class(models[symbol])
-        results = run_comprehensive_backtest(
-            final_backtest_data, 
-            strategy_class,
-            plot_filename
-        )
-        backtest_results[symbol] = results
+        StrategyClass = create_rnn_strategy_class(models[symbol])
+    
+        bt = Backtest(combined_data, StrategyClass, cash=100_000, commission=.002)
+        results = bt.run()
+        backtest_results[symbol] = {'backtest_results': results} # Store results
 
         print(f"\n----------- Backtest Results for {symbol} -----------")
-        # The results object from backtesting.py can be printed directly
-        print(results['backtest_results']) 
-        print(f"--------------------------------------------------\n")
+        print(results)
+        print("--------------------------------------------------\n")
 
+        # Plotting
+        plot_filename = Path("model_res/backtests") / f"backtest_{symbol}.html"
+        plot_filename.parent.mkdir(parents=True, exist_ok=True)
+        bt.plot(filename=str(plot_filename), open_browser=False)
 
-        # This part is still useful for a final summary
-        sharpe = results.get('backtest_results', {}).get('Sharpe Ratio', 'N/A')
-        if isinstance(sharpe, float):
-            print(f"📊 {symbol} backtest complete - Sharpe: {sharpe:.2f}")
+    
+    print("6. Analyzing portfolio performance...")
+    # NOTE: The performance analysis part depends on the structure of backtest_results
+    # which I have simplified above. You may need to adjust analyze_portfolio_performance
+    # if you re-introduce walk-forward analysis etc.
+    
+    # This simplified check is based on individual backtests
+    for symbol, result_dict in backtest_results.items():
+        sharpe = result_dict.get('backtest_results', {}).get('Sharpe Ratio', 0)
+        if sharpe > 1.0:
+            print(f"✅ {symbol} passed performance check with Sharpe Ratio: {sharpe:.2f}")
         else:
-            print(f"📊 {symbol} backtest complete - Sharpe: {sharpe}")
-    
-    # 5. Performance validation
-    performance_summary = analyze_portfolio_performance(backtest_results)
-    
-    if performance_summary['portfolio_sharpe'] > 1.0:
-        print(f"🎯 Portfolio Sharpe ratio: {performance_summary['portfolio_sharpe']:.2f} - Ready for live trading!")
-        
-        # 6. Deploy to live trading (paper first)
-        live_system = LiveTradingSystem(config, models)
-        await live_system.start_trading()
-        
-    else:
-        print(f"⚠️  Portfolio Sharpe ratio: {performance_summary['portfolio_sharpe']:.2f} - Requires optimization")
+            print(f"⚠️ {symbol} requires optimization. Sharpe Ratio: {sharpe:.2f}")
 
 if __name__ == "__main__":
     asyncio.run(main())

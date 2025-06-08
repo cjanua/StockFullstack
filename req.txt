@@ -17,14 +17,13 @@ redis
 # Data / Math
 scipy
 pandas
-numpy==1.26.4
+numpy
 quantstats
 
 # Finance
 pyportfolioopt
 backtesting
-
-pandas-ta
+talipp
 
 # ML
 scikit-learn

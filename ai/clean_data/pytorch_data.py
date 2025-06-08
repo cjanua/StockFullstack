@@ -11,16 +11,32 @@ def create_sequences(feature_data: pd.DataFrame, target_series: pd.DataFrame, se
     # Ensure data is aligned and has no gaps
     feature_data, target_series = feature_data.align(target_series, join='inner', axis=0)
 
+    # Check if we have enough data
+    if len(feature_data) < sequence_length + 1:
+        print(f"WARNING: Not enough data to create sequences. Need at least {sequence_length + 1} rows, have {len(feature_data)}")
+        return np.array([]), np.array([])
+
     for i in range(len(feature_data) - sequence_length):
         # The sequence of features
         sequence = feature_data.iloc[i: (i + sequence_length)].values
+        if np.isnan(sequence).any():
+          continue  # Skip sequences with NaN values
         # The price one step after the sequence ends
         target_price = target_series.iloc[i + sequence_length]
         last_price_in_sequence = target_series.iloc[i + sequence_length - 1]
 
+        if pd.isna(target_price) or pd.isna(last_price_in_sequence) or last_price_in_sequence == 0:
+            continue
+
         xs.append(sequence)
-        # Simple classification: 1 if price went up, 0 otherwise
-        ys.append(1 if target_price > last_price_in_sequence*1.001 else 0)
+        pct_change = (target_price - last_price_in_sequence) / last_price_in_sequence
+        
+        if pct_change > 0.002:  # Up more than 0.2%
+            ys.append(2)
+        elif pct_change < -0.002:  # Down more than 0.2%
+            ys.append(0)
+        else:  # Hold
+            ys.append(1)
         
     return np.array(xs), np.array(ys)
 

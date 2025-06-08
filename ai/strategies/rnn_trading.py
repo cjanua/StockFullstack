@@ -20,7 +20,8 @@ class RNNTradingStrategy(Strategy):
         self.portfolio_value_history = []
         self.signals_history = []
 
-        self.signal_strength = self.I(lambda: pd.Series(self.signals_history), name='Signal')
+        self.debug_printed = False
+
 
         
     def next(self):
@@ -29,34 +30,46 @@ class RNNTradingStrategy(Strategy):
             return
         
         ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-
         feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
         
-        features_df = self.data.df[feature_cols].iloc[-60:][feature_cols]
+        features_df = self.data.df[feature_cols].iloc[-60:]
+        if features_df.isnull().values.any():
+            return
+
         features = features_df.values
+
         # Get RNN prediction
         with torch.no_grad():
             features_tensor = torch.FloatTensor(features).unsqueeze(0)
-            prediction = self.rnn_model(features_tensor)
-            buy_prob = torch.softmax(prediction, dim=1).numpy()[0][1]
+            try:
+                prediction = self.rnn_model(features_tensor)
+                probabilities = prediction.numpy()[0]  # [down, hold, up]
+                
+                # Get the class with highest probability
+                action = np.argmax(probabilities)
+                confidence = probabilities[action]
+                if not self.debug_printed:
+                    print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}")
+                    self.debug_printed = True
+                
+            except Exception as e:
+                print(f"Error in model prediction: {e}")
+                return
         
-        # Trading logic with risk management
-        signal_strength = buy_prob
+        CONFIDENCE_THRESHOLD = 0.55 
         
-        self.signals_history.append(signal_strength)
+        # Trading logic
+        # Action 2: UP signal
+        if action == 2 and confidence > CONFIDENCE_THRESHOLD:
+            if not self.position.is_long:
+                self.position.close() # Close any short position before going long
+                self.buy()
+        # Action 0: DOWN signal        
+        elif action == 0 and confidence > CONFIDENCE_THRESHOLD:
+            if not self.position.is_short:
+                self.position.close() # Close any long position before going short
+                self.sell()
 
-        # Position management
-        if signal_strength > 0.5 and not self.position:
-            # Calculate position size
-            # size = self.calculate_position_size(buy_prob)
-            self.buy(size=0.1)
-            
-        elif signal_strength < 0.48 and self.position:
-            self.position.close()
-        
-        # Track performance
-        self.portfolio_value_history.append(self.equity)
-        self.signals_history.append(signal_strength)
     
     def calculate_position_size(self, signal_strength):
         """Dynamic position sizing based on signal confidence"""

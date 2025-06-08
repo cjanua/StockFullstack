@@ -132,7 +132,7 @@ class AlpacaDataConnector:
             try:
                 request_params = StockBarsRequest(
                     symbol_or_symbols=symbol,
-                    timeframe=TimeFrame.Day,
+                    timeframe=TimeFrame.Hour,
                     start=start_date,
                     end=end_date,
                     adjustment='raw' # Use raw data

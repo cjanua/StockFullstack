@@ -4,18 +4,35 @@ import yfinance as yf
 from scipy import stats
 import quantstats as qs
 
+from ai.config.settings import config
+from backend.alpaca.sdk.clients import AlpacaDataConnector
+
 def get_benchmark_returns(start_date, end_date, ticker='SPY'):
     """
     Fetches historical daily returns for a benchmark ticker.
     """
-    benchmark_sym = yf.Ticker(ticker)
+    # benchmark_sym = yf.Ticker(ticker)
 
     try:
-        benchmark_data = benchmark_sym.history(
-            start=start_date,
-            end=end_date
-        )
+        benchmark_data = yf.download(ticker, start=start_date, end=end_date)
+
+        if benchmark_data.empty:
+            print(f"Could not fetch benchmark data for {ticker}.")
+            return pd.Series(dtype=float)
         benchmark_returns = benchmark_data['Adj Close'].pct_change().dropna()
+
+        # apca = AlpacaDataConnector(config)
+        # benchmark_data = apca.get_historical_data(
+        #     symbols=[ticker],
+        #     lookback_days=(end_date - start_date).days,
+        # )
+        # benchmark_df = benchmark_data[ticker]
+        # if ticker not in benchmark_data:
+        #     print(f"Could not fetch benchmark data for {ticker}.")
+        #     return pd.Series(dtype=float)
+        
+        # benchmark_returns = benchmark_df['Close'].pct_change().dropna()
+
         return benchmark_returns
     except Exception as e:
         print(f"Could not download benchmark data for {ticker}: {e}")

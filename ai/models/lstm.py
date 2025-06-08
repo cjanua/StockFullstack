@@ -4,24 +4,31 @@ import torch.nn as nn
 from ai.config.settings import config
 
 class TradingLSTM(nn.Module):
-    def __init__(self, input_size=50, hidden_size=128, num_layers=1, output_size=3):
+    def __init__(self, input_size, hidden_size=128, num_layers=1, output_size=3):
         super(TradingLSTM, self).__init__()
-        
+        self.input_size = input_size
+        self.hidden_size = config.LSTM_HIDDEN_SIZE
+        self.num_layers = config.LSTM_NUM_LAYERS
+
         # Core LSTM layer optimized for financial time series
         self.lstm = nn.LSTM(
-            input_size=config.LSTM_INPUT_SIZE,
-            hidden_size=config.LSTM_HIDDEN_SIZE,
-            num_layers=config.LSTM_NUM_LAYERS,
+            input_size=self.input_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
             batch_first=True,
-            dropout=0.2
+            dropout=0.2 if num_layers > 1 else 0,
         )
         
         # Multi-head attention for pattern recognition
-        self.attention = nn.MultiheadAttention(hidden_size, num_heads=8)
+        self.attention = nn.MultiheadAttention(
+            embed_dim=hidden_size,
+            num_heads=8,
+            batch_first=True,
+        )
         
         # Output layers with regularization
-        self.fc1 = nn.Linear(config.LSTM_HIDDEN_SIZE, config.LSTM_HIDDEN_SIZE // 2)
-        self.fc2 = nn.Linear(config.LSTM_HIDDEN_SIZE // 2, output_size)
+        self.fc1 = nn.Linear(self.hidden_size, self.hidden_size // 2)
+        self.fc2 = nn.Linear(self.hidden_size // 2, output_size)
         self.dropout = nn.Dropout(0.3)
         self.relu = nn.ReLU()
         

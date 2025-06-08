@@ -65,3 +65,4 @@ bin/
 .cache
 
 run.txt
+model_res/
