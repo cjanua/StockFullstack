@@ -43,10 +43,17 @@ class AdvancedFeatureEngine:
         mfm = mfm.fillna(0)
         mfv = mfm * volume
         return mfv.cumsum()
+    
+    def _create_ohlcv_list(self, data):
+        """Helper to create OHLCV list for talipp indicators"""
+        from talipp.ohlcv import OHLCV
+        return [OHLCV(row.open, row.high, row.low, row.close, row.volume) for row in data.itertuples()]
+
 
     def create_comprehensive_features(
         self,
         data: pd.DataFrame,
+        symbol: str,
         market_context_data: pd.DataFrame = None
     ) -> pd.DataFrame:
         """Generate multi-timeframe feature set for RNN"""
@@ -55,22 +62,29 @@ class AdvancedFeatureEngine:
             data = data.loc[~data.index.duplicated(keep='first')]
         
         agg_rules = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}
-        data_hourly = data.resample('D').agg(agg_rules).dropna()
-        if data_hourly.empty:
+        data = data.resample('D').agg(agg_rules).dropna()
+        if data.empty:
             print("Warning: Not enough data to create hourly features.")
             return pd.DataFrame()
 
         
-        ohlcv_list = [
-            OHLCV(row.open, row.high, row.low, row.close, row.volume)
-            for row in data.itertuples()
-        ]
+        ohlcv_list = self._create_ohlcv_list(data)
 
         features = {}
         
         features.update(self.calculate_technical_indicators(data, ohlcv_list))
+
+        features.update(self.calculate_price_action_features(data))
+
+        features.update(self.calculate_volume_profile_features(data))
+
+        features.update(self.calculate_asset_specific_features(data, symbol))
+
+        features.update(self.calculate_microstructure_features(data))
+
         features.update(self.calculate_volume_features(data))
         features.update(self.detect_market_regime(data, ohlcv_list))
+
 
         # features.update(self.create_multitimeframe_features(data))
         
@@ -81,6 +95,130 @@ class AdvancedFeatureEngine:
         features['close'] = data['close']
         
         return self.normalize_and_structure_features(features)
+    
+    def calculate_price_action_features(self, data):
+        """Price action and pattern recognition features"""
+        features = {}
+        close, high, low, open_price = data['close'], data['high'], data['low'], data['open']
+        
+        # Candlestick patterns
+        body = abs(close - open_price)
+        upper_shadow = high - np.maximum(close, open_price)
+        lower_shadow = np.minimum(close, open_price) - low
+        
+        features['body_ratio'] = body / (high - low + 1e-8)
+        features['upper_shadow_ratio'] = upper_shadow / (high - low + 1e-8)
+        features['lower_shadow_ratio'] = lower_shadow / (high - low + 1e-8)
+        
+        # Doji detection
+        features['is_doji'] = (body / (high - low + 1e-8) < 0.1).astype(int)
+        
+        # Hammer/Shooting star
+        features['is_hammer'] = ((lower_shadow > 2 * body) & (upper_shadow < body)).astype(int)
+        features['is_shooting_star'] = ((upper_shadow > 2 * body) & (lower_shadow < body)).astype(int)
+        
+        # Gap detection
+        prev_close = close.shift(1)
+        features['gap_up'] = ((open_price > prev_close * 1.002)).astype(int)
+        features['gap_down'] = ((open_price < prev_close * 0.998)).astype(int)
+        
+        # Price momentum features
+        for period in [3, 5, 10]:
+            features[f'momentum_{period}'] = close.pct_change(period)
+            features[f'acceleration_{period}'] = features[f'momentum_{period}'].diff()
+        
+        # Support/resistance levels
+        features['near_high_20'] = (close / close.rolling(20).max() > 0.98).astype(int)
+        features['near_low_20'] = (close / close.rolling(20).min() < 1.02).astype(int)
+        
+        return features
+
+    def calculate_volume_profile_features(self, data):
+        """Volume-based features for institutional activity detection"""
+        features = {}
+        volume = data['volume']
+        close = data['close']
+        
+        # Volume rate of change
+        features['volume_roc_5'] = volume.pct_change(5)
+        features['volume_roc_10'] = volume.pct_change(10)
+        
+        # Volume moving averages
+        vol_sma_20 = volume.rolling(20).mean()
+        features['volume_ratio'] = volume / vol_sma_20
+        
+        # Volume-price trend
+        features['vpt'] = ((close.pct_change() * volume).cumsum())
+        
+        # Price-volume correlation
+        features['pv_corr_10'] = close.rolling(10).corr(volume)
+        
+        # Volume clustering (institutions tend to trade in similar sizes)
+        volume_std = volume.rolling(20).std()
+        features['volume_zscore'] = (volume - vol_sma_20) / (volume_std + 1e-8)
+        
+        # Money flow features
+        typical_price = (data['high'] + data['low'] + close) / 3
+        money_flow = typical_price * volume
+        features['money_flow_ratio'] = money_flow / money_flow.rolling(20).mean()
+        
+        return features
+    
+    def calculate_asset_specific_features(self, data, symbol):
+        """Asset-specific features based on known characteristics"""
+        features = {}
+        close = data['close']
+        
+        # Different assets have different volatility patterns
+        if symbol in ['TSLA']:
+            # TSLA is news-sensitive, add momentum features
+            features['momentum_strength'] = abs(close.pct_change(3))
+            features['breakout_potential'] = (close / close.rolling(5).max()).rolling(3).mean()
+        
+        elif symbol in ['AAPL', 'MSFT', 'GOOGL']:
+            # Tech stocks - earnings and product cycle sensitive
+            features['earnings_cycle'] = np.sin(2 * np.pi * np.arange(len(close)) / 63)  # ~quarterly
+            features['product_cycle'] = np.sin(2 * np.pi * np.arange(len(close)) / 252)  # ~yearly
+        
+        elif symbol in ['QQQ', 'SPY', 'IWM']:
+            # ETFs - macro sensitive
+            features['macro_momentum'] = close.pct_change(20)  # Monthly momentum
+            features['sector_rotation'] = close.rolling(10).std() / close.rolling(50).std()
+        
+        # Universal features with asset-specific calibration
+        volatility_window = 20 if symbol in ['TSLA'] else 30  # TSLA needs shorter window
+        features['adaptive_volatility'] = close.pct_change().rolling(volatility_window).std()
+        
+        return features
+    
+    def calculate_microstructure_features(self, data):
+        """Market microstructure features"""
+        features = {}
+        high, low, close, volume = data['high'], data['low'], data['close'], data['volume']
+        
+        # Bid-ask spread proxy
+        features['spread_proxy'] = (high - low) / close
+        
+        # Price efficiency measures
+        returns = close.pct_change()
+        features['autocorr_1'] = returns.rolling(20).apply(lambda x: x.autocorr(lag=1))
+        features['autocorr_2'] = returns.rolling(20).apply(lambda x: x.autocorr(lag=2))
+        
+        # Realized volatility components
+        features['realized_vol'] = returns.rolling(20).std() * np.sqrt(252)
+        features['downside_vol'] = returns[returns < 0].rolling(20).std() * np.sqrt(252)
+        features['upside_vol'] = returns[returns > 0].rolling(20).std() * np.sqrt(252)
+        
+        # Price impact measures
+        volume_norm = volume / volume.rolling(20).mean()
+        price_change = abs(returns)
+        features['price_impact'] = (price_change / (volume_norm + 1e-8)).rolling(10).mean()
+        
+        return features
+
+
+
+
     
     def calculate_technical_indicators(self, data, ohlcv_list: list[OHLCV]):
         """Comprehensive technical indicator calculation"""
@@ -137,13 +275,13 @@ class AdvancedFeatureEngine:
                 tf_close_list = tf_data['close'].tolist()
                 sma_20 = pd.Series(SMA(20, tf_close_list), index=tf_data.index)
                 sma_50 = pd.Series(SMA(50, tf_close_list), index=tf_data.index)
-                trend_alignment = (sma_20 > sma_50).astype(int).reindex(feature_index, method='ffill').fillna(0)
+                trend_alignment = (sma_20 > sma_50).astype(int).reindex().ffill().fillna(0)
                 mtf_features[f'{tf_name}_trend_alignment'] = trend_alignment
                 
-                rsi = pd.Series(RSI(14, tf_close_list), index=tf_data.index).reindex(feature_index, method='ffill').fillna(50)
+                rsi = pd.Series(RSI(14, tf_close_list), index=tf_data.index).reindex().ffill().fillna(50)
                 mtf_features[f'{tf_name}_rsi'] = rsi
                 
-                momentum = tf_data['close'].diff(periods=10).reindex(feature_index, method='ffill').fillna(0)
+                momentum = tf_data['close'].diff(periods=10).reindex().ffill().fillna(0)
                 mtf_features[f'{tf_name}_momentum'] = momentum
         
         return mtf_features

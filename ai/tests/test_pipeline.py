@@ -41,7 +41,7 @@ async def test_data_pipeline():
     # Get SPY data for market context
     spy_data = feature_engine.get_market_context_data(raw_data.index)
     
-    features = feature_engine.create_comprehensive_features(raw_data, spy_data)
+    features = feature_engine.create_comprehensive_features(raw_data, 'SPY', spy_data)
     if features.empty:
         print("ERROR: Feature creation failed. DataFrame is empty.")
         return

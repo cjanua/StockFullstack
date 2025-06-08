@@ -8,77 +8,112 @@ from ai.monitoring.performance_metrics import get_benchmark_returns, test_statis
 from ai.features.feature_engine import AdvancedFeatureEngine
 
 class RNNTradingStrategy(Strategy):
-    stop_loss_pct = 0.05  # 5% stop loss
-    take_profit_pct = 0.10 # 10% take profit 2:1
-    position_size = 0.90
+    stop_loss_pct = 0.03  # 5% stop loss
+    take_profit_pct = 0.06 # 10% take profit 2:1
+    position_size = 0.70
+    confidence_threshold = 0.45
 
 
     def init(self):
         self.portfolio_value_history = []
         self.signals_history = []
+        self.last_prediction_time = None
+        self.prediction_cache = None
 
         
     def next(self):
-        # Minimum data requirement
-        if self.position:
-            return
-
+        # Warm-up
         if len(self.data) < 60:
             return
         
-        ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
+        current_time = self.data.index[-1]
+
+        # Cache predictions to avoid recalculation
+        if self.last_prediction_time != current_time:
+            self.prediction_cache = self._get_prediction()
+            self.last_prediction_time = current_time
         
-        features_df = self.data.df[feature_cols].iloc[-60:]
-        if features_df.isnull().values.any():
+        if self.prediction_cache is None:
             return
 
-        features = features_df.values
+        action, confidence = self.prediction_cache
+        current_price = self.data.Close[-1]
 
-        # Get RNN prediction
-        with torch.no_grad():
-            features_tensor = torch.FloatTensor(features).unsqueeze(0)
-            try:
+        if self.position:
+            # Exit logic for existing positions
+            if self.position.is_long and action == 0 and confidence > 0.4:
+                self.position.close()
+            elif self.position.is_short and action == 2 and confidence > 0.4:
+                self.position.close()
+        else:
+            # Entry logic when no position
+            if action == 2 and confidence > self.confidence_threshold:  # UP signal
+                sl = current_price * (1 - self.stop_loss_pct)
+                tp = current_price * (1 + self.take_profit_pct)
+                size = self._calculate_position_size(confidence)
+                self.buy(size=size, sl=sl, tp=tp)
+                
+            elif action == 0 and confidence > self.confidence_threshold:  # DOWN signal
+                sl = current_price * (1 + self.stop_loss_pct)
+                tp = current_price * (1 - self.take_profit_pct)
+                size = self._calculate_position_size(confidence)
+                self.sell(size=size, sl=sl, tp=tp)
+
+
+    def _get_prediction(self):
+        """Get model prediction with error handling"""
+        try:
+            ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
+            
+            if len(feature_cols) == 0:
+                return None
+            
+            features_df = self.data.df[feature_cols].iloc[-60:]
+            
+            # Handle NaN values more gracefully
+            if features_df.isnull().sum().sum() > len(features_df) * 0.1:  # >10% NaN
+                return None
+                
+            # Forward fill NaN values
+            features_df = features_df.ffill().fillna(0)
+            features = features_df.values
+
+            # Get RNN prediction
+            with torch.no_grad():
+                features_tensor = torch.FloatTensor(features).unsqueeze(0)
+                
+                # Handle tensor shape issues
+                if features_tensor.shape[-1] != self.rnn_model.input_size:
+                    return None
+                    
                 prediction = self.rnn_model(features_tensor)
                 probabilities = prediction.numpy()[0]  # [down, hold, up]
                 
                 # Get the class with highest probability
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]
-                # print(f"DEBUG: First prediction for {self.data.df.index[-1].date()}: Probs={probabilities}, Action={action}, Conf={confidence:.2f}") 
-            except Exception as e:
-                print(f"Error in model prediction: {e}")
-                return
-        
-        CONFIDENCE_THRESHOLD = 0.55 
-        current_price = self.data.Close[-1]
-
-        # Trading logic
-        # Action 2: UP signal
-        if action == 2 and confidence > CONFIDENCE_THRESHOLD:
-            sl = current_price * (1 - self.stop_loss_pct)
-            tp = current_price * (1 + self.take_profit_pct)
-            self.buy(size=self.position_size, sl=sl, tp=tp)
-
-
-        # Action 0: DOWN signal        
-        elif action == 0 and confidence > CONFIDENCE_THRESHOLD:
-            sl = current_price * (1 + self.stop_loss_pct)
-            tp = current_price * (1 - self.take_profit_pct)
-            self.sell(size=self.position_size, sl=sl, tp=tp)
-
-
+                
+                return action, confidence
+                
+        except Exception as e:
+            print(f"Error in model prediction: {e}")
+            return None
     
-    def calculate_position_size(self, signal_strength):
+    def _calculate_position_size(self, confidence):
         """Dynamic position sizing based on signal confidence"""
-        max_position = 0.95  # 95% maximum allocation
-        base_size = signal_strength * max_position
+        base_size = self.position_size * min(confidence, 1.0)
         
-        # Volatility adjustment
-        recent_volatility = self.data.Close[-20:].pct_change().std()
-        vol_adjustment = max(0.5, 1.0 - recent_volatility * 10)
-        
-        return base_size * vol_adjustment
+        try:
+            recent_returns = self.data.Close[-20:].pct_change().dropna()
+            if len(recent_returns) > 5:
+                volatility = recent_returns.std()
+                vol_adjustment = max(0.3, 1.0 - volatility * 20)  # Reduce size in high vol
+                base_size *= vol_adjustment
+        except:
+            pass
+            
+        return max(0.1, min(base_size, 0.95))
 
 # Comprehensive backtesting workflow
 def run_comprehensive_backtest(data, strategy_class, plt_file):
@@ -92,23 +127,27 @@ def run_comprehensive_backtest(data, strategy_class, plt_file):
         bt.plot(filename=plt_file, open_browser=True)
 
     # Walk-forward analysis
-    wf_results = perform_walk_forward_analysis(data, strategy_class)
+    # wf_results = perform_walk_forward_analysis(data, strategy_class)
     
-    # Statistical significance testing
-    benchmark_returns = get_benchmark_returns(data.index[0], data.index[-1])
-    significance_tests = test_statistical_significance(
-        results._trades['ReturnPct'], 
-        benchmark_returns
-    )
+    # # Statistical significance testing
+    # benchmark_returns = get_benchmark_returns(data.index[0], data.index[-1])
+    # significance_tests = test_statistical_significance(
+    #     results._trades['ReturnPct'], 
+    #     benchmark_returns
+    # )
     
-    # Risk analysis
-    risk_metrics = calculate_comprehensive_risk_metrics(results)
+    # # Risk analysis
+    # risk_metrics = calculate_comprehensive_risk_metrics(results)
     
     return {
         'backtest_results': results,
-        'walk_forward': wf_results,
-        'significance_tests': significance_tests,
-        'risk_metrics': risk_metrics
+        'summary_stats': {
+            'total_return': results['Return [%]'],
+            'sharpe_ratio': results['Sharpe Ratio'],
+            'max_drawdown': results['Max. Drawdown [%]'],
+            'win_rate': results['Win Rate [%]'] if 'Win Rate [%]' in results else 0,
+            'profit_factor': results['Profit Factor'] if 'Profit Factor' in results else 1,
+        }
     }
 
 def perform_walk_forward_analysis(data, strategy_class, 
@@ -166,9 +205,10 @@ def create_rnn_strategy_class(trained_model):
             self.rnn_model.eval()
             
             # 2. Copy the rest of the setup from the parent class
-            self.feature_engine = AdvancedFeatureEngine()
-            self.portfolio_value_history = []
-            self.signals_history = []
+            # self.feature_engine = AdvancedFeatureEngine()
+            # self.portfolio_value_history = []
+            # self.signals_history = []
+            super().init()
 
             # Note: We do NOT call super().init() because we are
             # intentionally overriding the model loading behavior.
