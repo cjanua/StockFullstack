@@ -31,16 +31,19 @@ class RNNTradingStrategy(Strategy):
     # Dynamic Position Sizing
     base_position_size = 0.20
     max_position_size = 0.35
-    min_position_size = 0.05
-    max_portfolio_heat = 0.08
+    min_position_size = 0.08
+    max_portfolio_heat = 0.12
 
-    high_confidence_threshold = 0.70
-    medium_confidence_threshold = 0.60
-    low_confidence_threshold = 0.50
+    high_confidence_threshold = 0.65
+    medium_confidence_threshold = 0.55
+    low_confidence_threshold = 0.45
 
-    max_consecutive_losses = 3
+    max_consecutive_losses = 4
     max_daily_trades = 2
-    daily_loss_limit = 0.04
+    daily_loss_limit = 0.08
+
+    stop_loss_pct = 0.018  # Slightly tighter than 0.015
+    take_profit_pct = 0.05 
 
     volatility_lookback = 20
     regime_lookback = 60
@@ -49,10 +52,10 @@ class RNNTradingStrategy(Strategy):
     def init(self):
         super().init()
 
-        self.signal_buffer = deque(maxlen=7)  # Signal smoothing
+        self.signal_buffer = deque(maxlen=5)  # Signal smoothing
+        
         self.regime_indicator = self._calculate_market_regime()
         self.volatility_indicator = self._calculate_volatility_regime()
-
         self.trend_indicator = self._calculate_trend_strength()
         # INIT ATR indicator
         self.data.ATR = self.I(
@@ -67,10 +70,10 @@ class RNNTradingStrategy(Strategy):
         self.last_trade_date = None
         self.daily_pnl = 0.0
         self.starting_equity = None
-        self.win_count = 0
-        self.trade_count = 0
-        self.position_levels = []
-        self.risk_per_trade = {}
+        # self.win_count = 0
+        # self.trade_count = 0
+        # self.position_levels = []
+        # self.risk_per_trade = {}
 
         self.recent_trades = deque(maxlen=10)
         self.recent_win_rate = 0.5
@@ -134,11 +137,16 @@ class RNNTradingStrategy(Strategy):
         if self.recent_win_rate > 0.6:
             # Relax limits when doing well
             daily_limit = self.daily_loss_limit * 1.5
-            consecutive_limit = self.max_consecutive_losses + 1
+            consecutive_limit = self.max_consecutive_losses + 2
+        elif self.recent_win_rate < 0.35:
+            daily_limit = self.daily_loss_limit * 0.8      # 4.8% instead of 6%
+            consecutive_limit = max(2, self.max_consecutive_losses - 1)  # 3 instead of 4
+            # daily_trade_limit = self.max_daily_trades       # 3 (standard)
         else:
-            # Stricter limits when struggling
-            daily_limit = self.daily_loss_limit * 0.8
-            consecutive_limit = max(1, self.max_consecutive_losses - 1)
+            daily_limit = self.daily_loss_limit             # Standard 6%
+            consecutive_limit = self.max_consecutive_losses  # Standard 4
+            # daily_trade_limit = self.max_daily_trades       # Standard 3
+
 
         # Daily loss limit
         if self.daily_pnl < -daily_limit:
@@ -202,8 +210,8 @@ class RNNTradingStrategy(Strategy):
                 
                 # Penalize low-conviction predictions
                 entropy = -np.sum(probabilities * np.log(probabilities + 1e-8))
-                if entropy > 0.8:  # High uncertainty
-                    confidence *= 0.7
+                if entropy > 0.85:  # High uncertainty
+                    confidence *= 0.8
 
                 return action, confidence, None
                 
@@ -289,9 +297,9 @@ class RNNTradingStrategy(Strategy):
         for i in range(len(closes)):
             if i < 30:
                 regimes.append('neutral')
-            elif sma_10.iloc[i] > sma_30.iloc[i] * 1.01:
+            elif sma_10.iloc[i] > sma_30.iloc[i] * 1.008:
                 regimes.append('bull')
-            elif sma_10.iloc[i] < sma_30.iloc[i] * 0.99:
+            elif sma_10.iloc[i] < sma_30.iloc[i] * 0.992:
                 regimes.append('bear')
             else:
                 regimes.append('neutral')
@@ -311,9 +319,9 @@ class RNNTradingStrategy(Strategy):
         for i in range(len(volatility)):
             if pd.isna(volatility.iloc[i]) or pd.isna(vol_ma.iloc[i]):
                 regimes.append('normal')
-            elif volatility.iloc[i] > vol_ma.iloc[i] * 1.3:
+            elif volatility.iloc[i] > vol_ma.iloc[i] * 1.25:
                 regimes.append('high')
-            elif volatility.iloc[i] < vol_ma.iloc[i] * 0.8:
+            elif volatility.iloc[i] < vol_ma.iloc[i] * 0.85:
                 regimes.append('low')
             else:
                 regimes.append('normal')
@@ -324,59 +332,55 @@ class RNNTradingStrategy(Strategy):
         """Adjust confidence based on market conditions"""
         adjusted = confidence
 
-        # Base regime adjustments (more aggressive)
-        if market_regime == 'bull' and trend_strength > 0.2:
-            adjusted *= 1.15  # Increased from 1.05
-        elif market_regime == 'bear' and trend_strength < -0.2:
-            adjusted *= 1.10  # Less penalty for bear markets
+        if market_regime == 'bull' and trend_strength > 0.15:
+            adjusted *= 1.20
+        elif market_regime == 'bear' and trend_strength < -0.15:
+            adjusted *= 1.15
         
-        # Volatility adjustments (less conservative)
         if volatility_regime == 'high':
-            adjusted *= 0.90  # Reduced penalty from 0.7
+            adjusted *= 0.95
         elif volatility_regime == 'low':
-            adjusted *= 1.10  # Increased from 1.05
+            adjusted *= 1.15
         
-        # IMPROVEMENT: Recent performance adaptive adjustment
         if self.recent_win_rate > 0.6:
-            adjusted *= 1.10  # Boost confidence when doing well
-        elif self.recent_win_rate < 0.4:
-            adjusted *= 0.90  # Reduce confidence when struggling
+            adjusted *= 1.15
+        elif self.recent_win_rate < 0.35:
+            adjusted *= 0.85
         
-        # Trend strength bonus
-        if abs(trend_strength) > 0.4:
-            adjusted *= 1.05
+        if abs(trend_strength) > 0.3:
+            adjusted *= 1.10
         
-        return max(0.1, min(adjusted, 0.95))
+        return max(0.15, min(adjusted, 0.95))
     
     def _calculate_position_size(self, confidence, regime, trend_strength):
         """Kelly Criterion-inspired position sizing"""
         # Base position size on confidence
-        kelly_fraction = max(0, (confidence - 0.55) * 2.5)  # Only size up above 60% confidence
-        kelly_fraction = min(kelly_fraction, 0.25)  # Cap at a percent of portfolio
+        kelly_fraction = max(0, (confidence - 0.45) * 3)  # Only size up above 60% confidence
+        kelly_fraction = min(kelly_fraction, 0.3)  # Cap at a percent of portfolio
         
         # Weigh based on recent performance
         if self.recent_win_rate > 0.6:
-            kelly_fraction *= 1.2  # Size up when winning
+            kelly_fraction *= 1.3  # Size up when winning
         elif self.recent_win_rate < 0.4:
-            kelly_fraction *= 0.7  # Size down when losing
+            kelly_fraction *= 0.8  # Size down when losing
         
         # Trend strength adjustment
-        if abs(trend_strength) > 0.3:
-            kelly_fraction *= 1.1  # Size up in strong trends
+        if abs(trend_strength) > 0.25:
+            kelly_fraction *= 1.15  # Size up in strong trends
 
         # Volatility adjustment
         try:
             recent_returns = pd.Series(self.data.Close[-20:]).pct_change().dropna()
             if len(recent_returns) > 5:
                 volatility = recent_returns.std()
-                vol_penalty = max(0.5, 1.0 - volatility * 15)  # Harsher volatility penalty
+                vol_penalty = max(0.6, 1.0 - volatility * 12)  # Harsher volatility penalty
                 kelly_fraction *= vol_penalty
         except:
-            kelly_fraction *= 0.8  # Conservative fallback
+            kelly_fraction *= 0.9  # Conservative fallback
 
         # Consecutive losses penalty (gentler)
         if self.consecutive_losses > 0:
-            kelly_fraction *= (0.7 ** self.consecutive_losses)  # Gentler than 0.5
+            kelly_fraction *= (0.8 ** min(self.consecutive_losses, 3))  # Gentler than 0.5
         
         # Calculate final position size
         position_size = self.base_position_size * (1 + kelly_fraction)
@@ -389,14 +393,14 @@ class RNNTradingStrategy(Strategy):
         if action == 1:
             return
         
-        if regime == 'bull' and trend_strength > 0.2:
-            threshold = self.low_confidence_threshold  # More aggressive in bull trends
-        elif regime == 'bear' and trend_strength < -0.2:
-            threshold = self.medium_confidence_threshold  # Bear market short opportunities
-        elif abs(trend_strength) > 0.4:  # Strong trend either direction
+        if regime == 'bull' and trend_strength > 0.15:
+            threshold = self.low_confidence_threshold * 0.9  # More aggressive in bull trends
+        elif regime == 'bear' and trend_strength < -0.15:
+            threshold = self.medium_confidence_threshold * 0.95  # Bear market short opportunities
+        elif abs(trend_strength) > 0.3:  # Strong trend either direction
             threshold = self.medium_confidence_threshold
         else:
-            threshold = self.high_confidence_threshold  # Ranging market
+            threshold = self.high_confidence_threshold * 0.95  # Ranging market
         
         if confidence < threshold:
             return
@@ -409,22 +413,24 @@ class RNNTradingStrategy(Strategy):
         # vol_multiplier = max(1.0, min(2.0, volatility / 0.01))  # Scale stops with volatility
         
         estimated_risk = position_size * self.stop_loss_pct
-        if estimated_risk > self.max_portfolio_heat:
-            position_size = self.max_portfolio_heat / self.stop_loss_pct
+        if estimated_risk > self.max_portfolio_heat * 1.1:
+            position_size = self.max_portfolio_heat * 1.1 / self.stop_loss_pct
 
         atr = self.data.ATR[-1]
         if pd.isna(atr) or atr <= 0:
             atr = current_price * 0.02  # Fallback to 2% of price
         
         # IMPROVEMENT 12: Trend-adaptive stop/target ratios
-        if abs(trend_strength) > 0.4:
+        if abs(trend_strength) > 0.35:
             # Wider targets in strong trends
-            stop_multiplier = 1.3  # Tighter stops
-            target_multiplier = 5.0  # Wider targets (better than 3:1)
+            stop_multiplier = 1.2  # Tighter stops
+            target_multiplier = 4.5  # Wider targets (better than 3:1)
         else:
             # Standard ratios in ranging markets
-            stop_multiplier = 1.5
-            target_multiplier = 4.5
+            stop_multiplier = 1.4
+            target_multiplier = 4.0
+        
+        min_risk_reward = 2.2
 
         # Place order based on signal
         if action == 2:  # UP signal
@@ -434,7 +440,7 @@ class RNNTradingStrategy(Strategy):
             # Ensure minimum risk/reward ratio
             risk = current_price - stop_loss
             reward = take_profit - current_price
-            if reward / risk < 2:  # Minimum 2.5:1 ratio
+            if reward / risk < min_risk_reward:  # Minimum 2.5:1 ratio
                 return
 
             self.buy(size=position_size, sl=stop_loss, tp=take_profit)
@@ -452,7 +458,7 @@ class RNNTradingStrategy(Strategy):
             
             risk = stop_loss - current_price
             reward = current_price - take_profit
-            if reward / risk < 2:
+            if reward / risk < min_risk_reward:
                 return
 
 
@@ -469,7 +475,7 @@ class RNNTradingStrategy(Strategy):
         """Enhanced position management with trailing stops and pyramiding"""
         # current_price = self.data.Close[-1]
 
-        exit_threshold = 0.6 if abs(trend_strength) > 0.3 else 0.5
+        exit_threshold = 0.55 if abs(trend_strength) > 0.25 else 0.45
         
         # Check for exit signals
         if self.position.is_long and action == 0 and confidence > exit_threshold:

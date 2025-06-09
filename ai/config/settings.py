@@ -17,6 +17,8 @@ class TradingConfig:
     LEARNING_RATE: float = 0.0005
     NUM_EPOCHS: int = 250
 
+    USE_ENSEMBLE: bool = False
+
     # Trading parameters
     INITIAL_CAPITAL: float = 100000
     MAX_POSITION_SIZE: float = 0.25
@@ -35,12 +37,12 @@ class TradingConfig:
             self.SYMBOLS = [
                 # Liquid ETFs
                 'SPY',    # S&P 500
-                'QQQ',    # Nasdaq
-                'IWM',    # Small caps
-                'SPXS',     # Inverse S&P 500
+                # 'QQQ',    # Nasdaq
+                # 'IWM',    # Small caps
+                # 'SPXS',     # Inverse S&P 500
                 # 'XLF',    # Financial sector
                 # 'XLK',    # Technology sector
-                'XLE',    # Energy sector
+                # 'XLE',    # Energy sector
 
                 # Commodity ETFs
                 'GLD',    # Gold
@@ -63,13 +65,13 @@ class TradingConfig:
                 # 'EWY',    # South Korea
 
                 # Mega caps
-                'AAPL',   # Mega cap tech
+                # 'AAPL',   # Mega cap tech
                 # 'MSFT',   # Mega cap tech
                 # 'GOOGL',  # Mega cap tech
-                'AMZN',   # Mega cap tech
+                # 'AMZN',   # Mega cap tech
                 # 'TSLA',   # High volatility
                 # 'NVDA',   # AI/Semiconductor
-                'META',   # Social media
+                # 'META',   # Social media
                 
                 # Dividend ETFs
                 # 'VIG',    # Dividend growth

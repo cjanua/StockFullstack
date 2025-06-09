@@ -33,7 +33,8 @@ load_dotenv()
 async def main():
     """Complete RNN trading system pipeline"""
     config = TradingConfig()
-
+    config.USE_UNCERTAINTY = True  # Enable uncertainty quantification  
+    config.ENHANCED_FEATURES = True  
     # 1. Data acquisition and preprocessing
     print("📊 Acquiring market data...")
     data_connector = AlpacaDataConnector(config)
@@ -114,12 +115,15 @@ async def main():
             continue
             
         # Flexible parameters - you can adjust these!
+        model_type = 'ensemble' if config.USE_ENSEMBLE else 'standard'
         trained_model = train_lstm_model(
             processed_data[symbol],
             symbol,
-            config,        # or "ensemble"
-            num_epochs=config.NUM_EPOCHS
+            config,
+            num_epochs=config.NUM_EPOCHS,
+            model_type=model_type  # This is the only new parameter
         )
+
         
         if trained_model is not None:
             models[symbol] = trained_model
