@@ -113,3 +113,47 @@ Poor (Sharpe ≤0.5):        10
 
 🏆 Best Performer:         META (Sharpe: 1.17)
 💥 Worst Performer:        NVDA (Sharpe: -4.89)
+
+
+v0.5.4
+====================================================================================================
+📊 PERFORMANCE SUMMARY
+====================================================================================================
+   QQQ | Return:   -4.1% | Sharpe: -1.33 | MaxDD:   -4.4%
+   IWM | Return:   -3.6% | Sharpe: -0.67 | MaxDD:   -3.9%
+   XLF | Return:   -3.1% | Sharpe: -0.75 | MaxDD:   -5.1%
+   XLK | Return:   -0.6% | Sharpe: -0.45 | MaxDD:   -1.2%
+   XLE | Return:   -4.8% | Sharpe: -0.92 | MaxDD:   -6.6%
+   GLD | Return:   -2.3% | Sharpe: -1.13 | MaxDD:   -2.7%
+   TLT | Return:    0.3% | Sharpe:  0.17 | MaxDD:   -0.8%
+   USO | Return:    2.0% | Sharpe:  0.22 | MaxDD:   -5.4%
+  URNM | Return:   -1.0% | Sharpe: -0.22 | MaxDD:   -3.0%
+   SLV | Return:   -0.2% | Sharpe: -0.04 | MaxDD:   -3.2%
+   EFA | Return:   -4.1% | Sharpe: -1.34 | MaxDD:   -4.1%
+   EEM | Return:   -1.4% | Sharpe: -0.65 | MaxDD:   -2.2%
+   VWO | Return:   -0.9% | Sharpe: -0.34 | MaxDD:   -2.2%
+   EWJ | Return:   -1.6% | Sharpe: -0.45 | MaxDD:   -3.5%
+   EWZ | Return:   -3.1% | Sharpe: -0.91 | MaxDD:   -3.3%
+   EWC | Return:   -0.8% | Sharpe: -0.75 | MaxDD:   -0.9%
+  ARGT | Return:    0.5% | Sharpe:  0.11 | MaxDD:   -1.6%
+   EWW | Return:   -1.6% | Sharpe: -0.94 | MaxDD:   -2.0%
+   EWH | Return:    1.8% | Sharpe:  1.22 | MaxDD:   -0.3%
+   EWT | Return:   -1.8% | Sharpe: -1.14 | MaxDD:   -2.0%
+   EWY | Return:    0.7% | Sharpe:  0.21 | MaxDD:   -1.5%
+  AAPL | Return:   -6.4% | Sharpe: -1.93 | MaxDD:   -6.4%
+  MSFT | Return:   -1.9% | Sharpe: -0.81 | MaxDD:   -2.8%
+ GOOGL | Return:   13.8% | Sharpe:  1.22 | MaxDD:   -3.7%
+  AMZN | Return:   -6.9% | Sharpe: -1.46 | MaxDD:   -7.3%
+  TSLA | Return:  -17.2% | Sharpe: -1.90 | MaxDD:  -17.3%
+  NVDA | Return:   -0.4% | Sharpe: -0.05 | MaxDD:   -7.4%
+  META | Return:    0.1% | Sharpe:  0.01 | MaxDD:   -6.2%
+   VIG | Return:   -4.3% | Sharpe: -1.40 | MaxDD:   -4.4%
+   DVY | Return:   -0.5% | Sharpe: -0.87 | MaxDD:   -0.5%
+   VTI | Return:   -2.6% | Sharpe: -0.80 | MaxDD:   -3.3%
+  SCHD | Return:   -1.0% | Sharpe: -0.38 | MaxDD:   -1.6%
+
+SUMMARY:
+Positive Returns: 7/32 (21.9%)
+Sharpe > 0.5: 2/32 (6.2%)
+Average Max Drawdown: 3.8%
+Worst Max Drawdown: 17.3%

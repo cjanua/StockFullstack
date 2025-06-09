@@ -14,27 +14,53 @@ class TradingConfig:
     LSTM_HIDDEN_SIZE: int = 128
     LSTM_NUM_LAYERS: int = 1
     SEQUENCE_LENGTH: int = 60
-    LEARNING_RATE: float = 0.001
+    LEARNING_RATE: float = 0.0005
     
     # Trading parameters
     INITIAL_CAPITAL: float = 100000
-    MAX_POSITION_SIZE: float = 0.75
+    MAX_POSITION_SIZE: float = 0.25
     TRANSACTION_COST: float = 0.002
-    RISK_PER_TRADE: float = 0.025
+    RISK_PER_TRADE: float = 0.015
 
     CACHE_DIR: str = '.cache'
     CACHE_LIFESPAN_HOURS: int = 12
     
     # Data parameters
     SYMBOLS: list = None
-    LOOKBACK_DAYS: int = 252 * 2  # 2 years
+    LOOKBACK_DAYS: int = 252 * 4  # 4 years
     
     def __post_init__(self):
         if self.SYMBOLS is None:
             self.SYMBOLS = [
+                # Liquid ETFs
                 'SPY',    # S&P 500
                 'QQQ',    # Nasdaq
                 'IWM',    # Small caps
+                'XLF',    # Financial sector
+                'XLK',    # Technology sector
+                'XLE',    # Energy sector
+
+                # Commodity ETFs
+                'GLD',    # Gold
+                'TLT',    # Long-term bonds
+                'USO',    # US Oil
+                'URNM',   # Uranium
+                'SLV',    # Silver
+
+                # International ETFs
+                'EFA',    # Developed markets
+                'EEM',    # Emerging markets
+                'VWO',    # Emerging markets (Vanguard)
+                'EWJ',    # Japan
+                'EWZ',    # Brazil
+                'EWC',    # Canada
+                'ARGT',   # Argentina
+                'EWW',    # Mexico
+                'EWH',    # Hong Kong
+                'EWT',    # Taiwan
+                'EWY',    # South Korea
+
+                # Mega caps
                 'AAPL',   # Mega cap tech
                 'MSFT',   # Mega cap tech
                 'GOOGL',  # Mega cap tech
@@ -42,11 +68,12 @@ class TradingConfig:
                 'TSLA',   # High volatility
                 'NVDA',   # AI/Semiconductor
                 'META',   # Social media
-                'XLF',    # Financial sector
-                'XLK',    # Technology sector
-                'XLE',    # Energy sector
-                'GLD',    # Gold
-                'TLT',    # Long-term bonds
+                
+                # Dividend ETFs
+                'VIG',    # Dividend growth
+                'DVY',    # High dividend yield
+                'VTI',    # Total stock market
+                'SCHD',   # Quality dividend ETF
             ]
 
 

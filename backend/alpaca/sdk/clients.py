@@ -76,6 +76,11 @@ class AlpacaDataConnector:
         self.cache_dir = Path(self.config.CACHE_DIR) / 'alpaca'
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+        self.request_semaphore = asyncio.Semaphore(3)  # Max 3 concurrent requests
+        self.request_delay = 0.5  # 500ms delay between requests
+        self.retry_delay = 2.0    # 2 second delay for retries
+        self.max_retries = 3      # Maximum retry attempts
+
 
     def _get_cache_path(self, symbol: str, lookback_days: int) -> Path:
         """Creates a unique filename for a given cache request."""
@@ -108,59 +113,108 @@ class AlpacaDataConnector:
         start_date = end_date - timedelta(days=lookback_days)
         
         all_data = {}
+        failed_symbols = []
 
-        async def fetch_symbol(symbol: str):
+
+        async def fetch_symbol(symbol: str, retry_count: int = 0) -> None:
             """An inner async function to fetch data for a single symbol."""
-            cache_path = self._get_cache_path(symbol, lookback_days)
-            if self._is_cache_valid(cache_path):
-                print(f"CACHE HIT: '{symbol}' from {cache_path}")
-                df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+            async with self.request_semaphore:
+                cache_path = self._get_cache_path(symbol, lookback_days)
                 
-                # --- FIX: Force essential columns to be numeric after loading ---
-                numeric_cols = ['open', 'high', 'low', 'close', 'volume']
-                for col in numeric_cols:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                # errors='coerce' will turn any non-numeric values into NaN
-                df.dropna(subset=numeric_cols, inplace=True)
-                # --- END FIX ---
-                print_integrity_check(df, f"Alpaca Data Load for {symbol}")
+                # Check cache first
+                if self._is_cache_valid(cache_path):
+                    print(f"CACHE HIT: '{symbol}' from {cache_path}")
+                    try:
+                        df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+                        
+                        # Force essential columns to be numeric after loading
+                        numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+                        for col in numeric_cols:
+                            if col in df.columns:
+                                df[col] = pd.to_numeric(df[col], errors='coerce')
+                        
+                        df.dropna(subset=numeric_cols, inplace=True)
+                        print_integrity_check(df, f"Cached Alpaca Data for {symbol}")
+                        
+                        all_data[symbol] = df
+                        return
+                    except Exception as e:
+                        logger.warning(f"Cache read failed for {symbol}: {e}")
+                        # Continue to API fetch if cache fails
                 
-                all_data[symbol] = df
-                return
+                # Add delay before API request
+                if retry_count > 0:
+                    delay = self.retry_delay * (2 ** retry_count)  # Exponential backoff
+                    print(f"Retrying {symbol} in {delay}s (attempt {retry_count + 1})")
+                    await asyncio.sleep(delay)
+                else:
+                    await asyncio.sleep(self.request_delay)
+                
+                try:
+                    request_params = StockBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=TimeFrame.Hour,
+                        start=start_date,
+                        end=end_date,
+                        adjustment='raw'
+                    )
+                    
+                    print(f"API REQUEST: Fetching {symbol} (attempt {retry_count + 1})")
+                    
+                    # Use asyncio.to_thread for the synchronous SDK call
+                    bars = await asyncio.to_thread(self.client.get_stock_bars, request_params)
+                    
+                    if bars:
+                        df = bars.df
+
+                        if isinstance(df.index, pd.MultiIndex):
+                            df = df.reset_index(level='symbol', drop=True)
+                        
+                        df.index = df.index.tz_convert('UTC').normalize()
+                        df.index = df.index.tz_localize(None)
+
+                        # Save to cache
+                        df.to_csv(cache_path)
+                        print(f"API SUCCESS: Saved '{symbol}' to cache")
+                        print_integrity_check(df, f"Fresh Alpaca Data for {symbol}")
+                        all_data[symbol] = df
+                    else:
+                        logger.warning(f"No data returned for {symbol}")
+                        failed_symbols.append(symbol)
+
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    
+                    # Handle rate limiting specifically
+                    if "too many requests" in error_msg or "rate limit" in error_msg:
+                        if retry_count < self.max_retries:
+                            logger.warning(f"Rate limited on {symbol}, retrying...")
+                            await fetch_symbol(symbol, retry_count + 1)
+                            return
+                        else:
+                            logger.error(f"Max retries exceeded for {symbol} due to rate limiting")
+                    else:
+                        logger.error(f"Failed to fetch data for {symbol}: {e}")
+                    
+                    failed_symbols.append(symbol)
+
+        # SEQUENTIAL PROCESSING instead of parallel to avoid rate limits
+        print(f"Fetching data for {len(symbols)} symbols sequentially...")
+        for i, symbol in enumerate(symbols):
+            print(f"Processing {symbol} ({i+1}/{len(symbols)})")
+            await fetch_symbol(symbol)
             
-            try:
-                request_params = StockBarsRequest(
-                    symbol_or_symbols=symbol,
-                    timeframe=TimeFrame.Hour,
-                    start=start_date,
-                    end=end_date,
-                    adjustment='raw' # Use raw data
-                )
-                
-                # Use asyncio.to_thread to run the synchronous SDK call in a non-blocking way
-                bars = await asyncio.to_thread(self.client.get_stock_bars, request_params)
-                
-                if bars:
-                    df = bars.df
-
-                    if isinstance(df.index, pd.MultiIndex):
-                        df = df.reset_index(level='symbol', drop=True)
-                    df.index = df.index.tz_convert('UTC').normalize()  # Normalize to remove time component
-                    df.index = df.index.tz_localize(None)
-
-                    df.to_csv(cache_path)
-                    print(f"API FETCH: Saved '{symbol}' to {cache_path}")
-                    print_integrity_check(df, f"Alpaca Data Load for {symbol}")
-                    all_data[symbol] = df
-
-            except Exception as e:
-                logger.error(f"Failed to fetch historical data for {symbol}: {e}")
-                return symbol, pd.DataFrame()
-
-        # Create and run all fetching tasks in parallel
-        tasks = [fetch_symbol(symbol) for symbol in symbols]
-        await asyncio.gather(*tasks)
+            # Add a small delay between symbols to be extra safe
+            if i < len(symbols) - 1:  # Don't delay after the last symbol
+                await asyncio.sleep(0.2)
+        
+        # Report results
+        successful_symbols = list(all_data.keys())
+        print(f"\n✅ Successfully fetched: {len(successful_symbols)} symbols")
+        print(f"❌ Failed to fetch: {len(failed_symbols)} symbols")
+        
+        if failed_symbols:
+            print(f"Failed symbols: {failed_symbols}")
         
         return all_data
 
