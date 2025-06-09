@@ -42,12 +42,43 @@ async def main():
         lookback_days=config.LOOKBACK_DAYS
     )
 
-    print("📊 Acquiring market context data (SPY)...")
+    print("📊 Using your own SPY data for market context...")
+    
     feature_engine = AdvancedFeatureEngine()
-    all_dates = pd.DatetimeIndex([])
-    for df in market_data.values():
-        all_dates = all_dates.union(df.index)
-    spy_data = feature_engine.get_market_context_data(all_dates)
+    
+    # STANDARDIZE: Use your own SPY data and standardize it
+    if 'SPY' in market_data and not market_data['SPY'].empty:
+        spy_data = market_data['SPY'].copy()
+        
+        # CRITICAL: Standardize column names to match expected format
+        spy_data = spy_data.rename(columns={
+            'open': 'Open',
+            'high': 'High', 
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+        
+        # Ensure DatetimeIndex
+        if not isinstance(spy_data.index, pd.DatetimeIndex):
+            spy_data.index = pd.to_datetime(spy_data.index)
+        
+        # Remove timezone if present
+        if hasattr(spy_data.index, 'tz') and spy_data.index.tz is not None:
+            spy_data.index = spy_data.index.tz_localize(None)
+        
+        # Remove duplicates and sort
+        spy_data = spy_data.loc[~spy_data.index.duplicated(keep='last')]
+        spy_data = spy_data.sort_index()
+        
+        print(f"✅ Using standardized SPY data: {len(spy_data)} rows")
+        print(f"   Columns: {list(spy_data.columns)}")
+        print(f"   Index type: {type(spy_data.index)}")
+        
+    else:
+        print("⚠️ No SPY data available, will use fallback features")
+        spy_data = pd.DataFrame()
+
 
     # 2. Feature engineering
     print("🔧 Engineering features...")
@@ -87,7 +118,7 @@ async def main():
             processed_data[symbol],
             symbol,
             config,        # or "ensemble"
-            num_epochs=150       # or any number you want
+            num_epochs=config.NUM_EPOCHS
         )
         
         if trained_model is not None:

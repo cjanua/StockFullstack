@@ -140,7 +140,7 @@ def train_lstm_model(
                       f"Directional Accuracy: {directional_accuracy:.2%}")
 
                 
-            if patience_counter >= 20:
+            if patience_counter >= 40:
                 print(f"Early stopping at epoch {epoch+1}")
                 break
 

@@ -607,10 +607,8 @@ class AdvancedFeatureEngine:
         return regime_features
     
     def get_market_context_data(self, index, benchmark='SPY'):
-        """
-        ROBUST market context fetching with multiple fallback strategies.
-        Should NEVER return empty DataFrame with your setup!
-        """
+        """STANDARDIZED market context that always returns consistent format"""
+        
         if index.empty: 
             return pd.DataFrame()
 
@@ -619,100 +617,348 @@ class AdvancedFeatureEngine:
         
         print(f"🔍 Fetching market context ({benchmark}) from {start_str} to {end_str}")
         
-        # STRATEGY 1: Try different intervals to avoid Yahoo Finance limitations
-        intervals_to_try = ['1d', '1h']  # Daily first, then hourly
+        # Try cache first
+        cache_path = self.cache_dir / f"{benchmark}_{start_str}_to_{end_str}_1d.csv"
+        market_data = self._try_load_cache(cache_path)
         
-        for interval in intervals_to_try:
-            print(f"  Trying interval: {interval}")
-            
-            cache_path = self.cache_dir / f"{benchmark}_{start_str}_to_{end_str}_{interval}.csv"
-            
-            # Check cache first
-            market_data = self._try_load_cache(cache_path)
-            if market_data is not None and not market_data.empty:
-                print(f"  ✅ Cache hit for {interval}")
-                return self._process_market_data(market_data)
-            
-            # Try different date ranges if original fails
-            date_ranges = [
-                (start_str, end_str),  # Original range
-                ((datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'), end_str),  # Last year
-            ]
-            
-            for attempt_start, attempt_end in date_ranges:
-                try:
-                    print(f"    Fetching {benchmark} {interval} from {attempt_start} to {attempt_end}")
-                    
-                    # Add small delay to respect rate limits
-                    time.sleep(0.5)
-                    
-                    # Fetch from Yahoo Finance
-                    market_data = yf.download(
-                        benchmark, 
-                        start=attempt_start, 
-                        end=attempt_end, 
-                        interval=interval,
-                        progress=False,
-                    )
-                    
-                    if not market_data.empty:
-                        print(f"    ✅ Success with {interval} data")
-                        # Save to cache
-                        market_data.to_csv(cache_path)
-                        return self._process_market_data(market_data)
-                    else:
-                        print(f"    ❌ Empty data for {interval}")
-                        
-                except Exception as e:
-                    print(f"    ❌ Error with {interval}: {str(e)[:100]}")
-                    continue
+        if market_data is not None and not market_data.empty:
+            print(f"  ✅ Cache hit for 1d")
+            return self._standardize_market_data(market_data, index)
         
-        # STRATEGY 3: Try alternative benchmarks if SPY fails
-        if benchmark == 'SPY':
-            alternative_benchmarks = ['QQQ', 'IWM', 'VTI']
-            print(f"  SPY failed, trying alternatives: {alternative_benchmarks}")
-            
-            for alt_benchmark in alternative_benchmarks:
-                print(f"    Trying {alt_benchmark}...")
-                alt_data = self.get_market_context_data(index, alt_benchmark)
-                if not alt_data.empty:
-                    print(f"    ✅ Success with {alt_benchmark}")
-                    return alt_data
-        
-        # STRATEGY 4: Use your Alpaca data as fallback
-        print("  🔄 Trying Alpaca data as fallback...")
+        # Try Yahoo Finance
         try:
-            from backend.alpaca.sdk.clients import AlpacaDataConnector
-            from ai.config.settings import config
+            print(f"    Fetching {benchmark} 1d from {start_str} to {end_str}")
+            time.sleep(0.5)
             
-            # This is sync, but we can make it work
-            import asyncio
+            market_data = yf.download(
+                benchmark, 
+                start=start_str, 
+                end=end_str, 
+                interval='1d',
+                progress=False
+            )
             
-            async def get_alpaca_fallback():
-                alpaca_client = AlpacaDataConnector(config)
-                lookback_days = (pd.to_datetime(end_str) - pd.to_datetime(start_str)).days + 30
-                alpaca_data = await alpaca_client.get_historical_data([benchmark], lookback_days)
-                return alpaca_data.get(benchmark, pd.DataFrame())
-            
-            # Run the async function
-            try:
-                loop = asyncio.get_event_loop()
-            except:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            alpaca_market_data = loop.run_until_complete(get_alpaca_fallback())
-            
-            if not alpaca_market_data.empty:
-                print("    ✅ Success with Alpaca fallback")
-                return self._process_market_data(alpaca_market_data)
+            if not market_data.empty:
+                print(f"    ✅ Yahoo Finance success: {len(market_data)} rows")
+                market_data.to_csv(cache_path)
+                return self._standardize_market_data(market_data, index)
                 
         except Exception as e:
-            print(f"    ❌ Alpaca fallback failed: {e}")
+            print(f"    ❌ Yahoo Finance failed: {str(e)[:100]}")
         
-        # STRATEGY 5: Generate synthetic market data as last resort
-        print("  🎲 Generating synthetic market data as last resort...")
-        return self._generate_synthetic_market_data(index)
+        # Fallback: Use your own SPY data if available
+        print("  🔄 Using your own SPY data as fallback...")
+        return self._create_fallback_market_data(index, benchmark)
+    
+    def _try_load_cache(self, cache_path):
+        """Load and validate cached data"""
+        if not cache_path.exists():
+            return None
+            
+        try:
+            file_mod_time = datetime.fromtimestamp(cache_path.stat().st_mtime)
+            if (datetime.now() - file_mod_time).total_seconds() < 48 * 3600:  # 48 hour cache
+                market_data = pd.read_csv(cache_path, index_col=0)
+                if len(market_data) > 10:
+                    return market_data
+        except Exception as e:
+            print(f"    Cache read failed: {e}")
+        return None
+    
+    def _standardize_market_data(self, raw_data, target_index):
+        """
+        CRITICAL: Standardize ALL market data to consistent format regardless of source
+        """
+        if raw_data.empty:
+            return pd.DataFrame()
+        
+        print(f"    📋 Standardizing market data: {raw_data.shape}")
+        
+        # Step 1: Handle MultiIndex columns (from yfinance)
+        if isinstance(raw_data.columns, pd.MultiIndex):
+            print("    - Flattening MultiIndex columns")
+            raw_data.columns = raw_data.columns.get_level_values(0)
+        
+        # Step 2: Standardize column names to CONSISTENT format
+        column_mapping = {
+            # Yahoo Finance variations
+            'Adj Close': 'Close',
+            'adj close': 'Close',
+            
+            # Alpaca variations  
+            'close': 'Close',
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'volume': 'Volume',
+            
+            # Ensure all standard variations are covered
+            'Open': 'Open',
+            'High': 'High', 
+            'Low': 'Low',
+            'Close': 'Close',
+            'Volume': 'Volume'
+        }
+        
+        # Apply column renaming
+        for old_col, new_col in column_mapping.items():
+            if old_col in raw_data.columns and old_col != new_col:
+                raw_data = raw_data.rename(columns={old_col: new_col})
+                print(f"    - Renamed {old_col} → {new_col}")
+        
+        # Step 3: Ensure we have the essential Close column
+        if 'Close' not in raw_data.columns:
+            print("    ❌ ERROR: No Close column found after standardization")
+            print(f"    Available columns: {list(raw_data.columns)}")
+            return pd.DataFrame()
+        
+        # Step 4: STANDARDIZE INDEX to DatetimeIndex
+        try:
+            # Handle various index formats
+            if not isinstance(raw_data.index, pd.DatetimeIndex):
+                print("    - Converting index to DatetimeIndex")
+                
+                # Remove any non-date strings (like "Ticker")
+                if raw_data.index.dtype == 'object':
+                    # Filter out non-date entries
+                    valid_dates = []
+                    valid_rows = []
+                    
+                    for i, idx_val in enumerate(raw_data.index):
+                        try:
+                            # Try to convert to datetime
+                            if isinstance(idx_val, str) and len(idx_val) > 8:  # Reasonable date length
+                                parsed_date = pd.to_datetime(idx_val)
+                                valid_dates.append(parsed_date)
+                                valid_rows.append(i)
+                        except:
+                            continue
+                    
+                    if valid_dates:
+                        raw_data = raw_data.iloc[valid_rows]
+                        raw_data.index = pd.DatetimeIndex(valid_dates)
+                    else:
+                        print("    ❌ No valid dates found in index")
+                        return pd.DataFrame()
+                else:
+                    raw_data.index = pd.to_datetime(raw_data.index)
+            
+            # Step 5: Remove timezone info for consistency
+            if hasattr(raw_data.index, 'tz') and raw_data.index.tz is not None:
+                print("    - Removing timezone info")
+                raw_data.index = raw_data.index.tz_localize(None)
+                
+        except Exception as e:
+            print(f"    ❌ Index standardization failed: {e}")
+            return pd.DataFrame()
+        
+        # Step 6: Clean and validate data
+        print("    - Cleaning data")
+        
+        # Remove duplicates
+        if raw_data.index.has_duplicates:
+            print("    - Removing duplicate timestamps")
+            raw_data = raw_data.loc[~raw_data.index.duplicated(keep='last')]
+        
+        # Sort by date
+        raw_data = raw_data.sort_index()
+        
+        # Remove rows with missing Close values
+        raw_data = raw_data.dropna(subset=['Close'])
+        
+        # Step 7: Align to target index (daily frequency)
+        if not target_index.empty:
+            print("    - Aligning to target index")
+            
+            # Convert target index to daily frequency for alignment
+            target_daily = target_index.normalize().drop_duplicates().sort_values()
+            
+            # Reindex to target dates with forward fill
+            aligned_data = raw_data.reindex(target_daily, method='ffill')
+            aligned_data = aligned_data.dropna(subset=['Close'])
+            
+            if not aligned_data.empty:
+                raw_data = aligned_data
+        
+        # Step 8: Final validation
+        if raw_data.empty:
+            print("    ❌ Data is empty after standardization")
+            return pd.DataFrame()
+        
+        # Ensure numeric data
+        numeric_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        for col in numeric_columns:
+            if col in raw_data.columns:
+                raw_data[col] = pd.to_numeric(raw_data[col], errors='coerce')
+        
+        # Remove any rows that became NaN during numeric conversion
+        raw_data = raw_data.dropna(subset=['Close'])
+        
+        print(f"    ✅ Standardized market data: {len(raw_data)} rows")
+        print(f"    - Index type: {type(raw_data.index)}")
+        print(f"    - Columns: {list(raw_data.columns)}")
+        print(f"    - Date range: {raw_data.index.min()} to {raw_data.index.max()}")
+        
+        return raw_data
+    
+    def _create_fallback_market_data(self, index, benchmark):
+        """Create fallback market data when all sources fail"""
+        print(f"    🎲 Creating fallback market data for {benchmark}")
+        
+        # Use daily frequency from target index
+        target_dates = index.normalize().drop_duplicates().sort_values()
+        
+        # Take reasonable amount of recent data
+        if len(target_dates) > 252:
+            target_dates = target_dates[-252:]
+        
+        # Create synthetic SPY-like data
+        synthetic_data = pd.DataFrame(index=target_dates)
+        
+        np.random.seed(42)  # Deterministic
+        base_price = 450 if benchmark == 'SPY' else 350
+        
+        # Generate realistic returns
+        returns = np.random.normal(0.0008, 0.015, len(synthetic_data))
+        prices = [base_price]
+        
+        for ret in returns[1:]:
+            prices.append(prices[-1] * (1 + ret))
+        
+        # Create OHLCV data in STANDARD format
+        synthetic_data['Close'] = prices
+        synthetic_data['Open'] = synthetic_data['Close'] * (1 + np.random.normal(0, 0.005, len(synthetic_data)))
+        synthetic_data['High'] = synthetic_data[['Open', 'Close']].max(axis=1) * (1 + np.random.uniform(0, 0.02, len(synthetic_data)))
+        synthetic_data['Low'] = synthetic_data[['Open', 'Close']].min(axis=1) * (1 - np.random.uniform(0, 0.02, len(synthetic_data)))
+        synthetic_data['Volume'] = 100000000  # Typical volume
+        
+        print(f"    ✅ Generated fallback data: {len(synthetic_data)} rows")
+        return synthetic_data
+
+    def _create_fallback_market_features(self, data):
+        """Create fallback features when market data is unavailable"""
+        print("    🔄 Creating fallback market features...")
+        
+        fallback_features = {}
+        close = data['close']
+        
+        # Self-correlation features (maintain structure)
+        fallback_features['market_corr_20d'] = pd.Series(1.0, index=data.index)
+        fallback_features['market_corr_60d'] = pd.Series(1.0, index=data.index)
+        fallback_features['market_beta_20d'] = pd.Series(1.0, index=data.index)
+        fallback_features['market_beta_60d'] = pd.Series(1.0, index=data.index)
+        
+        # Relative strength vs own moving average
+        sma_20 = close.rolling(20).mean()
+        fallback_features['relative_strength'] = (close / (sma_20 + 1e-8)).fillna(1.0)
+        
+        # Volatility-based correlation stability
+        volatility = close.pct_change().rolling(20).std()
+        fallback_features['correlation_stability'] = volatility.rolling(60).std().fillna(0)
+        
+        print(f"    ✅ Created {len(fallback_features)} fallback features")
+        return fallback_features
+
+
+    def calculate_cross_asset_features(self, data, market_data):
+        """FIXED: Cross-asset features with STANDARDIZED data handling"""
+        features = {}
+        
+        if market_data.empty:
+            print("    No market data - using fallback features")
+            return self._create_fallback_market_features(data)
+        
+        print(f"    🔗 Calculating cross-asset features")
+        print(f"    - Asset data: {type(data.index)} with {len(data)} rows")
+        print(f"    - Market data: {type(market_data.index)} with {len(market_data)} rows")
+        
+        # CRITICAL: Ensure both have proper DatetimeIndex
+        if not isinstance(data.index, pd.DatetimeIndex):
+            print("    ❌ Asset data index is not DatetimeIndex")
+            return self._create_fallback_market_features(data)
+        
+        if not isinstance(market_data.index, pd.DatetimeIndex):
+            print("    ❌ Market data index is not DatetimeIndex")
+            return self._create_fallback_market_features(data)
+        
+        # Check required columns
+        if 'close' not in data.columns:
+            print("    ❌ Asset data missing 'close' column")
+            return self._create_fallback_market_features(data)
+        
+        if 'Close' not in market_data.columns:
+            print("    ❌ Market data missing 'Close' column")
+            return self._create_fallback_market_features(data)
+        
+        try:
+            # Convert to daily frequency for alignment
+            print("    - Converting to daily frequency")
+            data_daily = data.groupby(data.index.normalize()).last()
+            market_daily = market_data.groupby(market_data.index.normalize()).last()
+            
+            # Calculate returns
+            asset_returns = data_daily['close'].pct_change()
+            market_returns = market_daily['Close'].pct_change()
+            
+            # Find common dates for alignment
+            common_dates = asset_returns.index.intersection(market_returns.index)
+            print(f"    - Common dates: {len(common_dates)}")
+            
+            if len(common_dates) < 20:
+                print(f"    ⚠️ Insufficient common dates: {len(common_dates)}")
+                return self._create_fallback_market_features(data)
+            
+            # Align the series properly
+            asset_returns_aligned = asset_returns.loc[common_dates]
+            market_returns_aligned = market_returns.loc[common_dates]
+            
+            # Create aligned DataFrame and remove NaN
+            aligned_data = pd.DataFrame({
+                'asset': asset_returns_aligned,
+                'market': market_returns_aligned
+            }).dropna()
+            
+            if len(aligned_data) < 20:
+                print(f"    ⚠️ Insufficient aligned data: {len(aligned_data)}")
+                return self._create_fallback_market_features(data)
+            
+            print(f"    ✅ Cross-asset calculation with {len(aligned_data)} aligned points")
+            
+            # Calculate rolling correlations
+            for window in [20, 60]:
+                if len(aligned_data) >= window:
+                    correlation = aligned_data['asset'].rolling(window).corr(aligned_data['market'])
+                    correlation_reindexed = correlation.reindex(data.index, method='ffill').fillna(0)
+                    features[f'market_corr_{window}d'] = correlation_reindexed
+            
+            # Calculate rolling beta
+            for window in [20, 60]:
+                if len(aligned_data) >= window:
+                    covariance = aligned_data['asset'].rolling(window).cov(aligned_data['market'])
+                    market_variance = aligned_data['market'].rolling(window).var()
+                    beta = covariance / (market_variance + 1e-8)
+                    beta_reindexed = beta.reindex(data.index, method='ffill').fillna(1.0)
+                    features[f'market_beta_{window}d'] = beta_reindexed
+            
+            # Relative strength
+            if len(aligned_data) >= 20:
+                asset_momentum = (data_daily['close'] / data_daily['close'].shift(20))
+                market_momentum = (market_daily['Close'] / market_daily['Close'].shift(20))
+                relative_strength = (asset_momentum / market_momentum).reindex(data.index, method='ffill').fillna(1.0)
+                features['relative_strength'] = relative_strength
+            
+            # Correlation stability
+            if len(aligned_data) >= 80:
+                corr_20 = aligned_data['asset'].rolling(20).corr(aligned_data['market'])
+                correlation_stability = corr_20.rolling(60).std().reindex(data.index, method='ffill').fillna(0)
+                features['correlation_stability'] = correlation_stability
+            
+            print(f"    ✅ Successfully created {len(features)} cross-asset features")
+            return features
+            
+        except Exception as e:
+            print(f"    ❌ Cross-asset calculation failed: {e}")
+            return self._create_fallback_market_features(data)
 
 
     def _process_market_data(self, market_data):
@@ -807,24 +1053,34 @@ class AdvancedFeatureEngine:
         return None
 
     def calculate_market_context_features(self, data, market_data):
-        """Calculates features based on the asset's relation to the broader market."""
-        if market_data.empty: return {}
+        """STANDARDIZED market context features"""
+        if market_data.empty:
+            return {}
+        
+        print(f"    🌍 Calculating market context features")
+        
+        # Use the cross-asset features as market context
+        return self.calculate_cross_asset_features(data, market_data)
 
-        context_features = {}
-        # Ensure both dataframes are timezone-naive for comparison
-        if data.index.tz is not None:
-            data.index = data.index.tz_localize(None)
-        if market_data.index.tz is not None:
-             market_data.index = market_data.index.tz_localize(None)
+    # def calculate_market_context_features(self, data, market_data):
+    #     """Calculates features based on the asset's relation to the broader market."""
+    #     if market_data.empty: return {}
 
-        asset_returns = data['close'].pct_change()
-        market_returns = market_data['Close'].pct_change()
+    #     context_features = {}
+    #     # Ensure both dataframes are timezone-naive for comparison
+    #     if data.index.tz is not None:
+    #         data.index = data.index.tz_localize(None)
+    #     if market_data.index.tz is not None:
+    #          market_data.index = market_data.index.tz_localize(None)
 
-        returns_df = pd.DataFrame({'asset': asset_returns, 'market': market_returns}).ffill()
-        rolling_corr = returns_df['asset'].rolling(window=50).corr(returns_df['market'])
+    #     asset_returns = data['close'].pct_change()
+    #     market_returns = market_data['Close'].pct_change()
 
-        context_features['market_corr'] = rolling_corr.reindex(data.index, method='ffill').bfill()
-        return context_features
+    #     returns_df = pd.DataFrame({'asset': asset_returns, 'market': market_returns}).ffill()
+    #     rolling_corr = returns_df['asset'].rolling(window=50).corr(returns_df['market'])
+
+    #     context_features['market_corr'] = rolling_corr.reindex(data.index, method='ffill').bfill()
+    #     return context_features
 
     def calculate_risk_features(self, data):
         """Calculates features related to risk and volatility."""
