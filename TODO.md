@@ -13,7 +13,8 @@ Project Description
 
 ### In Progress
 
-- [ ] [Agent] RNN  
+- [ ] [Agent] Find edge  
+- [ ] [Agent] Ensemble RNN  
 
 ### Done ✓
 
