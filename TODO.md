@@ -6,15 +6,20 @@ Project Description
 
 ### Todo
 
+- [ ] [quant] forward test portfolio  
+- [ ] [dashboard] pf opt forward test visualization  
+- [ ] [rnn] properly test in jupyter  
+- [ ] [fastapi] rnn recs  
+- [ ] [dashboard] RNN visualization / integration  
 - [ ] [pm] deploy  
-- [ ] [dev] move py/uv to pyproject.toml  
+- [ ] [dashboard] tradingview chart replacement  
 - [ ] [dashboard] More Analysis  
-- [ ] [dashboard] Impl my real Watchlists  
+- [ ] [dev] move py/uv to pyproject.toml  
+- [ ] [dashboard] alpaca passthrough?  / replicate  
 
 ### In Progress
 
-- [ ] [Agent] Find edge  
-- [ ] [Agent] Ensemble RNN  
+- [ ] [quant] Find edge  
 
 ### Done ✓
 
