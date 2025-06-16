@@ -34,8 +34,8 @@ if need_update; then
     # Store current timestamp
     date +%s > "$TIMESTAMP_FILE"
     sudo pacman -S --needed base-devel
-else
-    echo "Pacman sync already performed today, skipping..."
+# else
+#     echo "Pacman sync already performed today, skipping..."
 fi
 
 

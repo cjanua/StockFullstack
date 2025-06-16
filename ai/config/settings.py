@@ -37,9 +37,9 @@ class TradingConfig:
             self.SYMBOLS = [
                 # Liquid ETFs
                 'SPY',    # S&P 500
-                # 'QQQ',    # Nasdaq
+                'QQQ',    # Nasdaq
                 # 'IWM',    # Small caps
-                # 'SPXS',     # Inverse S&P 500
+                'SPXS',     # Inverse S&P 500
                 # 'XLF',    # Financial sector
                 # 'XLK',    # Technology sector
                 # 'XLE',    # Energy sector
@@ -47,13 +47,13 @@ class TradingConfig:
                 # Commodity ETFs
                 'GLD',    # Gold
                 # 'TLT',    # Long-term bonds
-                # 'USO',    # US Oil
+                'USO',    # US Oil
                 # 'URNM',   # Uranium
                 # 'SLV',    # Silver
 
                 # International ETFs
-                # 'EFA',    # Developed markets
-                # 'EEM',    # Emerging markets
+                'EFA',    # Developed markets
+                'EEM',    # Emerging markets
                 # 'VWO',    # Emerging markets (Vanguard)
                 # 'EWJ',    # Japan
                 # 'EWZ',    # Brazil
@@ -69,14 +69,14 @@ class TradingConfig:
                 # 'MSFT',   # Mega cap tech
                 # 'GOOGL',  # Mega cap tech
                 # 'AMZN',   # Mega cap tech
-                # 'TSLA',   # High volatility
+                'TSLA',   # High volatility
                 # 'NVDA',   # AI/Semiconductor
-                # 'META',   # Social media
+                'META',   # Social media
                 
                 # Dividend ETFs
                 # 'VIG',    # Dividend growth
                 # 'DVY',    # High dividend yield
-                # 'VTI',    # Total stock market
+                'VTI',    # Total stock market
                 # 'SCHD',   # Quality dividend ETF
             ]
 

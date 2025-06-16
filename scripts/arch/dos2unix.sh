@@ -37,7 +37,7 @@ for ext in "${FILE_EXTENSIONS[@]}"; do
 done
 EXTENSION_PATTERN=${EXTENSION_PATTERN:3} # Remove initial "-o "
 
-print_status "yellow" "Starting Windows artifact cleanup..."
+# print_status "yellow" "Starting Windows artifact cleanup..."
 
 # Get list of tracked files respecting .gitignore
 TRACKED_FILES=$(git ls-files)
@@ -55,4 +55,4 @@ while IFS= read -r file; do
     fi
 done <<< "$TRACKED_FILES"
 
-print_status "green" "Cleanup completed successfully!"
+# print_status "green" "Cleanup completed successfully!"

@@ -25,18 +25,18 @@ runroot = "/home/$USER/podman-storage/run"
 graphroot = "/home/$USER/podman-storage/root"
 EOF
 fi
-podman pull docker.io/library/redis:latest
+# podman pull docker.io/library/redis:latest
 # podman pull docker.io/quantconnect/lean:latest
-if ! which docker >/dev/null 2>&1; then
-    sudo pacman -S wget
-    wget https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -qO- | tar xvfz - docker/docker --strip-components=1
-    sudo mv ./docker /usr/local/bin
-    yay -S docker-desktop
-    systemctl --user start docker-desktop
-    systemctl --user enable docker-desktop
-fi
+# if ! which docker >/dev/null 2>&1; then
+#     sudo pacman -S wget
+#     wget https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -qO- | tar xvfz - docker/docker --strip-components=1
+#     sudo mv ./docker /usr/local/bin
+#     yay -S docker-desktop
+#     systemctl --user start docker-desktop
+#     systemctl --user enable docker-desktop
+# fi
 
-podman pull redis
+# podman pull redis
 # podman pull quantconnect/lean
 
 
@@ -66,9 +66,9 @@ EOF
     echo "Restart your system to run systemd"
 fi
 
-if ! grep -q "cd /home/wsluser/Stocks" ~/.bashrc; then
-    echo 'cd /home/wsluser/Stocks' >> ~/.bashrc
-    echo 'docker-compose down' >> ~/.bashrc
-    echo 'cd -' >> ~/.bashrc
-    source ~/.bashrc
-fi
+# if ! grep -q "cd /home/wsluser/Stocks" ~/.bashrc; then
+#     echo 'cd /home/wsluser/Stocks' >> ~/.bashrc
+#     echo 'docker-compose down' >> ~/.bashrc
+#     echo 'cd -' >> ~/.bashrc
+    # source ~/.bashrc
+# fi
