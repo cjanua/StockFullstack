@@ -46,10 +46,10 @@ if ! which uv >/dev/null 2>&1; then
     pip install --upgrade uv 
 fi
 
-uv pip install -r req.txt
+uv pip install -r req.txt -q
 
 cd dashboard
-bun install
+bun install --silent
 cd ..
 
 # chmod +x ./backend/alpaca/apca.py
