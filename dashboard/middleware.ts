@@ -75,7 +75,7 @@ export function middleware(request: NextRequest) {
   if (!authToken && !isPublicPath) {
     // Not authenticated and trying to access protected route
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
+    // loginUrl.searchParams.set('redirect', pathname);
     response = NextResponse.redirect(loginUrl);
   } else if (authToken && pathname === '/login') {
     // Already authenticated and trying to access login
