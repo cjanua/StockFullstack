@@ -60,7 +60,6 @@ bin/
 
 .idea/
 
-*.egg-info
 
 .cache
 
