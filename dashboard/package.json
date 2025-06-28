@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 --turbopack",
+    "dev": "next dev",
     "build": "next build",
+    "export": "next export",
     "start": "next start",
-    "lint": "next lint",
-    "format": "prettier --config .prettier/.prettierrc --write \"**/*.{js,ts,tsx,jsx,json,md}\""
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:mac": "tauri build --target universal-apple-darwin",
+    "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu"
   },
   "dependencies": {
     "@alpacahq/typescript-sdk": "^0.0.31-preview",
@@ -53,6 +58,8 @@
     "zustand": "^5.0.4"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.6.0",
+    "@tauri-apps/cli": "^2.6.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/bun": "latest",
     "@types/node": "^22.15.18",

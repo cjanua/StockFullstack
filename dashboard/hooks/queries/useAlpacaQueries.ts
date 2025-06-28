@@ -1,7 +1,6 @@
 // dashboard/hooks/queries/useAlpacaQueries.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { alpaca } from '@/lib/api';
-import { auth } from '@/lib/api';
+import { alpaca, auth } from '@/lib/api/tauriClient';
 import { toast } from '@/hooks/use-toast';
 
 // Query key factory for better organization and type safety

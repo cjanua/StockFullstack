@@ -20,6 +20,7 @@ Project Description
 ### In Progress
 
 - [ ] [quant] Find edge  
+- [ ] [deployment] tauri  
 
 ### Done ✓
 

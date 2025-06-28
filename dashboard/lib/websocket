@@ -1,0 +1,11 @@
+// lib/websocket.ts - Update credential handling
+import { auth } from '@/lib/api/client-wrapper';
+
+// In the connect function, get credentials from the authenticated user
+const user = await auth.getCurrentUser();
+if (!user?.alpaca_key || !user?.alpaca_secret) {
+  throw new Error('Alpaca credentials not configured');
+}
+
+const apiKey = user.alpaca_key;
+const apiSecret = user.alpaca_secret;
