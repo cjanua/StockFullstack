@@ -1,10 +1,12 @@
-#!/bin/bash
-# direnv allow
-pwd
-source ./scripts/arch/archreq.sh
-direnv allow
+#!/usr/bin/env bash
 
-cd dashboard
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+pushd "$SCRIPT_DIR" >/dev/null
+eval "$(direnv export bash)"
+popd >/dev/null
+
+cd $DASHBOARD_PATH
+npm install --silent
 
 
 # Function to print usage instructions
@@ -54,7 +56,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --format)
-            bun run format
+            npm run format
             shift
             ;;
         *)

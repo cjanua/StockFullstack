@@ -2,9 +2,7 @@
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-// List of public paths that don't require authentication
-export const publicPaths = ['/login', '/register', '/api/auth/login', '/api/auth/register'];
+import { publicPaths } from '@/lib/config';
 
 // Security headers to apply to all responses
 const securityHeaders = {

@@ -5,3 +5,6 @@ export const ALPACA_OAUTH_CONFIG = {
   redirect_uri: `${process.env.NEXT_PUBLIC_URL}/api/auth/callback`,
   scopes: "account:write trading",
 };
+
+// List of public paths that don't require authentication
+export const publicPaths = ['/login', '/register', '/api/auth/login', '/api/auth/register'];

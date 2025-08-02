@@ -5,7 +5,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import Sidebar from "../components/Sidebar";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode, useState } from 'react';
-import { publicPaths } from "@/middleware";
+import { publicPaths } from "@/lib/config";
 import { usePathname } from "next/navigation";
 
 

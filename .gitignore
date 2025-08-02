@@ -16,6 +16,8 @@ node_modules
 # testing
 coverage
 
+*.db
+
 # next.js
 .next/
 out/
@@ -66,3 +68,6 @@ bin/
 run.txt
 model_res/
 git.diff
+
+.direnv/
+*.lock

@@ -309,7 +309,8 @@ export default function AccountPage() {
                           <FormLabel>Alpaca API Key</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="Enter your Alpaca API Key" 
+                              placeholder="Enter your Alpaca API Key"
+                              autoComplete="off"
                               {...field} 
                             />
                           </FormControl>
@@ -331,6 +332,7 @@ export default function AccountPage() {
                             <Input 
                               type="password" 
                               placeholder="Enter your Alpaca API Secret" 
+                              autoComplete="new-password"
                               {...field} 
                             />
                           </FormControl>

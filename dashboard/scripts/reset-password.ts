@@ -17,14 +17,33 @@ async function resetPassword(username: string, newPassword: string) {
   // Hash the new password
   const passwordHash = await bcrypt.hash(newPassword, 10);
   
-  // Update the password
+  // Attempt to update the password
   const result = await db.run(
     'UPDATE users SET password_hash = ? WHERE username = ?',
     [passwordHash, username]
   );
   
   if (result.changes === 0) {
-    console.error('User not found');
+    // User not found, create a new user
+    const readline = await import('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const email = await new Promise<string>((resolve) => {
+      rl.question(`User '${username}' not found. Enter email to create a new user: `, (input) => {
+      resolve(input);
+      });
+    });
+
+    rl.close();
+
+    await db.run(
+      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+      [username, email, passwordHash]
+    );
+    console.log(`User not found. Created new user: ${username}`);
   } else {
     console.log(`Password reset successfully for user: ${username}`);
   }
