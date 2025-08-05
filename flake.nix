@@ -47,20 +47,31 @@
         devShells.default = pkgs.mkShell {
 
           buildInputs = with pkgs; [
-            (python310.withPackages pythonPkgs)
-            python310Packages.venvShellHook          
+            # Python - Packages, Interpreter, and 
+            uv
+            (python313.withPackages pythonPkgs)
           ] ++ buildInputs ++ tools ++ sys;
-          venvDir = "./.venv";
-          postVenvCreation = ''
-            pip install -r requirements.txt
-          '';
+
+
+
+          env = {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib];
+            PKG_CONFIG_PATH = "${pkgs.sqlite.dev}/lib/pkgconfig";
+          };
 
           shellHook = ''
-            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib]}:$LD_LIBRARY_PATH
-            export PKG_CONFIG_PATH=${pkgs.sqlite.dev}/lib/pkgconfig:$PKG_CONFIG_PATH
-
-            echo "Env's been setup!"
+            venvDir="./.venv"
+            if [ ! -d "$venvDir" ]; then
+              echo "Creating venv with system-site-packages..."
+              python -m venv --system-site-packages "$venvDir"
+              source "$venvDir/bin/activate"
+              uv pip install -r requirements.txt
+              deactivate
+            fi
+            source "$venvDir/bin/activate"
           '';
+
+
         };
       });
 }

@@ -54,11 +54,12 @@ samples/
 
 data/
 
+.venv/
+
 .QuantConnect/
 
 lean.json
 
-bin/
 
 .idea/
 
