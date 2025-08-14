@@ -52,19 +52,10 @@
             PKG_CONFIG_PATH = "${pkgs.sqlite.dev}/lib/pkgconfig:${pkgs.openssl.dev}/lib/pkgconfig";
           };
 
-          # shellHook = ''
-          #   venvDir="./.venv"
-          #   if [ ! -d "$venvDir" ]; then
-          #     echo "Creating venv with system-site-packages..."
-          #     uv venv --system-site-packages "$venvDir"
-          #     source "$venvDir/bin/activate"
-          #     echo "Syncing dependencies from lock file..."
-          #     uv pip sync pylock.toml
-          #     uv pip install -e .
-          #     deactivate
-          #   fi
-          #   source "$venvDir/bin/activate"
-          # '';
+          shellHook = ''
+            source ./.env
+            [ "$ENV" = "dev" -o -z "$ENV" ] && export UV_LINK_MODE="copy"
+          '';
         };
       });
 }

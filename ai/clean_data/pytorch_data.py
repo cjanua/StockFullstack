@@ -16,7 +16,7 @@ def create_sequences(feature_data: pd.DataFrame, target_series: pd.Series, seque
     if len(feature_data) < sequence_length + 1:
         print(
             "WARNING: Not enough data to create sequences."
-             f"Need at least {sequence_length + 1} rows, have {len(feature_data)}")
+            f"Need at least {sequence_length + 1} rows, have {len(feature_data)}")
         return np.array([]), np.array([])
 
     feature_data = feature_data.ffill()

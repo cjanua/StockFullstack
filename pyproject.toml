@@ -27,6 +27,8 @@ dependencies = [
     "redis",
     "result",
     "python-dotenv",
+    "fastapi",
+    "uvicorn",
     # Broker
     "alpaca-py",
     # Finance & Quant
