@@ -5,10 +5,10 @@ from .Asset import serialize_asset
 
 def serialize_watchlist(watchlist) -> Dict[str, Union[str, List[Dict]]]:
     """Convert a Watchlist object to a serializable dictionary matching frontend Watchlist type
-    
+
     Args:
         watchlist: Watchlist object containing watchlist data
-        
+
     Returns:
         dict: Serialized watchlist data with standardized types containing:
             - account_id (str): UUID of associated account
@@ -25,13 +25,13 @@ def serialize_watchlist(watchlist) -> Dict[str, Union[str, List[Dict]]]:
         'created_at': watchlist.created_at.isoformat(),
         'updated_at': watchlist.updated_at.isoformat(),
     }
-    
+
     # Handle optional assets field
     if watchlist.assets is not None:
         serialized['assets'] = [serialize_asset(asset) for asset in watchlist.assets]
     else:
         serialized['assets'] = None
-        
+
     return serialized
 
 # Example usage:

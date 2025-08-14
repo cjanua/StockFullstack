@@ -16,7 +16,7 @@ def serialize_account(account: TradeAccount) -> dict:
        'pattern_day_trader': bool(account.pattern_day_trader),
        'trade_suspended_by_user': bool(account.trade_suspended_by_user),
        'trading_blocked': bool(account.trading_blocked),
-       'transfers_blocked': bool(account.transfers_blocked), 
+       'transfers_blocked': bool(account.transfers_blocked),
        'account_blocked': bool(account.account_blocked),
        'created_at': account.created_at.isoformat() if account.created_at else None,
        'shorting_enabled': bool(account.shorting_enabled),

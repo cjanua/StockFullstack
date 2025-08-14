@@ -21,15 +21,15 @@ def create_parser() -> argparse.ArgumentParser:
         description='API-style command line interface',
         usage='%(prog)s <domain>/<resource>[/<action>] [options]'
     )
-    
+
     # Global options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--format', choices=['json', 'csv', 'table'], default='json', help='Output format')
     parser.add_argument('--pretty', action='store_true', help='Pretty print output')
-    
+
     # Command pattern argument
     parser.add_argument('command', help='Command pattern (e.g., trading/account)')
-    
+
     # Command-specific arguments
     # Historical Data
     parser.add_argument('--symbol', help='Stock symbol for bars data')
@@ -48,18 +48,18 @@ def create_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = create_parser()
     args = parser.parse_args()
-    
+
     # Set up context
     ctx = CommandContext(
         debug=args.debug,
         format=args.format,
         pretty=args.pretty
     )
-    
+
     if ctx.debug:
         logger.setLevel(DEBUG)
         logger.debug(f"Arguments: {args}")
-    
+
     try:
         # Parse command pattern
         parts = args.command.split('/')
@@ -70,20 +70,20 @@ def main() -> int:
             domain, resource, action = parts
         else:
             raise ValueError("Invalid command pattern")
-        
+
         # Get command handler
         handler = registry.get_handler(domain, resource, action)
         if not handler:
             logger.error(f"Unknown command: {args.command}")
             return 1
-        
+
         # Execute handler
         result = handler(args, ctx)
-        
+
         # Format and print output
         print(format_output(result, ctx))
         return 0
-        
+
     except ValueError:
         logger.error("Invalid command pattern. Use: domain/resource/[action]")
         return 1

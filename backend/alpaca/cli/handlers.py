@@ -53,7 +53,7 @@ def get_account_history(args: CommandContext, ctx) -> Dict[str, Any]:
                 "message": "Any min timeframe is limited to less than 30 days of history",
                 "code": "Min30DayErr"
             }
-    
+
     return handle_response(lambda: get_portfolio_history(days, timeframe))
 
 @registry.register('trading', 'account', 'watchlists')

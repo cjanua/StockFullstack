@@ -2,10 +2,10 @@ from alpaca.trading.models import PortfolioHistory
 
 def serialize_portfolio_history(history: PortfolioHistory) -> dict:
     """Convert PortfolioHistory object to a serializable dictionary.
-    
+
     Args:
         history (PortfolioHistory): Portfolio history object to serialize
-        
+
     Returns:
         dict: Serialized portfolio history data
     """

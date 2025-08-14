@@ -17,7 +17,7 @@ class Alpha(QCAlgorithm):
         midrangeStocks = [x.Symbol for x in sortedByDollarVolume if x.Price > 2 and x.Price < 40]
         self.filteredByPrice = midrangeStocks[:10]
         return self.filteredByPrice
-    
+
     def on_data(self, data: Slice):
         """on_data event is the primary entry point for your algorithm. Each new data point will be pumped in here.
             Arguments:

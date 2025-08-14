@@ -3,10 +3,10 @@ from alpaca.trading.models import Asset
 
 def serialize_asset(asset) -> Asset:
     """Convert an Asset object to a serializable dictionary matching frontend Asset type
-    
+
     Args:
         asset: Asset object containing asset data
-        
+
     Returns:
         dict: Serialized asset data with standardized types
     """

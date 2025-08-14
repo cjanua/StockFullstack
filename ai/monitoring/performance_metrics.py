@@ -1,16 +1,12 @@
 # ai/monitoring/performance_metrics.py
 import pandas as pd
+import quantstats as qs
 import yfinance as yf
 from scipy import stats
-import quantstats as qs
 
-from ai.config.settings import config
-from backend.alpaca.sdk.clients import AlpacaDataConnector
 
 def get_benchmark_returns(start_date, end_date, ticker='SPY'):
-    """
-    Fetches historical daily returns for a benchmark ticker.
-    """
+    """Fetches historical daily returns for a benchmark ticker."""
     # benchmark_sym = yf.Ticker(ticker)
 
     try:
@@ -30,7 +26,7 @@ def get_benchmark_returns(start_date, end_date, ticker='SPY'):
         # if ticker not in benchmark_data:
         #     print(f"Could not fetch benchmark data for {ticker}.")
         #     return pd.Series(dtype=float)
-        
+
         # benchmark_returns = benchmark_df['Close'].pct_change().dropna()
 
         return benchmark_returns
@@ -39,9 +35,7 @@ def get_benchmark_returns(start_date, end_date, ticker='SPY'):
         return pd.Series(dtype=float)
 
 def test_statistical_significance(strategy_returns, benchmark_returns):
-    """
-    Performs statistical tests to compare strategy returns against a benchmark.
-    """
+    """Performs statistical tests to compare strategy returns against a benchmark."""
     if strategy_returns.empty:
         return {
             't_statistic': None,
@@ -49,7 +43,7 @@ def test_statistical_significance(strategy_returns, benchmark_returns):
             'alpha': None,
             'beta': None,
         }
-        
+
     # Align dates
     aligned_returns = pd.DataFrame({
         'strategy': strategy_returns,
@@ -62,7 +56,7 @@ def test_statistical_significance(strategy_returns, benchmark_returns):
     # Calculate t-test on alpha
     alpha_series = aligned_returns['strategy'] - aligned_returns['benchmark']
     t_stat, p_value = stats.ttest_1samp(alpha_series, 0)
-    
+
     return {
         't_statistic': t_stat,
         'p_value': p_value,
@@ -71,28 +65,27 @@ def test_statistical_significance(strategy_returns, benchmark_returns):
     }
 
 def calculate_comprehensive_risk_metrics(backtest_results):
-    """
-    Calculates a comprehensive set of risk and performance metrics using quantstats.
-    
+    """Calculates a comprehensive set of risk and performance metrics using quantstats.
+
     Args:
         backtest_results: The results object from the backtesting.py library.
+
     """
     equity_curve = backtest_results._equity_curve['Equity']
     returns = equity_curve.pct_change().dropna()
-    
+
     if returns.empty or len(returns) < 2:
         return {"error": "Not enough data to calculate metrics."}
 
     # quantstats can generate a dictionary of all key metrics
     metrics_dict = qs.reports.metrics(returns, display=False, mode='full')
-    
+
     # The result is a pandas Series; convert it to a dictionary
     return metrics_dict.to_dict()
 
 
 def analyze_portfolio_performance(backtest_results: dict):
-    """
-    Aggregates results from multiple backtests into a single portfolio view.
+    """Aggregates results from multiple backtests into a single portfolio view.
 
     Args:
         backtest_results: A dictionary where keys are symbols and values are
@@ -100,12 +93,13 @@ def analyze_portfolio_performance(backtest_results: dict):
 
     Returns:
         A dictionary containing portfolio-level performance metrics.
+
     """
     all_equity_curves = []
     initial_cash_total = 0.0
 
     # Collect the equity curve from each backtest result
-    for symbol, result in backtest_results.items():
+    for _symbol, result in backtest_results.items():
         if '_equity_curve' in result and not result['_equity_curve'].empty:
             # The equity curve includes the initial cash. We need to find the
             # actual capital allocated to this strategy to properly sum them.

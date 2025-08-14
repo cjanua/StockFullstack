@@ -22,7 +22,7 @@ def format_output(data: dict, ctx=None) -> str:
     """Format the output according to the specified format"""
     format_type = getattr(ctx, 'format', 'json') if ctx else 'json'
     pretty = getattr(ctx, 'pretty', False) if ctx else False
-    
+
     if format_type == 'json':
         return json.dumps(data, indent=2) if pretty else json.dumps(data)
     elif format_type == 'csv':
@@ -32,5 +32,7 @@ def format_output(data: dict, ctx=None) -> str:
         writer.writerow(data) if isinstance(data, dict) else writer.writerows(data)
         return output.getvalue()
     elif format_type == 'table':
-        return tabulate([(k, v) for k, v in data.items()], headers=['Field', 'Value']) if isinstance(data, dict) else tabulate(data, headers='keys')
+        if isinstance(data, dict):
+            return tabulate(list(data.items()), headers=['Field', 'Value'])
+        return tabulate(data, headers='keys')
     return str(data)

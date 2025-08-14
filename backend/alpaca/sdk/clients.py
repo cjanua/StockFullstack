@@ -17,10 +17,10 @@ from backend.alpaca.core import logger
 
 class AlpacaClientManager:
     """Centralized management of Alpaca API clients"""
-    
+
     _trading_client: Optional[TradingClient] = None
     _historical_client: Optional[StockHistoricalDataClient] = None
-    
+
     @classmethod
     def get_trading_client(cls) -> TradingClient:
         """Get or create a trading client"""
@@ -28,16 +28,16 @@ class AlpacaClientManager:
             try:
                 key, secret, _ = AlpacaConfig.get_credentials()
                 cls._trading_client = TradingClient(key, secret, paper=False)
-                
+
                 # Verify client connection
                 cls._trading_client.get_account()
                 logger.info("Trading client created and verified")
             except (ValueError, APIError) as e:
                 logger.error(f"Error creating trading client: {e}")
                 raise
-        
+
         return cls._trading_client
-    
+
     @classmethod
     def get_historical_client(cls) -> StockHistoricalDataClient:
         """Get or create a historical data client"""
@@ -49,9 +49,9 @@ class AlpacaClientManager:
             except (ValueError, Exception) as e:
                 logger.error(f"Error creating historical data client: {e}")
                 raise
-        
+
         return cls._historical_client
-    
+
     @classmethod
     def reset(cls):
         """Reset all clients (useful for testing)"""
@@ -67,7 +67,7 @@ class AlpacaDataConnector:
     def __init__(self, config):
         """
         Initializes the data connector with the historical data client.
-        
+
         Args:
             config: A configuration object (like your TradingConfig dataclass).
         """
@@ -82,36 +82,44 @@ class AlpacaDataConnector:
         self.max_retries = 3      # Maximum retry attempts
 
 
-    def _get_cache_path(self, symbol: str, lookback_days: int) -> Path:
+    def _get_cache_path(self, *args) -> Path:
         """Creates a unique filename for a given cache request."""
-        return self.cache_dir / f"{symbol}_{lookback_days}d.csv"
+
+        parts = []
+        for arg in args:
+            parts.append(f"{arg}")
+
+        filename = "_".join(sorted(parts)) + ".csv"
+
+        return self.cache_dir / filename
+
 
     def _is_cache_valid(self, path: Path) -> bool:
         """Checks if a cache file exists and is not too old."""
         if not path.exists():
             return False
-        
+
         file_mod_time = datetime.fromtimestamp(path.stat().st_mtime)
         if (datetime.now() - file_mod_time).total_seconds() > self.config.CACHE_LIFESPAN_HOURS * 3600:
             return False # Cache is stale
-        
+
         return True
 
-    async def get_historical_data(self, symbols: list, lookback_days: int) -> Dict[str, pd.DataFrame]:
+    async def get_historical_data(self, symbols: list, lookback_days: int, market: str = "IEX") -> Dict[str, pd.DataFrame]:
         """
         Fetches and processes historical daily bar data for a list of symbols.
-        
+
         Args:
             symbols: A list of stock tickers.
             lookback_days: The number of days of historical data to fetch.
-            
+
         Returns:
             A dictionary where keys are the symbols and values are DataFrames
             of their historical data.
         """
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days)
-        
+
         all_data = {}
         failed_symbols = []
 
@@ -119,29 +127,29 @@ class AlpacaDataConnector:
         async def fetch_symbol(symbol: str, retry_count: int = 0) -> None:
             """An inner async function to fetch data for a single symbol."""
             async with self.request_semaphore:
-                cache_path = self._get_cache_path(symbol, lookback_days)
-                
+                cache_path = self._get_cache_path(market, symbol, lookback_days)
+
                 # Check cache first
                 if self._is_cache_valid(cache_path):
                     print(f"CACHE HIT: '{symbol}' from {cache_path}")
                     try:
                         df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
-                        
+
                         # Force essential columns to be numeric after loading
                         numeric_cols = ['open', 'high', 'low', 'close', 'volume']
                         for col in numeric_cols:
                             if col in df.columns:
                                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                        
+
                         df.dropna(subset=numeric_cols, inplace=True)
                         print_integrity_check(df, f"Cached Alpaca Data for {symbol}")
-                        
+
                         all_data[symbol] = df
                         return
                     except Exception as e:
                         logger.warning(f"Cache read failed for {symbol}: {e}")
                         # Continue to API fetch if cache fails
-                
+
                 # Add delay before API request
                 if retry_count > 0:
                     delay = self.retry_delay * (2 ** retry_count)  # Exponential backoff
@@ -149,27 +157,28 @@ class AlpacaDataConnector:
                     await asyncio.sleep(delay)
                 else:
                     await asyncio.sleep(self.request_delay)
-                
+
                 try:
                     request_params = StockBarsRequest(
                         symbol_or_symbols=symbol,
                         timeframe=TimeFrame.Hour,
                         start=start_date,
                         end=end_date,
-                        adjustment='raw'
+                        adjustment='raw',
+                        feed=market.lower(),
                     )
-                    
+
                     print(f"API REQUEST: Fetching {symbol} (attempt {retry_count + 1})")
-                    
+
                     # Use asyncio.to_thread for the synchronous SDK call
                     bars = await asyncio.to_thread(self.client.get_stock_bars, request_params)
-                    
+
                     if bars:
                         df = bars.df
 
                         if isinstance(df.index, pd.MultiIndex):
                             df = df.reset_index(level='symbol', drop=True)
-                        
+
                         df.index = df.index.tz_convert('UTC').normalize()
                         df.index = df.index.tz_localize(None)
 
@@ -184,7 +193,7 @@ class AlpacaDataConnector:
 
                 except Exception as e:
                     error_msg = str(e).lower()
-                    
+
                     # Handle rate limiting specifically
                     if "too many requests" in error_msg or "rate limit" in error_msg:
                         if retry_count < self.max_retries:
@@ -195,7 +204,7 @@ class AlpacaDataConnector:
                             logger.error(f"Max retries exceeded for {symbol} due to rate limiting")
                     else:
                         logger.error(f"Failed to fetch data for {symbol}: {e}")
-                    
+
                     failed_symbols.append(symbol)
 
         # SEQUENTIAL PROCESSING instead of parallel to avoid rate limits
@@ -203,18 +212,18 @@ class AlpacaDataConnector:
         for i, symbol in enumerate(symbols):
             print(f"Processing {symbol} ({i+1}/{len(symbols)})")
             await fetch_symbol(symbol)
-            
+
             # Add a small delay between symbols to be extra safe
             if i < len(symbols) - 1:  # Don't delay after the last symbol
                 await asyncio.sleep(0.2)
-        
+
         # Report results
         successful_symbols = list(all_data.keys())
         print(f"\n✅ Successfully fetched: {len(successful_symbols)} symbols")
         print(f"❌ Failed to fetch: {len(failed_symbols)} symbols")
-        
+
         if failed_symbols:
             print(f"Failed symbols: {failed_symbols}")
-        
+
         return all_data
 

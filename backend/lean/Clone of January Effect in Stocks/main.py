@@ -14,11 +14,11 @@ class JanuaryEffectInStocksAlgorithm(QCAlgorithm):
     def initialize(self):
         self.set_start_date(2023, 3, 1)
         self.set_end_date(2024, 3, 1)
-        self.set_cash(1_000_000) 
+        self.set_cash(1_000_000)
 
         self.settings.minimum_order_margin_portfolio_percentage = 0
         self.set_security_initializer(BrokerageModelSecurityInitializer(self.brokerage_model, FuncSecuritySeeder(self.get_last_known_prices)))
-        
+
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
         self.universe_settings.schedule.on(self.date_rules.month_start())
         self.add_universe_selection(JanuaryEffectUniverseSelectionModel(
@@ -46,7 +46,7 @@ class JanuaryEffectInStocksAlgorithm(QCAlgorithm):
             self.month = self.time.month
             return time
         return None
-    
+
     def on_data(self, data):
         # Exit positions that aren't backed by existing insights.
         # If you don't want this behavior, delete this method definition.
@@ -58,7 +58,7 @@ class JanuaryEffectInStocksAlgorithm(QCAlgorithm):
                 if not self.insights.has_active_insights(symbol, self.utc_time):
                     self._undesired_symbols_from_previous_deployment.append(symbol)
             self._checked_symbols_from_previous_deployment = True
-        
+
         for symbol in self._undesired_symbols_from_previous_deployment:
             if self.is_market_open(symbol):
                 self.liquidate(symbol, tag="Holding from previous deployment that's no longer desired")

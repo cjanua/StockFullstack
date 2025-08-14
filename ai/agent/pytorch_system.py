@@ -1,24 +1,21 @@
 # ai/agent/pytorch_system.py
 from pathlib import Path
-from sklearn.model_selection import TimeSeriesSplit
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
-import pandas as pd
-import numpy as np
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torch.optim as optim
+from sklearn.model_selection import TimeSeriesSplit
 
-from ai.models.lstm import CustomTradingLoss, EnsembleLSTM, TradingLSTM, create_lstm
 from ai.clean_data.pytorch_data import create_pytorch_dataloaders
+from ai.models.lstm import CustomTradingLoss, create_lstm
+
 
 def train_lstm_model(
     processed_data: pd.DataFrame, symbol: str, config, num_epochs=10, model_type='standard'
 ):
-    """
-    Initializes and trains a TradingLSTM model.
-    """
+    """Initializes and trains a TradingLSTM model."""
     # 1. Ensure target col
     if 'close' not in processed_data.columns:
         print("Warning: 'close' column not in processed data. Skipping training.")
@@ -35,7 +32,7 @@ def train_lstm_model(
     # Create model based on symbol characteristics
     # if symbol in ['TSLA', 'NVDA', 'META']:  # High volatility stocks
     #     model = TradingLSTM(
-    #         input_size=input_size, 
+    #         input_size=input_size,
     #         hidden_size=160,  # Larger for complex patterns
     #         num_layers=1,
     #         output_size=3,
@@ -45,7 +42,7 @@ def train_lstm_model(
     # model = TradingLSTM(
     #     input_size=input_size,
     #     hidden_size=128,
-    #     num_layers=1, 
+    #     num_layers=1,
     #     output_size=3,
     #     dropout=0.2
     # )
@@ -84,14 +81,14 @@ def train_lstm_model(
         anneal_strategy='cos'
     )
 
-    
+
     # Create the data loader
     dataloader = create_pytorch_dataloaders(features, targets, config)
     if dataloader is None:
         print(f"Warning: Could not create dataloader for {symbol}. Skipping training.")
         return None
 
-    
+
     epoch_losses = []
     directional_accuracies = []
     best_loss = float('inf')
@@ -130,7 +127,7 @@ def train_lstm_model(
 
                 if torch.isnan(loss):
                     continue
-                
+
                 # Backpropagate and update weights
                 loss.backward()
 
@@ -165,7 +162,7 @@ def train_lstm_model(
                 best_model_state = model.state_dict().copy()
             else:
                 patience_counter += 1
-            
+
             if epoch % 10 == 0:
                 print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, "
                       f"Directional Accuracy: {directional_accuracy:.2%}"
@@ -178,13 +175,13 @@ def train_lstm_model(
 
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
-        
+
 
     # --- Generate and save the loss curve plot ---
     if epoch_losses:
         valid_losses = [loss for loss in epoch_losses if not np.isnan(loss)]
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-        
+
         # Loss curve
         ax1.plot(epoch_losses, 'b-', label='Training Loss', linewidth=2)
         ax1.set_xlabel('Epoch')
@@ -192,7 +189,7 @@ def train_lstm_model(
         ax1.set_title(f'Training Loss - {symbol} ({model_type})')
         ax1.grid(True, alpha=0.3)
         ax1.legend()
-        
+
         # Directional accuracy
         ax2.plot(directional_accuracies, 'g-', label='Directional Accuracy', linewidth=2)
         ax2.axhline(y=0.5, color='r', linestyle='--', alpha=0.5, label='Random Baseline')
@@ -201,29 +198,29 @@ def train_lstm_model(
         ax2.set_title(f'Directional Accuracy - {symbol}')
         ax2.grid(True, alpha=0.3)
         ax2.legend()
-        
+
         # Learning rate schedule
-        ax3.plot(range(len(valid_losses)), [scheduler.get_last_lr()[0]] * len(valid_losses), 
+        ax3.plot(range(len(valid_losses)), [scheduler.get_last_lr()[0]] * len(valid_losses),
                 'orange', label='Learning Rate', linewidth=2)
         ax3.set_xlabel('Epoch')
         ax3.set_ylabel('Learning Rate')
         ax3.set_title('Learning Rate Schedule')
         ax3.grid(True, alpha=0.3)
         ax3.legend()
-        
+
         # Loss vs Accuracy correlation
         ax4.scatter(epoch_losses, directional_accuracies, alpha=0.6, c=range(len(epoch_losses)), cmap='viridis')
         ax4.set_xlabel('Loss')
         ax4.set_ylabel('Directional Accuracy')
         ax4.set_title('Loss vs Accuracy Correlation')
         ax4.grid(True, alpha=0.3)
-        
+
         plt.tight_layout()
         plot_path = Path(f'model_res/training/enhanced_training_{symbol}_{model_type}.png')
         plot_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         plt.close()
-        
+
         print(f"📊 Enhanced training curves saved to: {plot_path}")
 
 
@@ -236,7 +233,7 @@ def train_lstm_model(
     uncertainty_scores = []
 
     with torch.no_grad():
-        for sequences, labels in dataloader:
+        for sequences, _labels in dataloader:
             final_total_batches += 1
             if torch.isnan(sequences).any() or torch.isinf(sequences).any():
                 continue
@@ -246,85 +243,83 @@ def train_lstm_model(
                     uncertainty_scores.append(uncertainty.mean().item())
                 else:
                     predictions = model(sequences)
-                
+
                 if not torch.isnan(predictions).any():
                     final_valid_batches += 1
-            except:
+            except Exception as _:
                 continue
-    
+
     print(f"Final validation for {symbol}: {final_valid_batches}/{final_total_batches} valid batches")
-    
+
     if uncertainty_scores:
         avg_uncertainty = np.mean(uncertainty_scores)
         print(f"Average prediction uncertainty: {avg_uncertainty:.4f}")
-    
+
     if final_valid_batches == 0:
         print(f"WARNING: Model for {symbol} cannot process any validation batches!")
         return None
-    
-    successful_epochs = len([l for l in epoch_losses if not np.isnan(l)])
+
+    successful_epochs = len([loss for loss in epoch_losses if not np.isnan(loss)])
     final_accuracy = directional_accuracies[-1] if directional_accuracies else 0
-    
+
     print(f"Training completed for {symbol}:")
     print(f"  - Successful epochs: {successful_epochs}/{num_epochs}")
     print(f"  - Final directional accuracy: {final_accuracy:.2%}")
     print(f"  - Best loss: {best_loss:.4f}")
-    
+
     return model
 
 
 
 def train_ensemble_model(processed_data: pd.DataFrame, symbol: str, config, num_epochs=100):
-    """Train ensemble model for improved robustness"""
-    
+    """Train ensemble model for improved robustness."""
     return train_lstm_model(processed_data, symbol, config, num_epochs, model_type='ensemble')
 
 
 
-def perform_walk_forward_validation(data: pd.DataFrame, symbol: str, config, 
+def perform_walk_forward_validation(data: pd.DataFrame, symbol: str, config,
                                    train_months=12, test_months=3):
-    """Walk-forward validation for robust performance assessment"""
-    
+    """Walk-forward validation for robust performance assessment."""
     tscv = TimeSeriesSplit(n_splits=5, test_size=int(252/12 * test_months))
     validation_results = []
-    
+
     for fold, (train_idx, test_idx) in enumerate(tscv.split(data)):
         print(f"\nValidation Fold {fold+1}")
-        
+
         train_data = data.iloc[train_idx]
         test_data = data.iloc[test_idx]
-        
+
         # Test both standard and ensemble models
         for model_type in ['standard', 'ensemble']:
             model = train_lstm_model(
-                train_data, f"{symbol}_fold{fold}_{model_type}", 
+                train_data, f"{symbol}_fold{fold}_{model_type}",
                 config, num_epochs=50, model_type=model_type
             )
-            
+
             if model is None:
                 continue
-            
+
             # Evaluate on test set
             test_targets = test_data['close'].copy()
             test_features = test_data.drop(columns=['close'], errors='ignore')
-            
+
             from ai.clean_data.pytorch_data import create_sequences
             X_test, y_test = create_sequences(test_features, test_targets, 60)
-            
+
             if len(X_test) > 0:
                 with torch.no_grad():
                     X_tensor = torch.FloatTensor(X_test)
-                    
+
                     if hasattr(model, 'predict_with_uncertainty'):
                         predictions, uncertainty = model.predict_with_uncertainty(X_tensor)
                         avg_uncertainty = uncertainty.mean().item()
                     else:
                         predictions = model(X_tensor)
                         avg_uncertainty = 0
-                    
+
                     _, predicted = torch.max(predictions.data, 1)
                     accuracy = (predicted.numpy() == y_test).mean()
-                    
+
                     validation_results.append({
                         'fold': fold,
                         'model_type': model_type,
@@ -332,10 +327,10 @@ def perform_walk_forward_validation(data: pd.DataFrame, symbol: str, config,
                         'uncertainty': avg_uncertainty,
                         'test_size': len(y_test)
                     })
-                    
+
                     print(f"Fold {fold+1} {model_type.capitalize()} Accuracy: {accuracy:.2%}")
                     if avg_uncertainty > 0:
                         print(f"Fold {fold+1} {model_type.capitalize()} Uncertainty: {avg_uncertainty:.4f}")
-    
+
     return validation_results
 

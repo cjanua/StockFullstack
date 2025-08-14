@@ -1,2 +1,2 @@
 #!/bin/bash
-/home/cjanua/Documents/repos/Stock-FullStack/StockFullstack/run.sh "$@"
+/mnt/d/Repos/Stocks/run.sh "$@"

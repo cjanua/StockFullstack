@@ -1,18 +1,19 @@
 # ai/clean_data/preprocessing.py
+
 import numpy as np
 import pandas as pd
-from typing import List
 
-def split_data_by_periods(data: pd.DataFrame, n_periods: int) -> List[pd.DataFrame]:
-    """
-    Splits a DataFrame into a number of periods for parallel processing.
-    
+
+def split_data_by_periods(data: pd.DataFrame, n_periods: int) -> list[pd.DataFrame]:
+    """Splits a DataFrame into a number of periods for parallel processing.
+
     Args:
         data: The DataFrame to split.
         n_periods: The number of smaller DataFrames to create.
-        
+
     Returns:
         A list of DataFrames.
+
     """
     if not isinstance(data, pd.DataFrame):
         raise TypeError("Input 'data' must be a pandas DataFrame.")

@@ -12,7 +12,7 @@ from alpaca.data.timeframe import TimeFrame
 
 from result import Ok, Result, Err
 from .serializers import (
-    serialize_account, serialize_asset, serialize_position, 
+    serialize_account, serialize_asset, serialize_position,
     serialize_portfolio_history, serialize_watchlist
 )
 
@@ -52,7 +52,7 @@ def get_trading_client() -> Result[TradingClient, str]:
     """Get authenticated trading client with enhanced error handling"""
     if not ALPACA_KEY or not ALPACA_SECRET:
         return Err("Alpaca API credentials not found in environment")
-    
+
     try:
         client = TradingClient(
             ALPACA_KEY,
@@ -92,7 +92,7 @@ def _fetch_portfolio_history(days: int, timeframe: str) -> Any:
 def get_history(days: int = 365):
     """Get historical data for all symbols in portfolio plus benchmarks with caching"""
     cache_key = f'history_{days}'
-    
+
     # Try to get from cache first
     cached_data = redis_client.get(cache_key)
     if cached_data:
@@ -104,52 +104,52 @@ def get_history(days: int = 365):
         except Exception as e:
             logger.warning(f"Error deserializing cached data: {e}. Fetching fresh data.")
             # Continue to fetch fresh data if deserialization fails
-    
+
     try:
         # Original code to fetch data
         logger.info(f"Getting fresh historical data for {days} days")
-        
+
         positions_result = get_positions()
         if positions_result.is_err():
             return Err(f"Error fetching positions: {positions_result.err_value}")
-        
+
         positions = positions_result.ok_value
         symbols = [p['symbol'] for p in positions]
-        
+
         symbols.extend(['SPY', 'QQQ', 'IWM', 'GLD'])
         symbols = list(set(symbols))
-        
+
         end_date = datetime.now() - timedelta(minutes=15, seconds=5)
         start_date = end_date - timedelta(days=days)
-        
+
         data_client_res = get_historical_data_client()
         if data_client_res.is_err():
             return Err(data_client_res.err_value)
-        
+
         data_client = data_client_res.ok_value
-        
+
         symbol_data = {}
-        
+
         request_params = StockBarsRequest(
             symbol_or_symbols=symbols,
             timeframe=TimeFrame.Day,
             start=start_date,
             end=end_date
         )
-        
+
         bars_response = data_client.get_stock_bars(request_params)
-        
+
         for symbol in symbols:
             if symbol in bars_response.data:
                 symbol_bars = bars_response.data[symbol]
-                
+
                 bars_data = []
                 for bar in symbol_bars:
                     bars_data.append({
                         'timestamp': bar.timestamp,
                         'close': bar.close
                     })
-                
+
                 if bars_data:
                     df = pd.DataFrame(bars_data)
                     df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -158,21 +158,21 @@ def get_history(days: int = 365):
                     print(f"Successfully retrieved {len(bars_data)} bars for {symbol}")
             else:
                 print(f"No data available for {symbol}")
-        
+
         if not symbol_data:
             return Err("No historical data retrieved for any symbol")
-        
+
         # Combine all symbol data into a single DataFrame
         prices_df = pd.DataFrame(symbol_data)
-        
+
         # Ensure the DataFrame is structured correctly
         if prices_df.empty:
             logger.error("No data available in the DataFrame.")
             return Err("No data available in the DataFrame.")
-        
+
         # Fill missing values
         prices_df = prices_df.ffill().bfill()
-        
+
         # Cache the result for 24 hours (since historical data doesn't change)
         if not prices_df.empty:
             try:
@@ -180,9 +180,9 @@ def get_history(days: int = 365):
                 redis_client.setex(cache_key, 86400, prices_df.to_json())
             except Exception as e:
                 logger.error(f"Failed to cache historical data: {e}")
-        
+
         return Ok(prices_df)
-    
+
     except Exception as e:
         logger.error(f"Error in get_history: {str(e)}\n{traceback.format_exc()}")
         return Err(f"Error in get_history: {str(e)}")
@@ -253,7 +253,7 @@ def _fetch_asset(query: str) -> List[Asset]:
     assets_res = get_assets()
     if assets_res.is_err():
         raise Exception(assets_res.err_value)
-    
+
     assets: List[Asset] = assets_res.ok_value
 
     query_lower = query.lower()
@@ -261,20 +261,20 @@ def _fetch_asset(query: str) -> List[Asset]:
         asset for asset in assets
         if query_lower in asset['symbol'].lower() or query_lower in asset['name'].lower()
     ]
-    
+
     if not matching_assets:
         raise Exception(f"No assets found matching query '{query}'")
-    
+
     return matching_assets
 
 def get_historical_data_client():
     """Get a dedicated client for historical data"""
     try:
         from alpaca.data.historical import StockHistoricalDataClient
-        
+
         if not ALPACA_KEY or not ALPACA_SECRET:
             return Err("Alpaca API credentials not found in environment")
-        
+
         data_client = StockHistoricalDataClient(ALPACA_KEY, ALPACA_SECRET)
         logger.info("Historical data client created")
         return Ok(data_client)
@@ -290,10 +290,10 @@ def clear_portfolio_cache() -> None:
         redis_client.delete('positions')
         redis_client.delete('account')
         redis_client.delete('portfolio_history*')
-        
+
         # Don't clear history cache by default since it's expensive to rebuild
         # Use clear_history_cache() separately when needed
-        
+
         logger.info("Portfolio cache cleared successfully")
     except Exception as e:
         logger.error(f"Failed to clear cache: {str(e)}")
@@ -313,6 +313,6 @@ def clear_history_cache(days=None):
             cache_key = f'history_{days}'
             redis_client.delete(cache_key)
             logger.info(f"Cleared historical data cache for {days} days")
-            
+
     except Exception as e:
         logger.error(f"Failed to clear history cache: {e}")

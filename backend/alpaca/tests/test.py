@@ -18,7 +18,7 @@ def test_trading_api(client: TradingClient):
         'Accept': 'application/json'
     }
     response = session.get('https://api.alpaca.markets/v2/account', headers=headers)
-    
+
     if response.status_code != 200:
         logger.error(f"Direct API test failed: {response.status_code}:\n {response.text}")
         return Err(f"API test failed: {response.status_code} - {response.text}")

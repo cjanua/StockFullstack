@@ -1,49 +1,55 @@
 # debug_training.py
 import asyncio
-from ai.main import *
+
 import torch
+
 from ai.agent.pytorch_system import train_lstm_model
+from ai.main import AlpacaDataConnector, AdvancedFeatureEngine, config
+
+
 
 async def debug_single_symbol():
-    """Debug training for a single symbol"""
-    
+    """Debug training for a single symbol."""
     print("🔍 DEBUGGING TRAINING PROCESS")
-    
+
     # Get data for just one symbol
     data_connector = AlpacaDataConnector(config)
     market_data = await data_connector.get_historical_data(
         symbols=['AAPL'],
         lookback_days=252  # 1 year
     )
-    
+
     # Feature engineering
     feature_engine = AdvancedFeatureEngine()
-    spy_data = feature_engine.get_market_context_data(market_data['AAPL'].index)
-    features = feature_engine.create_comprehensive_features(market_data['AAPL'], 'AAPL', spy_data)
-    
+    spy_data = feature_engine.get_market_context_data(
+        market_data['AAPL'].index)
+
+    features = feature_engine.create_comprehensive_features(
+        market_data['AAPL'], 'AAPL', spy_data)
+
     print(f"Original data shape: {market_data['AAPL'].shape}")
     print(f"Features shape: {features.shape}")
     print(f"Features NaN count: {features.isnull().sum().sum()}")
-    
+
     # Test sequence creation
     targets = features['close'].copy()
     feature_only = features.drop(columns=['close'])
-    
+
     from ai.clean_data.pytorch_data import create_sequences
     X, y = create_sequences(feature_only, targets, 60)
-    
+
     print(f"Sequences created: {len(X)}")
     print(f"Input shape: {X.shape if len(X) > 0 else 'None'}")
     print(f"Target shape: {y.shape if len(y) > 0 else 'None'}")
-    
+
     if len(X) > 0:
         # Test training
         print("\n🤖 Testing model training...")
         model = train_lstm_model(features, 'AAPL', config, num_epochs=10)
-        
+
         if model:
             print("✅ Training successful!")
-            
+
             # Test prediction
             test_input = torch.FloatTensor(X[:1])
             with torch.no_grad():

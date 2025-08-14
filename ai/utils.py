@@ -1,6 +1,7 @@
 # ai/debug_utils.py
 import pandas as pd
 
+
 def print_integrity_check(df: pd.DataFrame, step_name: str):
     """Prints a detailed integrity report for a DataFrame at a specific step."""
     print("\n" + "="*80)
@@ -17,7 +18,7 @@ def print_integrity_check(df: pd.DataFrame, step_name: str):
     df.info()
 
     nan_counts = df.isna().sum()
-    print(f"\nNaN Counts (Features with NaNs only):")
+    print("\nNaN Counts (Features with NaNs only):")
     if nan_counts.sum() == 0:
         print("No NaN values found.")
     else:

@@ -31,7 +31,14 @@
         "editor.tabSize": 2
     },
     "[python]": {
-        "editor.tabSize": 2
+        "editor.tabSize": 2,
     },
-    "files.autoSave": "afterDelay"
+    "files.autoSave": "afterDelay",
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.linting.ruffArgs": ["--config=pyproject.toml"],
+    "python.analysis.extraPaths": ["./ai"],
+
+    
 }

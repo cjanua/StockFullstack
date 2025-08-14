@@ -13,7 +13,7 @@ class CommandContext:
 class CommandRegistry:
     def __init__(self):
         self.commands: Dict[str, Dict[str, Dict[str, callable]]] = {}
-    
+
     def register(self, domain: str, resource: str, action: str = 'get'):
         """Decorator to register command handlers"""
         def decorator(func):
