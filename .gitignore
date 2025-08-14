@@ -1,75 +1,32 @@
-yay
-venv
+# Environments
+.venv/
+.direnv/
 
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Nix
+result*
 
-# dependencies
-node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
 
-# testing
-coverage
+# Project-specific cache/artifacts
+.cache/
+model_res/
+*.sqlite
+*.sqlite-journal
 
-*.db
+# Dashboard (Next.js)
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/build/
 
-# next.js
-.next/
-out/
-
-# production
-build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# env files (can opt-in for committing if needed)
 .env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-__pycache__
-*.egg-info/
-
-snyk
-
-samples/
-
-*.parquet
-
-data/
-
-.venv/
-
-.QuantConnect/
-
-lean.json
-
-
-.idea/
-
-
-.cache
-
-run.txt
-model_res/
-git.diff
-
-.direnv/
-*.lock
+bun.lock
+*.db

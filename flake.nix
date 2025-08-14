@@ -52,10 +52,9 @@
             PKG_CONFIG_PATH = "${pkgs.sqlite.dev}/lib/pkgconfig:${pkgs.openssl.dev}/lib/pkgconfig";
           };
 
-          shellHook = ''
-            source ./.env
-            [ "$ENV" = "dev" -o -z "$ENV" ] && export UV_LINK_MODE="copy"
-          '';
+          # shellHook = ''
+            
+          # '';
         };
       });
 }
