@@ -114,12 +114,10 @@ async def main():
             print(f"✅ {symbol}: {len(good_features)} samples, {len(good_features.columns)} features")
         else:
             print(f"Warning: Insufficient features for {symbol}, skipping...")
-
     # 3. Model training
     project_root = Path(os.getenv("PROJECT_PATH", "."))
-    cache_dir = Path(os.environ.get("MODEL_CACHE_DIR", project_root / "model_res" / "cache"))
+    cache_dir = project_root / "model_res" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
-
     print("🤖 Training RNN models...")
     models = {}
     for symbol in config.SYMBOLS:

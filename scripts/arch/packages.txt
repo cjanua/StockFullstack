@@ -1,0 +1,13 @@
+base-devel
+openssl
+zlib
+xz
+tk
+libffi
+nodejs
+npm
+sqlite
+visidata
+git
+curl
+pkg-config

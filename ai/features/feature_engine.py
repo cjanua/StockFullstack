@@ -120,34 +120,39 @@ class AdvancedFeatureEngine:
         indicators = {}
         close, high, low, volume = data['close'], data['high'], data['low'], data['volume']
         close_list = close.tolist()
+        # Helper to create Series and handle None as NaN
+        def create_ema_series(period):
+            ema_vals = EMA(period, close_list)
+            ema_series = pd.Series([np.nan if val is None else val for val in ema_vals], index=data.index)
+            return ema_series
 
         # IMPROVEMENT 40: EMA ratios for golden/death cross detection (15-20% accuracy boost)
-        ema_12 = pd.Series(EMA(12, close_list), index=data.index)
-        ema_26 = pd.Series(EMA(26, close_list), index=data.index)
-        ema_50 = pd.Series(EMA(50, close_list), index=data.index)
-        ema_200 = pd.Series(EMA(200, close_list), index=data.index)
+        ema_12 = create_ema_series(12)
+        ema_26 = create_ema_series(26)
+        ema_50 = create_ema_series(50)
+        ema_200 = create_ema_series(200)
 
         # Key ratio transformations (research-proven)
-        indicators['ema_ratio_12_26'] = ema_12 / (ema_26 + 1e-8)
-        indicators['ema_ratio_50_200'] = ema_50 / (ema_200 + 1e-8)  # Original golden cross
-        indicators['ema_ratio_12_50'] = ema_12 / (ema_50 + 1e-8)
+        indicators['ema_ratio_12_26'] = (ema_12 / (ema_26 + 1e-8)).fillna(1.0)  # Neutral ratio if NaN
+        indicators['ema_ratio_50_200'] = (ema_50 / (ema_200 + 1e-8)).fillna(1.0)
+        indicators['ema_ratio_12_50'] = (ema_12 / (ema_50 + 1e-8)).fillna(1.0)
 
         # IMPROVEMENT 41: EMA slope strength (trend momentum)
-        indicators['ema_12_slope'] = ema_12.pct_change(5)  # 5-period slope
-        indicators['ema_26_slope'] = ema_26.pct_change(5)
-        indicators['ema_50_slope'] = ema_50.pct_change(10)  # Longer period for slower EMA
+        indicators['ema_12_slope'] = ema_12.pct_change(5).fillna(0)
+        indicators['ema_26_slope'] = ema_26.pct_change(5).fillna(0)
+        indicators['ema_50_slope'] = ema_50.pct_change(10).fillna(0)
 
         # IMPROVEMENT 42: Multi-timeframe EMA alignment score
         ema_alignment = pd.Series(0, index=data.index)
-        ema_alignment += (ema_12 > ema_26).astype(int)
-        ema_alignment += (ema_26 > ema_50).astype(int)
-        ema_alignment += (ema_50 > ema_200).astype(int)
+        ema_alignment += (ema_12 > ema_26).fillna(0).astype(int)
+        ema_alignment += (ema_26 > ema_50).fillna(0).astype(int)
+        ema_alignment += (ema_50 > ema_200).fillna(0).astype(int)
         indicators['ema_alignment_score'] = ema_alignment / 3.0  # Normalized 0-1
 
         # Price position relative to EMAs (research shows better than raw MA)
-        indicators['price_to_ema12'] = close / (ema_12 + 1e-8)
-        indicators['price_to_ema26'] = close / (ema_26 + 1e-8)
-        indicators['price_to_ema50'] = close / (ema_50 + 1e-8)
+        indicators['price_to_ema12'] = (close / (ema_12 + 1e-8)).fillna(1.0)
+        indicators['price_to_ema26'] = (close / (ema_26 + 1e-8)).fillna(1.0)
+        indicators['price_to_ema50'] = (close / (ema_50 + 1e-8)).fillna(1.0)
 
         # IMPROVEMENT 43: Enhanced RSI with multiple timeframes and divergence
         rsi_9 = pd.Series(RSI(9, close_list), index=data.index)

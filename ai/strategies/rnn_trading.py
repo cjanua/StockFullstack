@@ -1,4 +1,5 @@
 # ai/strategies/rnn_trading.py
+
 from collections import deque
 
 import numpy as np
@@ -582,13 +583,14 @@ def run_comprehensive_backtest(data, strategy_class, plt_file):
     }
 
 def perform_walk_forward_analysis(data, strategy_class,
-                                 train_window=504, test_window=63):
+                                 train_window=180, test_window=45):
     """Walk-forward analysis with parameter optimization."""
     results = []
 
     for i in range(train_window, len(data) - test_window, test_window):
         # Training period
-        train_data = data.iloc[i-train_window:i]
+        train_data = data.iloc[i-train_window:i].copy()
+        train_data.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
 
         # Parameter optimization on training data
         bt_train = Backtest(train_data, strategy_class)
@@ -599,7 +601,8 @@ def perform_walk_forward_analysis(data, strategy_class,
         )
 
         # Out-of-sample testing
-        test_data = data.iloc[i:i+test_window]
+        test_data = data.iloc[i:i+test_window].copy()
+        test_data.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
         bt_test = Backtest(test_data, strategy_class)
         test_results = bt_test.run(**optimized_params)
 
@@ -609,7 +612,7 @@ def perform_walk_forward_analysis(data, strategy_class,
             'return': test_results['Return [%]'],
             'sharpe': test_results['Sharpe Ratio'],
             'max_drawdown': test_results['Max. Drawdown [%]'],
-            'win_rate': len(test_results._trades[test_results._trades['ReturnPct'] > 0]) / len(test_results._trades)
+            'win_rate': len(test_results._trades[test_results._trades['ReturnPct'] > 0]) / len(test_results._trades) if len(test_results._trades) > 0 else 0
         })
 
     return pd.DataFrame(results)

@@ -73,7 +73,9 @@ def create_sequences(feature_data: pd.DataFrame, target_series: pd.Series, seque
     return X, y
 
 
-def create_pytorch_dataloaders(features: pd.DataFrame, targets: pd.Series, config):
+def create_pytorch_dataloaders(
+    features: pd.DataFrame, targets: pd.Series, config, batch_size=32, num_workers=4, pin_memory=False
+) -> DataLoader:
     """Prepares data and creates PyTorch DataLoaders."""
     X, y = create_sequences(features, targets, config.SEQUENCE_LENGTH)
 
@@ -90,6 +92,6 @@ def create_pytorch_dataloaders(features: pd.DataFrame, targets: pd.Series, confi
         X_tensor = torch.nan_to_num(X_tensor, nan=0.0)
 
     dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
 
     return dataloader

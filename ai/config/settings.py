@@ -42,6 +42,16 @@ class TradingConfig:
                 # 'QQQ',    # Nasdaq
                 # # 'IWM',    # Small caps
                 'SPXS',     # Inverse S&P 500
+                'TQQQ',  # 3x NASDAQ
+                'SQQQ',  # Inverse TQQQ
+                'SOXL',  # 3x Semi-Conductors
+                'FNGU',  # 3x FAANG-like
+                'TSLA',  # High volatility
+                'NVDA',  # AI/Semiconductor
+                'AMD',  # Social media
+                'UVXY',  # 1.5 VIX - Volatility
+
+
                 # # 'XLF',    # Financial sector
                 # # 'XLK',    # Technology sector
                 # # 'XLE',    # Energy sector

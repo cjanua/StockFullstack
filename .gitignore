@@ -1,6 +1,7 @@
 # Environments
-.venv/
+.venv*/
 .direnv/
+.ruff_cache/
 
 # Nix
 result*
@@ -30,3 +31,5 @@ yarn-error.log*
 .env
 bun.lock
 *.db
+
+*.deb
