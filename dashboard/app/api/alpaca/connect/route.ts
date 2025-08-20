@@ -1,62 +1,43 @@
-// app/api/alpaca/connect/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getUserBySessionToken } from '@/lib/db/sqlite';
-import { connectUserToAlpaca } from '@/lib/services/alpacaAuth';
+// dashboard/app/api/alpaca/connect/route.ts
+import { getUserBySessionToken } from "@/lib/db/sqlite";
+import Database from "better-sqlite3";
+import path from "path";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request): Promise<NextResponse> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth_token")?.value;
+
+  if (!authToken) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const user = await getUserBySessionToken(authToken);
+  if (!user) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
   try {
-    // Get auth token from cookies using the async cookies API
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get('auth_token')?.value;
-    
-    if (!authToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
-    
-    // Get user by session token
-    const user = await getUserBySessionToken(authToken);
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid or expired session' },
-        { status: 401 }
-      );
-    }
-    
-    // Get Alpaca credentials from request body
-    const body = await request.json();
-    const { alpaca_key, alpaca_secret, paper } = body;
-    
+    const { alpaca_key, alpaca_secret, usePaperTrading } = await request.json();
     if (!alpaca_key || !alpaca_secret) {
-      return NextResponse.json(
-        { error: 'Alpaca API key and secret are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing keys" }, { status: 400 });
     }
-    
-    // Connect user to Alpaca
-    const result = await connectUserToAlpaca(user.id, alpaca_key, alpaca_secret, paper);
-    
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
+
+    const dbPath = path.resolve(process.cwd(), "data/auth.db");
+    const db = new Database(dbPath, { readonly: false });
+    try {
+      const stmt = db.prepare(
+        "UPDATE users SET alpaca_key = ?, alpaca_secret = ?, use_paper_trading = ? WHERE id = ?"
       );
+      stmt.run(alpaca_key, alpaca_secret, usePaperTrading ? 1 : 0, user.id);
+    } finally {
+      db.close();
     }
-    
-    return NextResponse.json({
-      success: true,
-      message: result.message,
-    });
+
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error('Alpaca connect error:', error);
-    return NextResponse.json(
-      { error: 'An error occurred connecting to Alpaca' },
-      { status: 500 }
-    );
+    console.error(`Error saving Alpaca keys for user ${user.id}:`, error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

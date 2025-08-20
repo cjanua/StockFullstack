@@ -1,28 +1,20 @@
-import { Client, createClient, CreateClientOptions } from '@/types/alpaca';
+// dashboard/lib/services/alpacaAuth.ts
+import { AlpacaClient } from '@/lib/alpaca-client';
 import { updateAlpacaCredentials, User } from '../db/sqlite';
-import { env } from 'process';
 
 // Verify if Alpaca credentials are valid
-export async function verifyAlpacaCredentials(key: string, secret: string, paper: boolean = false): Promise<boolean> {
+export async function verifyAlpacaCredentials(
+  key: string,
+  secret: string,
+  usePaperTrading: boolean
+): Promise<boolean> {
   try {
-    const opts: CreateClientOptions = {
-      paper: paper,
-      baseURL: paper ? "" : env.ALPACA_URL,
-      key: key,
-      secret: secret,
-    };
-    const alpaca: Client = createClient(opts);
-
+    const client = new AlpacaClient(key, secret, usePaperTrading);
     // Try to access account info to verify credentials
-    const account = await alpaca.getAccount();
-    if (!account) {
-      return false;
-    }
-
-    // If we get here, the credentials are valid
-    return true;
+    const account = await client.getAccount();
+    return !!account;
   } catch (error) {
-    console.error("Alpaca authentication error:", error);
+    console.error('Alpaca authentication error:', error);
     return false;
   }
 }
@@ -32,54 +24,44 @@ export async function connectUserToAlpaca(
   userId: number,
   alpacaKey: string,
   alpacaSecret: string,
-  paper: boolean = false
+  usePaperTrading: boolean
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // First verify the credentials
-    const isValid = await verifyAlpacaCredentials(alpacaKey, alpacaSecret, paper);
-
+    // Verify the credentials
+    const isValid = await verifyAlpacaCredentials(alpacaKey, alpacaSecret, usePaperTrading);
     if (!isValid) {
-      await updateAlpacaCredentials(userId, alpacaKey, alpacaSecret, 'error');
+      await updateAlpacaCredentials(userId, alpacaKey, alpacaSecret, usePaperTrading, 'error');
       return {
         success: false,
-        message: "Invalid Alpaca credentials. Please check your API key and secret."
+        message: 'Invalid Alpaca credentials. Please check your API key and secret in the Alpaca dashboard.',
       };
     }
 
     // Update the user's credentials in the database
-    await updateAlpacaCredentials(userId, alpacaKey, alpacaSecret, 'active');
-
+    await updateAlpacaCredentials(userId, alpacaKey, alpacaSecret, usePaperTrading, 'active');
     return {
       success: true,
-      message: "Successfully connected to Alpaca API."
+      message: 'Successfully connected to Alpaca API.',
     };
   } catch (error) {
-    console.error("Error connecting to Alpaca:", error);
+    console.error(`Error connecting to Alpaca for user ${userId}:`, error);
     return {
       success: false,
-      message: "An error occurred while connecting to Alpaca."
+      message: 'An error occurred while connecting to Alpaca.',
     };
   }
 }
 
 // Create an Alpaca client from user data
-export async function getAlpacaClientForUser(user: User, paper: boolean = false): Promise<Client | null> {
+export async function getAlpacaClientForUser(user: User): Promise<AlpacaClient | null> {
   if (!user.alpaca_key || !user.alpaca_secret) {
     return null;
   }
-
   try {
-    const opts: CreateClientOptions = {
-      paper: paper,
-      baseURL: paper ? "" : env.ALPACA_URL,
-      key: user.alpaca_key,
-      secret: user.alpaca_secret,
-    };
-    const alpaca: Client = createClient(opts);
-
-    return alpaca;
+    const client = new AlpacaClient(user.alpaca_key, user.alpaca_secret, user.use_paper_trading === 1);
+    return client;
   } catch (error) {
-    console.error("Error creating Alpaca client:", error);
+    console.error(`Error creating Alpaca client for user ${user.id}:`, error);
     return null;
   }
 }
@@ -89,38 +71,35 @@ export async function checkAlpacaConnection(user: User): Promise<{ status: 'acti
   if (!user.alpaca_key || !user.alpaca_secret) {
     return {
       status: 'inactive',
-      message: 'No Alpaca credentials have been set.'
+      message: 'No Alpaca credentials have been set.',
     };
   }
-
   try {
-    const alpaca = await getAlpacaClientForUser(user);
-    if (!alpaca) {
+    const client = await getAlpacaClientForUser(user);
+    if (!client) {
+      await updateAlpacaCredentials(user.id, user.alpaca_key, user.alpaca_secret, user.use_paper_trading === 1, 'error');
       return {
         status: 'error',
-        message: 'Failed to create Alpaca client.'
+        message: 'Failed to create Alpaca client.',
       };
     }
 
     // Verify connection by getting account info
-    const account = await alpaca.getAccount();
-
-    // Update user's Alpaca status in database
-    await updateAlpacaCredentials(user.id, user.alpaca_key, user.alpaca_secret, 'active');
-
+    const account = await client.getAccount();
+    await updateAlpacaCredentials(user.id, user.alpaca_key, user.alpaca_secret, user.use_paper_trading === 1, 'active');
     return {
       status: 'active',
-      message: `Connected to Alpaca account ${account.account_number}`
+      message: `Connected to Alpaca account ${account.account_number}`,
     };
-  } catch (error) {
-    console.error("Error checking Alpaca connection:", error);
-
-    // Update status to error
-    await updateAlpacaCredentials(user.id, user.alpaca_key, user.alpaca_secret, 'error');
-
+  } catch (error: any) {
+    console.error(`Error checking Alpaca connection for user ${user.id}:`, error);
+    const message = error.message?.includes('request is not authorized')
+      ? 'Invalid Alpaca API Key or Secret. Please verify your credentials in the Alpaca dashboard.'
+      : 'Failed to connect to Alpaca API. Please check your credentials.';
+    await updateAlpacaCredentials(user.id, user.alpaca_key, user.alpaca_secret, user.use_paper_trading === 1, 'error');
     return {
       status: 'error',
-      message: 'Failed to connect to Alpaca API. Please check your credentials.'
+      message,
     };
   }
 }

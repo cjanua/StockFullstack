@@ -1,42 +1,33 @@
-import { getAlpacaLatestQuote } from '@/lib/alpaca';
-import { NextRequest, NextResponse } from 'next/server';
+// dashboard/app/api/alpaca/quote/[symbol]/route.ts
+import { getAlpacaLatestQuote } from "@/lib/alpaca"; // Use lib/alpaca.ts
+import { getUserBySessionToken } from "@/lib/db/sqlite";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-// Define the expected structure for route parameters
-interface RouteParams {
-  symbol: string;
-}
+export async function GET(request: Request, { params }: { params: { symbol: string } }): Promise<NextResponse> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth_token")?.value;
 
-export async function GET(
-  request: NextRequest,
-  context: { params: RouteParams } // Use context object directly
-) {
-  // Await the context.params object before accessing its properties
-  const params = await context.params;
-  const symbol = params.symbol;
-  if (!symbol) {
-    return NextResponse.json(
-      { error: 'Symbol is required' },
-      { status: 400 }
-    );
+  if (!authToken) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  // console.log(`Fetching quote for symbol: ${symbol}`);
+
+  const user = await getUserBySessionToken(authToken);
+  if (!user) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
   try {
-    const quote = await getAlpacaLatestQuote(symbol);
-    const price = quote.price;
-    // console.log(`Quote for ${symbol}:`, quote);
-
-
-    return NextResponse.json({
-      symbol,
-      price: price,
-      timestamp: new Date().toISOString(),
-      source: 'sip'
-    });
-  } catch (error) {
-    console.error(`Error fetching quote for ${symbol}:`, error);
-    return NextResponse.json(
-      { error: 'Failed to fetch quote', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    const quote = await getAlpacaLatestQuote(user.id.toString(), params.symbol);
+    return NextResponse.json(quote, { status: 200 });
+  } catch (error: any) {
+    console.error(`Error fetching quote for symbol ${params.symbol} for user ${user.id}:`, error);
+    if (error.message.includes("request is not authorized")) {
+      return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
+    }
+    if (error.message.includes("User Alpaca credentials not configured")) {
+      return NextResponse.json({ error: "Alpaca credentials not set" }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

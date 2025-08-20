@@ -1,178 +1,99 @@
 // dashboard/app/api/alpaca/orders/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { 
-  createAlpacaOrder, 
-  getAlpacaOrders, 
-  cancelAlpacaOrder, 
-  cancelAllAlpacaOrders
-} from "@/lib/alpaca";
+import { getUserBySessionToken } from "@/lib/db/sqlite";
+import { createAlpacaOrder, getAlpacaOrders, cancelAlpacaOrder, cancelAllAlpacaOrders } from "@/lib/alpaca"; // Use lib/alpaca.ts
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function GET(request: Request): Promise<NextResponse> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth_token")?.value;
+
+  if (!authToken) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const user = await getUserBySessionToken(authToken);
+  if (!user) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
   try {
-    const body = await request.json();
-    
-    // Add validation for required fields
-    if (!body.symbol) {
-      return NextResponse.json(
-        { error: "Missing required field: symbol" },
-        { status: 400 }
-      );
+    const url = new URL(request.url);
+    const params = Object.fromEntries(url.searchParams);
+    const orders = await getAlpacaOrders(user.id.toString(), params);
+    return NextResponse.json(orders, { status: 200 });
+  } catch (error: any) {
+    console.error(`Error fetching orders for user ${user.id}:`, error);
+    if (error.message.includes("request is not authorized")) {
+      return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
     }
-    
-    if (!body.qty && !body.notional) {
-      return NextResponse.json(
-        { error: "Either qty or notional must be provided" },
-        { status: 400 }
-      );
+    if (error.message.includes("User Alpaca credentials not configured")) {
+      return NextResponse.json({ error: "Alpaca credentials not set" }, { status: 400 });
     }
-    
-    if (!body.side || !['buy', 'sell'].includes(body.side.toLowerCase())) {
-      return NextResponse.json(
-        { error: "Side must be either 'buy' or 'sell'" },
-        { status: 400 }
-      );
-    }
-    
-    // Log the order request for debugging
-    console.log(`Creating order: ${JSON.stringify(body, null, 2)}`);
-    
-    try {
-      // Pass the request body directly to the Alpaca client
-      const order = await createAlpacaOrder(body);
-      
-      // After order is placed, clear the backend cache
-      try {
-        await fetch('http://localhost:8001/api/portfolio/clear-cache', {
-          method: 'POST',
-          cache: 'no-store',
-        });
-      } catch (cacheError) {
-        console.error('Failed to clear cache:', cacheError);
-      }
-      
-      return NextResponse.json(order, { status: 201 });
-      
-    } catch (alpacaError) {
-      // Handle specific Alpaca API errors
-      console.error("Alpaca API error:", alpacaError);
-      
-      // Format alpaca error for better debugging and client response
-      const errorDetails = formatAlpacaError(alpacaError);
-      
-      return NextResponse.json(
-        { 
-          error: "Order rejected by Alpaca", 
-          details: errorDetails 
-        },
-        { status: 422 } // Unprocessable Entity - order was understood but rejected
-      );
-    }
-  } catch (error) {
-    console.error("Order placement error:", error);
-    return NextResponse.json(
-      { 
-        error: "Failed to place order", 
-        details: error instanceof Error ? error.message : "Unknown error" 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-// Helper function to format Alpaca error messages
-function formatAlpacaError(error: unknown): string {
-  if (error instanceof Error) {
-    const errorMsg = error.message;
-    
-    // Common Alpaca API error patterns to make more user-friendly
-    if (errorMsg.includes("insufficient buying power")) {
-      return "Insufficient funds to execute this order.";
-    }
-    
-    if (errorMsg.includes("position is not found")) {
-      return "You don't have a position in this security.";
-    }
-    
-    // Check for JSON-formatted error messages
-    try {
-      if (errorMsg.includes("{") && errorMsg.includes("}")) {
-        const jsonStart = errorMsg.indexOf('{');
-        const errorObj = JSON.parse(errorMsg.slice(jsonStart));
-        if (errorObj.message) {
-          return errorObj.message;
-        }
-      }
-    } catch (jsonError) {
-      console.error("Failed to parse Alpaca error JSON:", jsonError);
-      // Parsing failed, continue with normal error handling
-    }
-    
-    return errorMsg;
+export async function POST(request: Request): Promise<NextResponse> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth_token")?.value;
+
+  if (!authToken) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  
-  return "Unknown error occurred while processing your order";
-}
 
-export async function GET(request: NextRequest) {
+  const user = await getUserBySessionToken(authToken);
+  if (!user) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
   try {
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    type AlpacaOrderParams = {
-      status?: string;
-      limit?: number;
-      direction?: string;
-      after?: Date;
-      until?: Date;
-    };
-    const params: Partial<AlpacaOrderParams> = {};
-
-    if (searchParams.has('status')) {
-      params.status = searchParams.get('status')!;
+    const orderData = await request.json();
+    const order = await createAlpacaOrder(user.id.toString(), orderData);
+    return NextResponse.json(order, { status: 200 });
+  } catch (error: any) {
+    console.error(`Error creating order for user ${user.id}:`, error);
+    if (error.message.includes("request is not authorized")) {
+      return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
     }
-    if (searchParams.has('limit')) {
-      params.limit = parseInt(searchParams.get('limit')!);
+    if (error.message.includes("User Alpaca credentials not configured")) {
+      return NextResponse.json({ error: "Alpaca credentials not set" }, { status: 400 });
     }
-    if (searchParams.has('direction')) {
-      params.direction = searchParams.get('direction')!;
-    }
-    if (searchParams.has('after')) {
-      params.after = new Date(searchParams.get('after')!);
-    }
-    if (searchParams.has('until')) {
-      params.until = new Date(searchParams.get('until')!);
-    }
-
-    // Get orders
-    const orders = await getAlpacaOrders(params);
-
-    return NextResponse.json(orders);
-  } catch (error) {
-    console.error("Orders fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch orders", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request): Promise<NextResponse> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth_token")?.value;
+
+  if (!authToken) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const user = await getUserBySessionToken(authToken);
+  if (!user) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
   try {
-    const orderId = request.nextUrl.searchParams.get('id');
-    
-    if (!orderId) {
-      // If no order ID is provided, cancel all open orders
-      await cancelAllAlpacaOrders();
-      return NextResponse.json({ message: "All orders canceled" });
+    const url = new URL(request.url);
+    const orderId = url.searchParams.get("id");
+    if (orderId) {
+      const result = await cancelAlpacaOrder(user.id.toString(), orderId);
+      return NextResponse.json(result, { status: 200 });
     } else {
-      // Cancel specific order
-      await cancelAlpacaOrder(orderId);
-      return NextResponse.json({ message: `Order ${orderId} canceled` });
+      await cancelAllAlpacaOrders(user.id.toString());
+      return NextResponse.json({ success: true }, { status: 200 });
     }
-  } catch (error) {
-    console.error("Order cancellation error:", error);
-    return NextResponse.json(
-      { error: "Failed to cancel order", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error(`Error canceling order(s) for user ${user.id}:`, error);
+    if (error.message.includes("request is not authorized")) {
+      return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
+    }
+    if (error.message.includes("User Alpaca credentials not configured")) {
+      return NextResponse.json({ error: "Alpaca credentials not set" }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

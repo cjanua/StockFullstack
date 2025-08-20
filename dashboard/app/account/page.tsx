@@ -1,5 +1,5 @@
+// dashboard/app/account/page.tsx
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/alert';
 
 interface UserProfile {
-  id: number;
+  id: string; // Updated to string to match database schema
   username: string;
   email: string;
   created_at: string;
@@ -52,13 +52,14 @@ interface UserProfile {
     message: string;
     has_credentials: boolean;
     last_verified: string | null;
+    use_paper_trading: boolean; // New field to reflect database column
   };
 }
 
 const alpacaFormSchema = z.object({
   alpaca_key: z.string().min(1, { message: 'API Key is required' }),
   alpaca_secret: z.string().min(1, { message: 'API Secret is required' }),
-  paper: z.boolean().default(false),
+  usePaperTrading: z.boolean().default(false), // Renamed from 'paper'
 });
 
 export default function AccountPage() {
@@ -73,27 +74,32 @@ export default function AccountPage() {
     defaultValues: {
       alpaca_key: '',
       alpaca_secret: '',
-      paper: false,
+      usePaperTrading: false,
     },
   });
 
-  // Fetch user profile on page load
+  // Fetch user profile on page load and initialize form with existing credentials
   useEffect(() => {
     async function fetchUserProfile() {
       try {
         const response = await fetch('/api/auth/me');
-        
         if (!response.ok) {
           if (response.status === 401) {
-            // Not authenticated, redirect to login
             router.push('/login');
             return;
           }
           throw new Error('Failed to fetch user profile');
         }
-        
-        const userData = await response.json();
+        const userData: UserProfile = await response.json();
         setUser(userData);
+        // Initialize form with existing credentials if available
+        if (userData.alpaca.has_credentials) {
+          alpacaForm.reset({
+            alpaca_key: '', // Avoid pre-filling sensitive data for security
+            alpaca_secret: '',
+            usePaperTrading: userData.alpaca.use_paper_trading,
+          });
+        }
       } catch (error) {
         toast({
           title: 'Error',
@@ -104,34 +110,36 @@ export default function AccountPage() {
         setIsLoading(false);
       }
     }
-    
     fetchUserProfile();
-  }, [router]);
+  }, [router, alpacaForm]);
 
   // Handle Alpaca connection form submission
   async function onConnectAlpaca(values: z.infer<typeof alpacaFormSchema>) {
     setIsUpdating(true);
-    
     try {
       const response = await fetch('/api/alpaca/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          alpaca_key: values.alpaca_key,
+          alpaca_secret: values.alpaca_secret,
+          usePaperTrading: values.usePaperTrading,
+        }),
       });
-      
       const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to connect to Alpaca');
+        throw new Error(
+          data.error === 'Invalid Alpaca credentials'
+            ? 'Invalid API Key or Secret. Please verify your credentials in the Alpaca dashboard.'
+            : data.error || 'Failed to connect to Alpaca'
+        );
       }
-      
       toast({
         title: 'Success',
         description: 'Successfully connected to Alpaca API.',
       });
-      
       // Refresh user data to show updated Alpaca status
       await refreshUserData();
     } catch (error) {
@@ -148,10 +156,8 @@ export default function AccountPage() {
   // Handle refresh connection button click
   async function handleRefreshConnection() {
     setIsCheckingConnection(true);
-    
     try {
       await refreshUserData();
-      
       toast({
         title: 'Connection Refreshed',
         description: 'Successfully refreshed Alpaca connection status.',
@@ -173,8 +179,12 @@ export default function AccountPage() {
     if (!response.ok) {
       throw new Error('Failed to refresh user data');
     }
-    const userData = await response.json();
+    const userData: UserProfile = await response.json();
     setUser(userData);
+    // Update form with trading mode preference
+    if (userData.alpaca.has_credentials) {
+      alpacaForm.setValue('usePaperTrading', userData.alpaca.use_paper_trading);
+    }
   }
 
   // Handle logout
@@ -208,7 +218,6 @@ export default function AccountPage() {
           Logout
         </Button>
       </div>
-
       {user && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -235,7 +244,6 @@ export default function AccountPage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Alpaca Connection Status Card */}
             <Card className="md:col-span-2">
               <CardHeader>
@@ -244,10 +252,9 @@ export default function AccountPage() {
                     <CardTitle>Alpaca Connection</CardTitle>
                     <CardDescription>Your trading API connection status</CardDescription>
                   </div>
-                  
                   {user.alpaca.has_credentials && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={handleRefreshConnection}
                       disabled={isCheckingConnection}
@@ -290,15 +297,12 @@ export default function AccountPage() {
                     </Alert>
                   )}
                 </div>
-
                 {user.alpaca.last_verified && (
                   <p className="text-sm text-muted-foreground mt-2">
                     Last verified: {new Date(user.alpaca.last_verified).toLocaleString()}
                   </p>
                 )}
-                
                 <Separator className="my-6" />
-                
                 <Form {...alpacaForm}>
                   <form onSubmit={alpacaForm.handleSubmit(onConnectAlpaca)} className="space-y-4">
                     <FormField
@@ -308,10 +312,10 @@ export default function AccountPage() {
                         <FormItem>
                           <FormLabel>Alpaca API Key</FormLabel>
                           <FormControl>
-                            <Input 
+                            <Input
                               placeholder="Enter your Alpaca API Key"
                               autoComplete="off"
-                              {...field} 
+                              {...field}
                             />
                           </FormControl>
                           <FormDescription>
@@ -321,7 +325,6 @@ export default function AccountPage() {
                         </FormItem>
                       )}
                     />
-                    
                     <FormField
                       control={alpacaForm.control}
                       name="alpaca_secret"
@@ -329,11 +332,11 @@ export default function AccountPage() {
                         <FormItem>
                           <FormLabel>Alpaca API Secret</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="password" 
-                              placeholder="Enter your Alpaca API Secret" 
+                            <Input
+                              type="password"
+                              placeholder="Enter your Alpaca API Secret"
                               autoComplete="new-password"
-                              {...field} 
+                              {...field}
                             />
                           </FormControl>
                           <FormDescription>
@@ -343,18 +346,17 @@ export default function AccountPage() {
                         </FormItem>
                       )}
                     />
-                    
                     <FormField
                       control={alpacaForm.control}
-                      name="paper"
+                      name="usePaperTrading"
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                           <div className="space-y-0.5">
                             <FormLabel className="text-base">
-                              Paper Trading
+                              Use Paper Trading
                             </FormLabel>
                             <FormDescription>
-                              Use paper trading account (practice with virtual money)
+                              Enable to use a paper trading account (practice with virtual money). Disable for live trading.
                             </FormDescription>
                           </div>
                           <FormControl>
@@ -366,9 +368,8 @@ export default function AccountPage() {
                         </FormItem>
                       )}
                     />
-                    
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full"
                       disabled={isUpdating}
                     >
