@@ -28,3 +28,38 @@ run_file_cleanup() {
         done
     done
 }
+
+generate_ssh_key() {
+    local key_path="$HOME/.ssh/id_rsa"
+    local pub_key_path="${key_path}.pub"
+
+    # Ensure .ssh directory exists with correct permissions
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+
+    # Check if the default key already exists
+    if [[ -f "$key_path" ]]; then
+        echo "SSH key already exists at $key_path."
+        read -p "Do you want to overwrite it? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborting key generation."
+            if [[ -f "$pub_key_path" ]]; then
+                echo "Existing public key:"
+                cat "$pub_key_path"
+            fi
+            return 1
+        fi
+    fi
+
+    # Generate the SSH key
+    # -t rsa: specifies RSA key type
+    # -b 4096: specifies a 4096-bit key
+    # -f "$key_path": specifies the file to save the key
+    # -N "": specifies an empty passphrase
+    ssh-keygen -t rsa -b 4096 -f "$key_path" -N ""
+
+    echo "SSH key generated successfully."
+    echo "Public key ($pub_key_path):"
+    cat "$pub_key_path"
+}
