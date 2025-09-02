@@ -1,33 +1,15 @@
+// dashboard/app/positions/page.tsx
 "use client";
-import { createContext, useContext, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { PositionTable } from "@/components/alpaca/PositionTable";
 import { OrderForm } from "@/components/alpaca/OrderForm";
 import { PortfolioRecommendations } from "@/components/alpaca/PortfolioRecommendations";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import axios from "axios";
+import { PortfolioContext, type PortfolioContextType } from "./portfolio-context";
 
-// Create a shared context for portfolio data management
-export interface PortfolioContextType {
-  executingOrderSymbol: string | null;
-  setExecutingOrderSymbol: (symbol: string | null) => void;
-  executeOrder: (symbol: string, action: 'Buy' | 'Sell', quantity: number) => Promise<void>;
-  refreshAllData: () => Promise<void>;
-  lookbackDays: number; // Add this to the context
-  isProcessingRecommendations: boolean; // Add loading state for recommendations
-}
-
-export const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
-
-// Custom hook for accessing the portfolio context
-export function usePortfolio() {
-  const context = useContext(PortfolioContext);
-  if (!context) {
-    throw new Error("usePortfolio must be used within a PortfolioProvider");
-  }
-  return context;
-}
-
+// PositionsPage component (unchanged except for imports and removal of moved exports)
 export default function PositionsPage() {
   const [executingOrderSymbol, setExecutingOrderSymbol] = useState<string | null>(null);
   const [isProcessingRecommendations, setIsProcessingRecommendations] = useState<boolean>(false);

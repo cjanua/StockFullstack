@@ -111,7 +111,7 @@ export default function AccountPage() {
       }
     }
     fetchUserProfile();
-  }, [router, alpacaForm]);
+  }, [router, alpacaForm, user, setUser, isLoading, setIsLoading]);
 
   // Handle Alpaca connection form submission
   async function onConnectAlpaca(values: z.infer<typeof alpacaFormSchema>) {

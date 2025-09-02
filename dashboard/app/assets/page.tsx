@@ -16,7 +16,7 @@ export default function Home() {
 
   useEffect(() => {
     setIsClient(true);
-  }, []);
+  }, [isClient, setIsClient]);
 
   useEffect(() => {
     if (!isLoading && !isError && watchlists) {
@@ -25,7 +25,7 @@ export default function Home() {
         setSymbols(selectedWatchlist.assets.map((a: Asset) => [a.symbol]));
       }
     }
-  }, [isLoading, isError, watchlists, watchlist]);
+  }, [isLoading, isError, watchlists, watchlist, symbols, setSymbols]);
 
   if (!isClient) {
     return null;

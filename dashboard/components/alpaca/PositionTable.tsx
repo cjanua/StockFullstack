@@ -1,5 +1,6 @@
+// dashboard/components/alpaca/PositionTable.tsx
 import { useState } from "react";
-import { usePositions, useAccount } from "@/hooks/queries/useAlpacaQueries";
+import { usePositions, useAccount, useQuotes } from "@/hooks/queries/useAlpacaQueries";
 import { useQuery } from '@tanstack/react-query';
 import VirtualizedTable, { ColDef } from "@/components/ui/custom/VirtualizedTable";
 import { Position } from "@/types/alpaca";
@@ -21,7 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePortfolio } from '@/app/positions/page';
+import { usePortfolio } from '@/app/positions/portfolio-context';
 import axios from 'axios';
 import { SortConfig } from "@/hooks/useSortableData";
 import { useMarketHours } from "@/hooks/queries/useMarketHours";
@@ -29,15 +30,11 @@ import { PortfolioRecommendation, PortfolioRecommendationsResponse } from "@/lib
 import { ActionButton } from "@/components/ui/custom/ActionButton";
 import { OrderDialog } from "@/components/ui/custom/OrderDialog";
 
+type PositionWithQuote = Position & { live_price?: number };
+
 export function PositionTable({ count }: { count: number }) {
-  // All state hooks at the top
-  const [searchQuery, setSearchQuery] = useState("");
-  // const [closingPositionSymbol, setClosingPositionSymbol] = useState<string | null>(null);
-  
-  // Track which symbol's dialog is open instead of a general boolean
+  const [searchQuery, setSearchQuery] = useState("");  
   const [activeDialogSymbol, setActiveDialogSymbol] = useState<string | null>(null);
-  
-  // Sort state
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: "market_value", 
     direction: "desc"
@@ -49,22 +46,37 @@ export function PositionTable({ count }: { count: number }) {
   const { data: accountData } = useAccount();
   const { isMarketOpen = true } = useMarketHours() || {};
 
+  const symbols = positions ? positions.map((p) => p.symbol) : [];
+
   // Recommendations query
-  const { data: recommendationsData } = useQuery<PortfolioRecommendationsResponse>({
-    queryKey: ['portfolioRecommendations', lookbackDays],
-    queryFn: async () => {
-      const response = await axios.get('/api/alpaca/portfolio/recommendations', {
-        params: {
-          lookback_days: lookbackDays,
-          min_change_percent: 0.01,
-          cash_reserve_percent: 0.05
-        }
-      });
-      return response.data;
-    },
-    enabled: true,
-    refetchOnWindowFocus: false,
-  });
+  const { data: quotesData } = useQuotes(symbols);
+
+  // Step 3: Combine position data with the fresh quote data
+  const positionsWithQuotes: PositionWithQuote[] =
+    positions?.map((p) => ({
+      ...p,
+      live_price: quotesData?.[p.symbol]?.price,
+    })) || [];
+
+  const { data: recommendationsData } =
+    useQuery<PortfolioRecommendationsResponse>({
+      queryKey: ["portfolioRecommendations", lookbackDays],
+      queryFn: async () => {
+        const response = await axios.get(
+          "/api/alpaca/portfolio/recommendations",
+          {
+            params: {
+              lookback_days: lookbackDays,
+              min_change_percent: 0.01,
+              cash_reserve_percent: 0.05,
+            },
+          }
+        );
+        return response.data;
+      },
+      enabled: true,
+      refetchOnWindowFocus: false,
+    });
 
   // Early return handlers for loading, error, and empty states
   if (isLoading) {
@@ -106,7 +118,7 @@ export function PositionTable({ count }: { count: number }) {
     );
   }
   
-  if (!positions || positions.length === 0) {
+  if (!positionsWithQuotes || positionsWithQuotes.length === 0) {
     return (
       <div className="border rounded-md p-8 text-center">
         <h3 className="font-medium text-lg mb-2">No positions found</h3>
@@ -128,7 +140,7 @@ export function PositionTable({ count }: { count: number }) {
   }
 
   // Filter positions based on search
-  const filteredPositions = positions.filter(p => 
+  const filteredPositions = positionsWithQuotes.filter(p => 
     p.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
@@ -249,9 +261,9 @@ export function PositionTable({ count }: { count: number }) {
   );
 
   // Calculate portfolio summary
-  const totalMarketValue = positions.reduce((sum, p) => sum + parseFloat(p.market_value), 0);
-  const totalCostBasis = positions.reduce((sum, p) => sum + (parseFloat(p.avg_entry_price) * parseFloat(p.qty)), 0);
-  const totalPL = positions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
+  const totalMarketValue = positionsWithQuotes.reduce((sum, p) => sum + parseFloat(p.market_value), 0);
+  const totalCostBasis = positionsWithQuotes.reduce((sum, p) => sum + (parseFloat(p.avg_entry_price) * parseFloat(p.qty)), 0);
+  const totalPL = positionsWithQuotes.reduce((sum, p) => sum + parseFloat(p.unrealized_pl), 0);
   const totalPLPercent = (totalPL / totalCostBasis) * 100;
 
   // Render recommendation with fixed dialog behavior

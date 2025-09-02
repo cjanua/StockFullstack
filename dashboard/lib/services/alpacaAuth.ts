@@ -91,7 +91,19 @@ export async function checkAlpacaConnection(user: User): Promise<{ status: 'acti
       status: 'active',
       message: `Connected to Alpaca account ${account.account_number}`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      return {
+        status: 'error',
+        message: "Unknown Server Error",
+      };
+    }
+    if (!(error instanceof Error)) {
+      return {
+        status: 'error',
+        message: "Unknown Server Error",
+      };
+    }
     console.error(`Error checking Alpaca connection for user ${user.id}:`, error);
     const message = error.message?.includes('request is not authorized')
       ? 'Invalid Alpaca API Key or Secret. Please verify your credentials in the Alpaca dashboard.'

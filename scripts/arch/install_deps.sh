@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/arch/install_deps.sh
 
 # Define the path to the package list and read it
 PACKAGE_LIST_FILE="$(dirname "$0")/packages.txt"

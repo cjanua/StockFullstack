@@ -9,7 +9,7 @@ import {
   Order,
   Position,
 } from "@/types/alpaca";
-import { Clock } from "@alpacahq/typescript-sdk";
+import { Clock, CreateOrderOptions, GetOrdersOptions } from "@alpacahq/typescript-sdk";
 
 export class AlpacaClient {
   private client: Client;
@@ -48,12 +48,12 @@ export class AlpacaClient {
     return this.client.getPositions();
   }
 
-  async createOrder(params: any): Promise<Order> {
+  async createOrder(params: CreateOrderOptions): Promise<Order> {
     validateOrderParams(params);
     return this.client.createOrder(params);
   }
 
-  async getOrders(params: any = {}): Promise<Order[]> {
+  async getOrders(params: GetOrdersOptions): Promise<Order[]> {
     const orders = await this.client.getOrders(params);
     return Array.isArray(orders) ? orders : [orders];
   }
@@ -71,7 +71,7 @@ export class AlpacaClient {
   }
 }
 
-export function validateOrderParams(params: any): void {
+export function validateOrderParams(params: CreateOrderOptions): void {
   if (!params.symbol) {
     throw new Error("Symbol is required");
   }
@@ -104,7 +104,13 @@ export function formatErrorForLogging(error: unknown): string {
       return error.message;
     }
     return String(error);
-  } catch (_) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      return "Unknown error";
+    }
+    if (!(error instanceof Error)) {
+      return "Unknown error";
+    }
     return "Error details could not be formatted";
   }
 }

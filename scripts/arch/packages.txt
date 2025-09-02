@@ -11,3 +11,4 @@ visidata
 git
 curl
 pkg-config
+amdgpu

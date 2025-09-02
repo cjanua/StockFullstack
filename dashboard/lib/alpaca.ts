@@ -9,7 +9,7 @@ import {
   Order,
   Position,
 } from "@/types/alpaca";
-import { Clock, StocksQuotesLatest } from "@alpacahq/typescript-sdk";
+import { Clock, CreateOrderOptions, GetOrdersOptions, StocksQuotesLatest } from "@alpacahq/typescript-sdk";
 import Database from "better-sqlite3";
 import path from "path";
 
@@ -92,7 +92,7 @@ export async function closeAlpacaPosition(
       throw new Error(`Quantity is required to close position for ${symbol}`);
     }
     const client = await getAlpacaClientForUser(userId);
-    const orderParams = {
+    const orderParams: CreateOrderOptions = {
       symbol: symbol.toUpperCase(),
       qty,
       side: side === "long" ? "sell" : "buy",
@@ -107,7 +107,7 @@ export async function closeAlpacaPosition(
   }
 }
 
-export async function createAlpacaOrder(userId: string, params: any): Promise<Order> {
+export async function createAlpacaOrder(userId: string, params: CreateOrderOptions): Promise<Order> {
   try {
     const client = await getAlpacaClientForUser(userId);
     return await client.createOrder(params);
@@ -117,7 +117,7 @@ export async function createAlpacaOrder(userId: string, params: any): Promise<Or
   }
 }
 
-export async function getAlpacaOrders(userId: string, params: any = {}): Promise<Order[]> {
+export async function getAlpacaOrders(userId: string, params: GetOrdersOptions): Promise<Order[]> {
   try {
     const client = await getAlpacaClientForUser(userId);
     return await client.getOrders(params);
@@ -149,7 +149,8 @@ export async function cancelAlpacaOrder(userId: string, orderId: string): Promis
 
 export async function cancelAllAlpacaOrders(userId: string): Promise<void> {
   try {
-    const openOrders = await getAlpacaOrders(userId, { status: "open" });
+    const opts: GetOrdersOptions = { status: "open" };  // TODO: type definition
+    const openOrders = await getAlpacaOrders(userId, opts);
     const cancelPromises = openOrders.map((order) => cancelAlpacaOrder(userId, order.id));
     await Promise.all(cancelPromises);
   } catch (error) {
@@ -158,7 +159,13 @@ export async function cancelAllAlpacaOrders(userId: string): Promise<void> {
   }
 }
 
-export async function getAlpacaLatestQuote(userId: string, symbol: string): Promise<any> {
+interface Quote {
+  symbol: string;
+  price: number;
+  timestamp: string;
+}
+
+export async function getAlpacaLatestQuote(userId: string, symbol: string): Promise<Quote> {
   try {
     const { alpaca_key, alpaca_secret } = await getUserKeys(userId);
     if (!alpaca_key || !alpaca_secret) {
@@ -209,7 +216,7 @@ export async function getAlpacaLatestQuote(userId: string, symbol: string): Prom
   }
 }
 
-export async function getAlpacaLatestQuotes(userId: string, symbols: string[]): Promise<any[]> {
+export async function getAlpacaLatestQuotes(userId: string, symbols: string[]): Promise<Quote[]> {
   try {
     const { alpaca_key, alpaca_secret } = await getUserKeys(userId);
     if (!alpaca_key || !alpaca_secret) {

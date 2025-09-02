@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { usePortfolio } from '@/app/positions/page';
+import { usePortfolio } from '@/app/positions/portfolio-context';
 
 interface PortfolioRecommendation {
   symbol: string;

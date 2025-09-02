@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 // import Link from 'next/link';
 import { z } from 'zod';
@@ -33,7 +33,8 @@ const formSchema = z.object({
   password: z.string().min(1, { message: 'Password is required' }),
 });
 
-export default function LoginPage() {
+// Component that uses useSearchParams must be wrapped in Suspense
+function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // const router = useRouter();
@@ -223,5 +224,14 @@ return (
         )}
       </div>
     </div>
+  );
+}
+
+// Main export - wrap with Suspense as it uses useSearchParams
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

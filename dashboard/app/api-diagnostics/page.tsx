@@ -1,3 +1,5 @@
+// dashboard/app/api-diagnostics
+
 "use client";
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -163,7 +165,7 @@ export default function ApiDiagnosticsPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold flex items-center">
           <Activity className="mr-2 h-6 w-6" />
-          API Diagnostics Dashboard
+          API Diagnostics Dashboard TEST 123
         </h1>
         <Button 
           onClick={runChecks} 

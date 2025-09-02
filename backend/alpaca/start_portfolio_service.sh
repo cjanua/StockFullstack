@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# backend/alpaca/start_portfolio_service.sh
+
+source /opt/venv/bin/activate
+
 cd "$(dirname "$0")"
 
 # Create necessary directory structure
@@ -9,9 +13,6 @@ fi
 
 # Add the app directory to PYTHONPATH
 export PYTHONPATH=/app
-
-# Ensure dependencies are installed
-pip install --no-cache-dir -r req.txt
 
 # Start the Uvicorn server with the correct module path
 exec python -m uvicorn backend.alpaca.api.portfolio_service:app --host 0.0.0.0 --port 8001 --reload

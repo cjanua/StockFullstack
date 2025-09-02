@@ -1,3 +1,5 @@
+// dashboard/app/api/alpaca/portfolio/recommendations/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -9,10 +11,8 @@ export async function GET(req: NextRequest) {
   const cashReservePercent = searchParams.get('cash_reserve_percent') || '0.05';
   
   try {
-    // Health check is already confirmed working via curl test
-    
-    // IMPORTANT: Use exactly the same endpoint path that's working in curl
-    const serviceUrl = `http://localhost:8001/api/portfolio/recommendations?lookback_days=${lookbackDays}&min_change_percent=${minChangePercent}&cash_reserve_percent=${cashReservePercent}`;
+    const baseUrl = process.env.NEXT_PUBLIC_PORTFOLIO_SERVICE_URL || 'http://portfolio-service-py-stockfullstack:8001';
+    const serviceUrl = `${baseUrl}/api/portfolio/recommendations?lookback_days=${lookbackDays}&min_change_percent=${minChangePercent}&cash_reserve_percent=${cashReservePercent}`;
     console.log(`Making request to: ${serviceUrl}`);
     
     const response = await fetch(serviceUrl, {
@@ -52,4 +52,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

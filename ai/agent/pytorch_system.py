@@ -73,6 +73,8 @@ def train_lstm_model(
     best_model_state = None
     # --- Training Loop ---
     model.train()
+    print(f"Using device (cpu or cuda): {next(model.parameters()).device}")
+
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         correct_directions = 0
@@ -110,9 +112,9 @@ def train_lstm_model(
                 correct_directions += (predicted == labels).sum().item()
                 total_samples += labels.size(0)
 
-                print(f"Model device: {next(model.parameters()).device}")
-                print(f"Sequences device: {sequences.device}")
-                print(f"Labels device: {labels.device}")
+                # print(f"Model device: {next(model.parameters()).device}")
+                # print(f"Sequences device: {sequences.device}")
+                # print(f"Labels device: {labels.device}")
             except Exception as e:
                 print(f"Error in batch {batch_idx}: {e}")
                 continue

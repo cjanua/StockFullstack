@@ -120,7 +120,7 @@ def get_history(days: int = 365):
         symbols = list(set(symbols))
 
         end_date = datetime.now() - timedelta(minutes=15, seconds=5)
-        start_date = end_date - timedelta(days=days)
+        start_date = max(end_date - timedelta(days=days), datetime.now() - timedelta(days=1825))
 
         data_client_res = get_historical_data_client()
         if data_client_res.is_err():
@@ -136,8 +136,22 @@ def get_history(days: int = 365):
             start=start_date,
             end=end_date
         )
-
-        bars_response = data_client.get_stock_bars(request_params)
+        success = False
+        while not success and days > 30:
+            try:
+                bars_response = data_client.get_stock_bars(request_params)
+                success = True
+            except ConnectionResetError as e:
+                logger.error(f"Connection reset during historical data fetch: {e}. Retrying with reduced lookback.")
+                # Reduce days and retry logic here
+                days = int(days * 0.75)
+                start_date = end_date - timedelta(days=days)
+                request_params = StockBarsRequest(
+                    symbol_or_symbols=symbols,
+                    timeframe=TimeFrame.Day,
+                    start=start_date,
+                    end=end_date
+                )
 
         for symbol in symbols:
             if symbol in bars_response.data:

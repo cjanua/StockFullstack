@@ -20,7 +20,15 @@ export async function GET(): Promise<NextResponse> {
   try {
     const positions = await getAlpacaPositions(user.id.toString());
     return NextResponse.json(positions, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    if (!(error instanceof Error)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
     console.error(`Error fetching positions for user ${user.id}:`, error);
     if (error.message.includes("request is not authorized")) {
       return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });

@@ -3,6 +3,7 @@ import { getUserBySessionToken } from "@/lib/db/sqlite";
 import { createAlpacaOrder, getAlpacaOrders, cancelAlpacaOrder, cancelAllAlpacaOrders } from "@/lib/alpaca"; // Use lib/alpaca.ts
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { GetOrderOptions } from "@alpacahq/typescript-sdk";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const cookieStore = await cookies();
@@ -20,9 +21,17 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const url = new URL(request.url);
     const params = Object.fromEntries(url.searchParams);
-    const orders = await getAlpacaOrders(user.id.toString(), params);
+    const orders = await getAlpacaOrders(user.id.toString(), params);  // todo
     return NextResponse.json(orders, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    if (!(error instanceof Error)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
     console.error(`Error fetching orders for user ${user.id}:`, error);
     if (error.message.includes("request is not authorized")) {
       return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
@@ -51,7 +60,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     const orderData = await request.json();
     const order = await createAlpacaOrder(user.id.toString(), orderData);
     return NextResponse.json(order, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    if (!(error instanceof Error)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
     console.error(`Error creating order for user ${user.id}:`, error);
     if (error.message.includes("request is not authorized")) {
       return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
@@ -86,7 +103,15 @@ export async function DELETE(request: Request): Promise<NextResponse> {
       await cancelAllAlpacaOrders(user.id.toString());
       return NextResponse.json({ success: true }, { status: 200 });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    if (!(error instanceof Error)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
     console.error(`Error canceling order(s) for user ${user.id}:`, error);
     if (error.message.includes("request is not authorized")) {
       return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });

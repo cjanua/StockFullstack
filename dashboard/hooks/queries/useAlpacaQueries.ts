@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { alpaca } from '@/lib/api';
 import { auth } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
+import axios from 'axios';
 
 // Query key factory for better organization and type safety
 export const queryKeys = {
@@ -15,6 +16,7 @@ export const queryKeys = {
   recommendations: (params: alpaca.PortfolioRecommendationsParams) => 
     ['portfolioRecommendations', JSON.stringify(params)] as const,
   user: ['user'] as const,
+  quotes: (symbols: string[]) => ['quotes', [...symbols].sort().join(',')] as const,
 };
 
 // Standard error handler
@@ -37,6 +39,37 @@ export function useAccount() {
     staleTime: 60 * 1000, // 1 minute
   });
 }
+
+type Quote = {
+  symbol: string;
+  price: number;
+  timestamp: string;
+};
+
+type QuotesMap = {
+  [symbol: string]: Quote;
+};
+
+export function useQuotes(symbols: string[]) {
+  return useQuery<QuotesMap>({
+    queryKey: queryKeys.quotes(symbols),
+    queryFn: async () => {
+      // Don't fetch if there are no symbols to prevent unnecessary requests
+      if (symbols.length === 0) {
+        return {};
+      }
+      const { data } = await axios.get(
+        `/api/alpaca/quotes?symbols=${symbols.join(',')}`
+      );
+      return data;
+    },
+    // Only run the query if the symbols array is not empty
+    enabled: symbols.length > 0,
+    staleTime: 30 * 1000, // Keep data fresh for 30 seconds
+    refetchInterval: 60 * 1000, // Optional: refetch every minute
+  });
+}
+
 
 // Position hooks
 export function usePositions() {

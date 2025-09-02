@@ -1,0 +1,49 @@
+# docker-compose.yaml
+services:
+  redis:
+    image: redis:latest
+    container_name: redis-stockfullstack
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - stock_network
+
+  portfolio-service:
+    build:
+      context: ./backend/alpaca
+      dockerfile: Dockerfile
+      target: prod
+    container_name: portfolio-service-py-stockfullstack
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "8001:8001"
+    environment:
+      - ALPACA_KEY=${ALPACA_KEY}
+      - ALPACA_SECRET=${ALPACA_SECRET}
+      - REDIS_HOST=redis-stockfullstack
+    networks:
+      - stock_network
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      target: prod
+    container_name: dashboard-stockfullstack
+    restart: unless-stopped
+    depends_on:
+      - portfolio-service
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_PORTFOLIO_SERVICE_URL=http://portfolio-service-py-stockfullstack:8001
+    networks:
+      - stock_network
+
+networks:
+  stock_network:
+    driver: bridge

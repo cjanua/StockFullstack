@@ -4,7 +4,10 @@ import { getUserBySessionToken } from "@/lib/db/sqlite";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function GET(request: Request, { params }: { params: { symbol: string } }): Promise<NextResponse> {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ symbol: string }> }
+): Promise<NextResponse> {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("auth_token")?.value;
 
@@ -16,12 +19,22 @@ export async function GET(request: Request, { params }: { params: { symbol: stri
   if (!user) {
     return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
   }
-
+  const resolvedParams = await params;
+  const symbol = resolvedParams.symbol;
   try {
-    const quote = await getAlpacaLatestQuote(user.id.toString(), params.symbol);
+    
+    const quote = await getAlpacaLatestQuote(user.id.toString(), symbol);
     return NextResponse.json(quote, { status: 200 });
-  } catch (error: any) {
-    console.error(`Error fetching quote for symbol ${params.symbol} for user ${user.id}:`, error);
+  } catch (error: unknown) {
+    if (!(typeof error === 'object' && error !== null)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    if (!(error instanceof Error)) {
+      console.error(`Unexpected error fetching account for user ${user.id}:`, error);
+      return NextResponse.json({ error: "Unknown Server Error" }, { status: 500 });
+    }
+    console.error(`Error fetching quote for symbol ${symbol} for user ${user.id}:`, error);
     if (error.message.includes("request is not authorized")) {
       return NextResponse.json({ error: "Invalid Alpaca credentials" }, { status: 401 });
     }

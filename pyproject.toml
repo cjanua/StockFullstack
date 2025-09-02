@@ -48,6 +48,9 @@ dependencies = [
     "websocket>=0.2.1",
     # "scikit-learn>=1.7.1",
     "yfinance>=0.2.65",
+    "torch @ https://download.pytorch.org/whl/rocm6.4/torch-2.5.0+rocm6.4-cp312-cp312-linux_x86_64.whl",
+    "torchvision @ https://download.pytorch.org/whl/rocm6.4/torchvision-0.20.0+rocm6.4-cp312-cp312-linux_x86_64.whl",
+    "torchaudio @ https://download.pytorch.org/whl/rocm6.4/torchaudio-2.5.0+rocm6.4-cp312-cp312-linux_x86_64.whl",
 ]
 
 [project.scripts]

@@ -53,7 +53,7 @@ function recordLoginAttempt(identifier: string, success: boolean) {
 
 // Security logging
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function logSecurityEvent(event: string, details: any) {
+function logSecurityEvent(event: string, details: object) {
   const logEntry = {
     ...details,
     timestamp: new Date().toISOString(),

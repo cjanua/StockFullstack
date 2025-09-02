@@ -1,0 +1,7 @@
+# dashboard/.dockerignore
+
+node_modules
+.next
+out
+*.log
+*.md

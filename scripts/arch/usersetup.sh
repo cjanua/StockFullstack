@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Check if running as root
@@ -27,10 +28,5 @@ chown -R "$USERNAME:$USERNAME" "/home/$USERNAME"
 passwd -e "$USERNAME"
 
 # Configure WSL to use the new user as default
-echo "[user]
-default=$USERNAME" > /etc/wsl.conf
-
-echo "User $USERNAME has been created successfully."
-echo "Please change your password immediately upon first login."
-echo "WSL has been configured to automatically log in as $USERNAME"
-echo "Please restart WSL for changes to take effect."
+SCRIPTS_ARCH_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+$SCRIPTS_ARCH_DIR/../config/load_conf.sh

@@ -45,7 +45,7 @@ class TradingConfig:
                 'TQQQ',  # 3x NASDAQ
                 'SQQQ',  # Inverse TQQQ
                 'SOXL',  # 3x Semi-Conductors
-                'FNGU',  # 3x FAANG-like
+                # 'FNGU',  # 3x FAANG-like - [todo]: not enough data for features ?
                 'TSLA',  # High volatility
                 'NVDA',  # AI/Semiconductor
                 'AMD',  # Social media

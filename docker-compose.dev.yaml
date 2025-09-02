@@ -1,0 +1,30 @@
+#docker-compose.dev.yaml
+
+services:
+  portfolio-service:
+    build:
+      target: dev
+    # Mount source for live-reload inside the container
+    volumes:
+      - ./backend/alpaca:/app/backend/alpaca
+      - alpaca_venv:/opt/venv
+    environment:
+      # Improve file watching on mounted volumes (use polling)
+      WATCHFILES_FORCE_POLLING: "1"
+
+  dashboard:
+    build:
+      target: dev
+    volumes:
+      - ./dashboard:/app
+      - dashboard_node_modules:/app/node_modules
+    command: ["npm", "run", "dev"]
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+      - NEXT_PUBLIC_PORTFOLIO_SERVICE_URL=http://portfolio-service-py-stockfullstack:8001
+volumes:
+  dashboard_node_modules:
+  alpaca_venv:

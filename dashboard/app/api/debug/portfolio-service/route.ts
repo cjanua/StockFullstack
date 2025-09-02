@@ -1,3 +1,5 @@
+// dashboard/app/api/debug/portfolio-service/route.ts
+
 import { NextResponse } from "next/server";
 
 export async function GET() {
