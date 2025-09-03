@@ -31,7 +31,7 @@ export default function VirtualizedTable<T>({
   tableDef: ColDef<T>[],
   footerContent?: ReactNode  
 }) {
-  const [range, setRange] = useState(0);
+  const [range, setRange] = useState<number>(0);
   const [errorState, setErrorState] = useState(false);
   const [lastGoodItems, setLastGoodItems] = useState<T[]>([]);
   
@@ -76,7 +76,7 @@ export default function VirtualizedTable<T>({
         setRange(maxValidRange);
       }
     }
-  }, [items, count, range]);
+  }, [items, count]); // Removed range and setRange from dependencies
 
   // Safe wheel event handler with error protection
   const handleWheel: WheelEventHandler = (e) => {
@@ -89,7 +89,7 @@ export default function VirtualizedTable<T>({
       e.preventDefault(); // Prevent browser scroll when handling vertical
       
       const maxRange = Math.max(0, items.length - count);
-      let newRange = range;
+      let newRange = range.valueOf();
 
       if (e.deltaY > 0) {
         // Scrolling down
@@ -98,10 +98,13 @@ export default function VirtualizedTable<T>({
         // Scrolling up
         newRange = Math.max(0, range - 1);
       }
-
-      setRange(newRange);
+      
+      // Only update if range actually changed
+      if (newRange !== range) {
+        setRange(newRange);
+      }
     } catch (err) {
-      console.error("Scroll handler error:", err);
+      console.log("Scroll handler buddering:", err);
       // Don't update state on error
     }
   };
@@ -225,7 +228,10 @@ export default function VirtualizedTable<T>({
             // Ensure range is always valid
             const maxValidRange = Math.max(0, (items?.length || 0) - count);
             const safeRange = Math.min(Math.max(0, typeof newRange === 'function' ? newRange(range) : newRange), maxValidRange);
-            setRange(safeRange);
+            // Only update if range actually changed
+            if (safeRange !== range) {
+              setRange(safeRange);
+            }
           }}
           maxValue={Math.max(0, (items?.length || 0) - count)}
           isEnabled={isInside && items && items.length > count}

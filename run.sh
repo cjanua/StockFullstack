@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # run.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Ensure all shell scripts are executable
+for dir in "$SCRIPT_DIR" "$SCRIPT_DIR/dashboard" "$SCRIPT_DIR/backend/alpaca"; do
+    if [ -d "$dir" ]; then
+        find "$dir" -maxdepth 1 -type f -name "*.sh" ! -executable -exec chmod +x {} \;
+    fi
+done
+
 # Detect if .env file exists, if not create it from template
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
@@ -57,10 +66,6 @@ is_watcher_running() {
     fi
   fi
   return 1 # 1 means false (is not running)
-}
-
-build() {
-    
 }
 
 # Basic arg parsing to support optional --dev flag
