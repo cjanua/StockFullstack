@@ -38,3 +38,5 @@ data/
 /.run
 
 /backend/alpaca/app
+/.tmp
+scripts/unix/.user

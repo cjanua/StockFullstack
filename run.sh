@@ -59,6 +59,10 @@ is_watcher_running() {
   return 1 # 1 means false (is not running)
 }
 
+build() {
+    
+}
+
 # Basic arg parsing to support optional --dev flag
 ARGS=()
 for arg in "$@"; do
