@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# ./dtf
+
+export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Install dependencies (as needed)
+$SCRIPT_DIR/scripts/install.sh
+
+# Ensure all shell scripts are executable
+for dir in "$SCRIPT_DIR" "$SCRIPT_DIR/dashboard" "$SCRIPT_DIR/backend/alpaca"; do
+    if [ -d "$dir" ]; then
+        find "$dir" -maxdepth 1 -type f -name "*.sh" ! -executable -exec chmod +x {} \;
+    fi
+done
+
+# Detect if .env file exists, if not create it from template
+if [ ! -f .env ]; then
+    if [ -f .env.example ]; then
+        echo "Creating .env file from .env.example"
+        cp .env.example .env
+        echo "Please update your .env file with your credentials"
+    else
+        echo "Creating empty .env file"
+        touch .env
+        echo "Please add your credentials to the .env file"
+    fi
+fi
+
+# Function to print usage instructions
+print_usage() {
+    echo "Usage: dtf [command]"
+    echo "Commands:"
+    echo "  compose up/down --dev                            # uses default ENV"
+    echo "  start/stop/restart [service]                          # if no service provided, passthrough to docker compose commands"
+    echo "  build [service]                                                 # if no service provided build the whole docker-compose"
+    echo "  logs   [service]                                                 # View logs of all (no service provided) or a specific service"
+    echo "  shell [service]                                                  # must provide a service"
+    echo
+    echo "Available services: portfolio-service, dashboard, redis, ai-training"
+}
+
+# Check if Docker is installed
+if ! command -v docker &> /dev/null || ! docker compose version &> /dev/null; then
+    echo "Docker is not installed. Please install Docker first."
+    exit 1
+fi
+
+# Load environment if scripts/utils.sh exists
+if [ -f "$SCRIPT_DIR/scripts/utils.sh" ]; then
+    source "$SCRIPT_DIR/scripts/utils.sh"
+    export_dotenv
+fi
+
+
+source "$SCRIPT_DIR/scripts/watcher.sh"
+
+# Basic arg parsing to support optional --dev flag
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --dev)
+            DEV_MODE="true"
+            ;;
+        *)
+            ARGS+=("$arg")
+            ;;
+    esac
+done
+set -- "${ARGS[@]}"
+
+# Parse command line arguments
+if [ $# -eq 0 ]; then
+        print_usage
+        exit 0
+fi
+
+# Define compose command base
+COMPOSE_BASE="docker compose -f docker-compose.yaml"
+if [ "$ENV" = "DEV" ]; then
+    COMPOSE_BASE="$COMPOSE_BASE -f docker-compose.dev.yaml"
+fi
+
+start_all() {
+    echo "Starting all services..."
+    if [ "$ENV" = "DEV" ]; then
+        echo "Dev mode enabled (hot reload)"
+        $COMPOSE_BASE up -d
+    else
+        $COMPOSE_BASE up --build -d
+    fi
+}
+
+start_service() {
+    local service=$1
+    echo "Starting $service service..."
+    $COMPOSE_BASE up -d "$service"
+}
+
+stop_all() {
+    echo "Stopping all services..."
+    $COMPOSE_BASE down
+}
+
+stop_service() {
+    local service=$1
+    echo "Stopping $service service..."
+    $COMPOSE_BASE down "$service"
+}
+
+
+case "$1" in
+    '')
+        start_all
+        exit 0
+        ;;
+    compose)
+        shift
+        if [ "$1" = "up" ]; then
+            start_all
+        elif [ "$1" = "down" ]; then
+            stop_all
+        else
+            echo "Invalid compose command. Use up or down."
+            print_usage
+            exit 1
+        fi
+        ;;
+    start)
+        if [ -z "$2" ]; then
+            start_all
+        else
+            start_service "$2"
+        fi
+        ;;
+    stop)
+        if [ -z "$2" ]; then
+            stop_all
+        else
+            stop_service "$2"
+        fi
+        ;;
+    restart)
+        if [ -z "$2" ]; then
+            echo "Restarting all services..."
+            stop_all
+            start_all
+        else
+            echo "Restarting $2 service..."
+            $COMPOSE_BASE restart "$2"
+        fi
+        ;;
+    build)
+        if [ -z "$2" ]; then
+            echo "Building all Docker images..."
+            $COMPOSE_BASE build
+        else
+            echo "Building $2 service..."
+            $COMPOSE_BASE build "$2"
+        fi
+        ;;
+    logs)
+        if [ -z "$2" ]; then
+            echo "Showing logs for all services..."
+            $COMPOSE_BASE logs -f
+        else
+            echo "Showing logs for $2..."
+            $COMPOSE_BASE logs -f "$2"
+        fi
+        ;;
+    shell)
+        if [ -z "$2" ]; then
+            echo "Please specify a service name"
+            echo "Available services: portfolio-service, dashboard, redis, ai-training"
+            exit 1
+        else
+            echo "Opening shell in $2..."
+            $COMPOSE_BASE exec "$2" /bin/bash || $COMPOSE_BASE exec "$2" /bin/sh
+        fi
+        ;;
+    watcher)
+        watcher "$2"
+        exit 0
+        ;;
+    *)
+        print_usage
+        exit 1
+        ;;
+esac

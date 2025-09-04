@@ -63,3 +63,13 @@ generate_ssh_key() {
     echo "Public key ($pub_key_path):"
     cat "$pub_key_path"
 }
+
+export_dotenv() {
+    if [ -f .env ]; then
+        set -a
+        source .env
+        set +a
+    else
+        echo ".env file not found."
+    fi
+}

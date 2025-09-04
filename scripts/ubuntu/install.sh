@@ -106,3 +106,11 @@ if ! command -v watchexec &> /dev/null; then
   echo "--> Verifying installation..."
   watchexec --version
 fi
+
+if ! command -v uv &> /dev/null
+then
+    echo "uv not found, installing..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    export PATH="$HOME/.cargo/bin:$PATH"
+fi

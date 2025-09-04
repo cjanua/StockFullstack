@@ -10,6 +10,10 @@ watchexec --watch ./dashboard/Dockerfile \
 watchexec --watch ./backend/alpaca/Dockerfile \
   -- 'echo " H Dockerfile for portfolio-service changed, rebuilding..." && docker compose build portfolio-service' &
 
+# Watcher for the 'ai-training' service
+watchexec --watch ./ai/Dockerfile \
+  -- 'echo " H Dockerfile for ai-training changed, rebuilding..." && docker compose build ai-training' &
+
 # Keep the script running and wait for background jobs
 # Press Ctrl+C to stop all watchers
 wait
