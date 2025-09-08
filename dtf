@@ -35,6 +35,15 @@ print_usage() {
     echo "  build [service]                                                 # if no service provided build the whole docker-compose"
     echo "  logs   [service]                                                 # View logs of all (no service provided) or a specific service"
     echo "  shell [service]                                                  # must provide a service"
+    echo "  test [config|pipeline|training]                          # Run AI tests inside ai-training container (all if none specified)"
+    echo "  demo                                                            # Run quick AI pipeline demo"
+    echo "  benchmark                                                       # Run benchmark suite (3 demo runs)"
+    echo "  perf                                                            # Run performance benchmark with commit tracking"
+    echo "  comprehensive                                                   # Run comprehensive training & backtesting with reports"
+    echo
+    echo "Options:"
+    echo "  --dev                                            # Use development configuration"
+    echo "  --no-cache                                       # Force clean build ignoring cache"
     echo
     echo "Available services: portfolio-service, dashboard, redis, ai-training"
 }
@@ -54,12 +63,16 @@ fi
 
 source "$SCRIPT_DIR/scripts/watcher.sh"
 
-# Basic arg parsing to support optional --dev flag
+# Basic arg parsing to support optional flags
 ARGS=()
+NO_CACHE=false
 for arg in "$@"; do
     case "$arg" in
         --dev)
             DEV_MODE="true"
+            ;;
+        --no-cache)
+            NO_CACHE=true
             ;;
         *)
             ARGS+=("$arg")
@@ -107,6 +120,34 @@ stop_service() {
     $COMPOSE_BASE down "$service"
 }
 
+build_service() {
+    local service=$1
+    echo "Building $service service..."
+    if [ "$NO_CACHE" = true ]; then
+        echo "Using --no-cache flag to force clean build"
+        $COMPOSE_BASE build --no-cache "$service"
+    else
+        $COMPOSE_BASE build "$service"
+    fi
+}
+
+build_all() {
+    echo "Building all services..."
+    if [ "$NO_CACHE" = true ]; then
+        echo "Using --no-cache flag to force clean build"
+        $COMPOSE_BASE build --no-cache
+        NO_CACHE=false
+    else
+        $COMPOSE_BASE build
+    fi
+}
+
+restart_service() {
+    local service=$1
+    echo "Restarting $service service..."
+    build_service "$service"
+    $COMPOSE_BASE restart "$service"
+}
 
 case "$1" in
     '')
@@ -143,19 +184,20 @@ case "$1" in
         if [ -z "$2" ]; then
             echo "Restarting all services..."
             stop_all
+            build_all
             start_all
         else
-            echo "Restarting $2 service..."
-            $COMPOSE_BASE restart "$2"
+            build_service "$2"
+            restart_service "$2"
         fi
         ;;
     build)
         if [ -z "$2" ]; then
             echo "Building all Docker images..."
-            $COMPOSE_BASE build
+            build_all
         else
             echo "Building $2 service..."
-            $COMPOSE_BASE build "$2"
+            build_service "$2"
         fi
         ;;
     logs)
@@ -180,6 +222,86 @@ case "$1" in
     watcher)
         watcher "$2"
         exit 0
+        ;;
+    ai-training)
+        scripts/train_ai.sh "${@:2}"
+        exit 0
+        ;;
+    test)  # NEW: Run AI tests inside the ai-training container
+        CONTAINER_NAME="ai-training-stockfullstack"
+        echo "Running AI tests in $CONTAINER_NAME..."
+        if ! docker ps | grep -q "$CONTAINER_NAME"; then
+            echo "Starting ai-training service..."
+            $COMPOSE_BASE up -d ai-training
+        fi
+        if [ -z "$2" ]; then
+            # Run all tests from the project root to ensure proper import paths
+            docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_config
+            docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_pipeline
+            docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_training
+        else
+            # Run specific test from project root
+            case "$2" in
+                config)
+                    docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_config
+                    ;;
+                pipeline)
+                    docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_pipeline
+                    ;;
+                training)
+                    docker exec -it "$CONTAINER_NAME" python -m ai.tests.test_training
+                    ;;
+                *)
+                    echo "Invalid test name. Use: config, pipeline, or training."
+                    print_usage
+                    exit 1
+                    ;;
+            esac
+        fi
+        ;;
+    demo)
+        CONTAINER_NAME="ai-training-stockfullstack"
+        echo "Running AI demo..."
+        if ! docker ps | grep -q "$CONTAINER_NAME"; then
+            echo "Starting ai-training service..."
+            $COMPOSE_BASE up -d ai-training
+        fi
+        
+        docker exec $CONTAINER_NAME python /workspace/ai/demo_runner.py
+        ;;
+    benchmark)
+        CONTAINER_NAME="ai-training-stockfullstack"  
+        echo "Running AI benchmark suite..."
+        if ! docker ps | grep -q "$CONTAINER_NAME"; then
+            echo "Starting ai-training service..."
+            $COMPOSE_BASE up -d ai-training
+        fi
+        
+        echo "Running 3 demo iterations for benchmarking..."
+        for i in {1..3}; do
+            echo "🔄 Benchmark run $i/3"
+            ./dtf demo
+        done
+        ;;
+    perf)
+        CONTAINER_NAME="ai-training-stockfullstack"  
+        echo "Running performance benchmark..."
+        if ! docker ps | grep -q "$CONTAINER_NAME"; then
+            echo "Starting ai-training service..."
+            $COMPOSE_BASE up -d ai-training
+        fi
+        
+        docker exec $CONTAINER_NAME python /workspace/ai/performance_benchmark.py
+        ;;
+    comprehensive)
+        CONTAINER_NAME="ai-training-stockfullstack"  
+        echo "Running comprehensive training & backtesting..."
+        if ! docker ps | grep -q "$CONTAINER_NAME"; then
+            echo "Starting ai-training service..."
+            $COMPOSE_BASE up -d ai-training
+        fi
+        
+        docker exec $CONTAINER_NAME python /workspace/ai/comprehensive_training.py
         ;;
     *)
         print_usage

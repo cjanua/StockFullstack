@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from ai.models.lstm import TradingLSTM
+from models.lstm import TradingLSTM
 
 
 def simple_train_lstm_model(processed_data: pd.DataFrame, symbol: str, config, num_epochs=50):

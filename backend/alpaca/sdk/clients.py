@@ -11,7 +11,7 @@ from alpaca.common.exceptions import APIError
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
-from ai.utils import print_integrity_check
+from utils import print_integrity_check
 from backend.alpaca.core import AlpacaConfig
 from backend.alpaca.core import logger
 

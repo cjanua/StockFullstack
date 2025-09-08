@@ -43,22 +43,31 @@ dependencies = [
 ]
 
 [project.scripts]
-stock-run = "ai.main:run_main"
+stock-run = "main:run_main"
 
 [tool.uv]
 dev-dependencies = [
     "ruff",
-    "torch", "torchvision", "torchaudio"
+    # "torch", "torchvision", "torchaudio"
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai", "backend"]
+include = ["stock_fullstack*", "ai*", "backend*"]  # Include the new shared subpackage and existing packages
 exclude = [
-    "ai/tests",     # Exclude tests
-    "ai/debug*",    # Exclude debug utils
-    "ai/monitoring", # If monitoring is separate
-    "backend/lean/"
+    "tests",     # Exclude tests
+    "debug*",    # Exclude debug utils
+    "monitoring", # If monitoring is separate
+    "dashboard",      # Exclude the entire JS/TS dashboard frontend
+    "backend/lean",   # Exclude the LEAN integration directory
+    "ai/tests",       # Exclude test files
+    "ai/debug*",      # Exclude debug utilities
+    "ai/monitoring",  # Exclude monitoring code
+    "backend/alpaca/tests/",
+    "backend/alpaca/research/",
+    "build",          # Exclude build artifacts
+    "data",           # Exclude data directory
+    "scripts",        # Exclude scripts directory
 ]
 
 [tool.setuptools]

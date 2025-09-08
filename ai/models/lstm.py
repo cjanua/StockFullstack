@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ai.config.settings import config
+from config.settings import config
 
 
 class TradingLSTM(nn.Module):
@@ -21,7 +21,9 @@ class TradingLSTM(nn.Module):
             num_layers=self.num_layers,
             batch_first=True,
             dropout=0,  # No dropout for single layer
-            bidirectional=True  # PROVEN: 60.70% vs 51.49% accuracy
+            bidirectional=True,  # PROVEN: 60.70% vs 51.49% accuracy
+            # Performance optimizations
+            proj_size=0,  # No projection - faster computation
         )
 
         # IMPROVEMENT 3: Fixed Multi-head attention dimensions

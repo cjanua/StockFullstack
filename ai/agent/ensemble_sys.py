@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-from ai.models.lstm import TradingLSTM
+from models.lstm import TradingLSTM
 
 
 class EnsembleModel(nn.Module):

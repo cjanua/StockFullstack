@@ -2,7 +2,7 @@
 from alpaca.data.live import StockDataStream
 from alpaca.trading.client import TradingClient
 
-from ai.models.lstm import TradingLSTM
+from models.lstm import TradingLSTM
 
 
 class AlpacaTradingSystem:

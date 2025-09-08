@@ -95,10 +95,9 @@ watcher() {
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   if [[ "$1" == "watcher" ]]; then
     watcher "$2"
+    exit 0
   else
     echo "Usage: $0 watcher [start|stop|restart|status|logs]"
     exit 1
   fi
 fi
-
-exit 0

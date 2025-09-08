@@ -3,9 +3,6 @@
 .direnv/
 .ruff_cache/
 
-# Nix
-result*
-
 # Python cache
 __pycache__/
 *.py[cod]

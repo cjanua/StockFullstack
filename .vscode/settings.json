@@ -1,18 +1,18 @@
 // .vscode/settings.json
 {
     "files.exclude": {
-        "**/.git": true,
+        // "**/.git": true,
         "**/.DS_Store": true,
         "**/node_modules": true,
-        "**/build": true,
-        "**/*.log": true,
+        // "**/build": true,
+        // "**/*.log": true,
         "**/*.next": true,
         "**/next-env.d.ts": true,
         "**/venv": true,
         "**/.prettier": true,
-        "**/bin": true,
+        // "**/bin": true,
         "**/__pycache__": true,
-        "!**/data": true
+        // "!**/data": true
     },
     "prettier.configPath": ".prettier/.prettierrc",
     "css.validate": false,

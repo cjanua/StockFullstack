@@ -1,0 +1,105 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-fullstack"
+version = "0.1.0"
+description = "Stock trading environment"
+authors = [{ name = "Your Name", email = "your@email.com" }]
+requires-python = ">=3.12"
+
+license = { text = "MIT" } # Or your preferred license
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+
+dependencies = [
+    # Core & Data
+    "pandas",
+    "numpy",
+    "scipy",
+    "redis",
+    "result",
+    "python-dotenv",
+    "fastapi",
+    "uvicorn",
+    # Broker
+    "alpaca-py",
+    # Finance & Quant
+    "quantstats",
+    "pyportfolioopt",
+    "backtesting",
+    "talipp",
+    # Visualization & UI
+    "IPython",
+    "websocket>=0.2.1",
+    "yfinance>=0.2.65"
+]
+
+[project.scripts]
+stock-run = "main:run_main"
+
+[tool.uv]
+dev-dependencies = [
+    "ruff",
+    # "torch", "torchvision", "torchaudio"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["stock_fullstack.*"]  # Include the new shared subpackage
+exclude = [
+    "tests",     # Exclude tests
+    "debug*",    # Exclude debug utils
+    "monitoring", # If monitoring is separate
+    "dashboard",
+    "backend/lean",
+    "ai/tests",
+    "ai/debug*",
+    "ai/monitoring",
+    "backend/alpaca/tests/",
+    "backend/alpaca/research/",
+]
+
+[tool.setuptools]
+py-modules = []  # No single modules
+
+
+# [project.urls]
+# Homepage = "https://github.com/your-username/stocks"
+# Repository = "https://github.com/your-username/stocks"
+
+
+
+[tool.ruff]
+line-length = 125
+lint.select = [
+  "E", "F", "W",
+   "B", "C", # "I", "D", "UP"  # Add bugbear, complexity, docstrings, pyupgrade
+]
+
+lint.ignore = [
+#     "E501",  # Allow long lines if needed
+#     "D203"   # Docstring preferences
+    "C901",  # Too Complex,
+    # "E501",  # Line too long
+]
+
+extend-exclude = [
+    "dashboard",      # Exclude the entire JS/TS dashboard frontend
+    "backend/lean",   # Exclude the LEAN integration directory
+    "ai/tests",       # Exclude test files
+    "ai/debug*",      # Exclude debug utilities
+    "ai/monitoring",  # Exclude monitoring code
+    "backend/alpaca/tests/",
+    "backend/alpaca/research/",
+]
+
+[tool.ruff.format]
+indent-style = "tab"

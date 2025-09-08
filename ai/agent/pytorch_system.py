@@ -7,8 +7,13 @@ import pandas as pd
 import torch
 import torch.optim as optim
 from sklearn.model_selection import TimeSeriesSplit
-from ai.clean_data.pytorch_data import create_pytorch_dataloaders
-from ai.models.lstm import CustomTradingLoss, create_lstm
+from clean_data.pytorch_data import create_pytorch_dataloaders
+from models.lstm import CustomTradingLoss, create_lstm
+import warnings
+
+# Suppress common warnings
+warnings.filterwarnings("ignore", message="redis-py works best with hiredis")
+warnings.filterwarnings("ignore", message="Can't initialize amdsmi")
 
 def train_lstm_model(
     processed_data: pd.DataFrame, symbol: str, config, num_epochs=10, model_type='standard'
@@ -48,8 +53,9 @@ def train_lstm_model(
             {'params': model.fc1.parameters(), 'lr': 0.001},
             {'params': model.fc2.parameters(), 'lr': 0.0005},
         ], weight_decay=0.01)
-    # Create the data loader
-    dataloader = create_pytorch_dataloaders(features, targets, config)
+    # Create the data loader with larger batch size for better GPU utilization
+    batch_size = 128 if torch.cuda.is_available() else 64
+    dataloader = create_pytorch_dataloaders(features, targets, config, batch_size=batch_size)
     if dataloader is None:
         print(f"Warning: Could not create dataloader for {symbol}. Skipping training.")
         return None
@@ -61,11 +67,27 @@ def train_lstm_model(
         pct_start=0.3,
         anneal_strategy='cos'
     )
-    # Device setup for GPU acceleration
+        # Device setup for GPU acceleration with improved error handling
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-    if device.type == 'cuda':
-        torch.backends.cudnn.benchmark = True  # Optimize CuDNN for RNNs
+    
+    try:
+        model = model.to(device)
+        if device.type == 'cuda':
+            # Enable optimizations
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.enabled = True
+            
+            # Clear any existing cache
+            torch.cuda.empty_cache()
+            print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+            print(f"CUDA Memory: {torch.cuda.memory_allocated(0) / 1024**2:.1f} MB allocated")
+        else:
+            print("Using CPU (CUDA not available)")
+    except Exception as e:
+        print(f"⚠️  Device setup warning: {e}")
+        device = torch.device("cpu")
+        model = model.to(device)
+        print("Falling back to CPU")
     epoch_losses = []
     directional_accuracies = []
     best_loss = float('inf')
@@ -74,6 +96,9 @@ def train_lstm_model(
     # --- Training Loop ---
     model.train()
     print(f"Using device (cpu or cuda): {next(model.parameters()).device}")
+    
+    # Initialize gradient scaler for mixed precision training
+    scaler = torch.amp.GradScaler('cuda') if (device.type == 'cuda' and torch.cuda.get_device_capability(0)[0] >= 7) else None
 
     for epoch in range(num_epochs):
         epoch_loss = 0.0
@@ -82,30 +107,79 @@ def train_lstm_model(
         for batch_idx, (sequences, labels) in enumerate(dataloader):
             if len(sequences) == 0:
                 continue
-            sequences = sequences.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
-            optimizer.zero_grad()
+                
             try:
-                predictions = model(sequences)
-                if sequences.shape[1] >= 10:  # Need enough sequence length
-                    # Simple trend calculation from sequence
-                    price_changes = sequences[:, -1, 0] - sequences[:, -10, 0]  # 10-step price change
-                    trend_direction = torch.sign(price_changes)
+                # Transfer data to GPU with non_blocking=True for asynchronous transfer
+                sequences = sequences.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+                
+                # Verify tensors are on the same device as model
+                model_device = next(model.parameters()).device
+                if sequences.device != model_device:
+                    sequences = sequences.to(model_device)
+                if labels.device != model_device:
+                    labels = labels.to(model_device)
+                    
+            except Exception as e:
+                print(f"⚠️  Device transfer error in batch {batch_idx}: {e}")
+                # Fallback: ensure everything is on the same device
+                target_device = next(model.parameters()).device
+                sequences = sequences.to(target_device)
+                labels = labels.to(target_device)
+            
+            # Use zero_grad(set_to_none=True) for better performance
+            optimizer.zero_grad(set_to_none=True)
+            
+            # Use torch.amp.autocast() for mixed precision training if on modern GPU
+            try:
+                # Use mixed precision for faster computation on newer GPUs
+                if device.type == 'cuda' and torch.cuda.get_device_capability(0)[0] >= 7:
+                    with torch.amp.autocast('cuda'):
+                        predictions = model(sequences)
+                        if sequences.shape[1] >= 10:
+                            price_changes = sequences[:, -1, 0] - sequences[:, -10, 0]
+                            trend_direction = torch.sign(price_changes)
+                        else:
+                            trend_direction = None
+                        
+                        if sequences.shape[1] >= 2:
+                            actual_changes = sequences[:, -1, 0] - sequences[:, -2, 0]
+                        else:
+                            actual_changes = None
                 else:
-                    trend_direction = None
-                # Calculate actual price changes for magnitude weighting
-                if sequences.shape[1] >= 2:
-                    actual_changes = sequences[:, -1, 0] - sequences[:, -2, 0]
-                else:
-                    actual_changes = None
+                    predictions = model(sequences)
+                    if sequences.shape[1] >= 10:  # Need enough sequence length
+                        price_changes = sequences[:, -1, 0] - sequences[:, -10, 0]  # 10-step price change
+                        trend_direction = torch.sign(price_changes)
+                    else:
+                        trend_direction = None
+                    # Calculate actual price changes for magnitude weighting
+                    if sequences.shape[1] >= 2:
+                        actual_changes = sequences[:, -1, 0] - sequences[:, -2, 0]
+                    else:
+                        actual_changes = None
                 loss = loss_function(predictions, labels, actual_changes, trend_direction)
                 if torch.isnan(loss):
                     continue
-                # Backpropagate and update weights
-                loss.backward()
-                # Gradient clipping to prevent exploding gradients
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+                
+                # Use gradient scaler for mixed precision if available
+                if scaler:
+                    # Scale loss and do backward pass
+                    scaler.scale(loss).backward()
+                    # Unscale before gradient clipping
+                    scaler.unscale_(optimizer)
+                    # Gradient clipping to prevent exploding gradients
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    # Update weights with scaler
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    # Standard backward pass
+                    loss.backward()
+                    # Gradient clipping to prevent exploding gradients
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    optimizer.step()
+                
                 scheduler.step()
                 epoch_loss += loss.item() * sequences.size(0)
                 _, predicted = torch.max(predictions.data, 1)
@@ -239,7 +313,7 @@ def perform_walk_forward_validation(data: pd.DataFrame, symbol: str, config,
             # Evaluate on test set
             test_targets = test_data['close'].copy()
             test_features = test_data.drop(columns=['close'], errors='ignore')
-            from ai.clean_data.pytorch_data import create_sequences
+            from clean_data.pytorch_data import create_sequences
             X_test, y_test = create_sequences(test_features, test_targets, 60)
             if len(X_test) > 0:
                 with torch.no_grad():

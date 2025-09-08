@@ -6,11 +6,11 @@ from pathlib import Path
 import pandas as pd
 from backtesting import Backtest
 
-from ai.agent.pytorch_system import train_lstm_model
-from ai.config.settings import TradingConfig
-from ai.features.feature_engine import AdvancedFeatureEngine
-from ai.strategies.rnn_trading import RNNTradingStrategy
-from backend.alpaca.sdk.clients import AlpacaDataConnector
+from agent.pytorch_system import train_lstm_model
+from config.settings import TradingConfig
+from features.feature_engine import AdvancedFeatureEngine
+from strategies.rnn_trading import RNNTradingStrategy
+from stock_fullstack.common.sdk.clients import AlpacaDataConnector
 
 
 async def test_fixes():  # noqa: C901

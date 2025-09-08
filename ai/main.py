@@ -8,13 +8,31 @@ import pandas as pd
 import yfinance as yf
 from backtesting import Backtest
 from dotenv import load_dotenv
-from ai.clean_data.utils import validate_data
-from ai.agent.pytorch_system import train_lstm_model
-from ai.config.settings import TradingConfig
-from ai.features.feature_engine import AdvancedFeatureEngine
-from ai.strategies.rnn_trading import RNNTradingStrategy, perform_walk_forward_analysis
+
+from clean_data.utils import validate_data
+from agent.pytorch_system import train_lstm_model
+from config.settings import TradingConfig
+from features.feature_engine import AdvancedFeatureEngine
+from strategies.rnn_trading import RNNTradingStrategy, perform_walk_forward_analysis
 
 load_dotenv()
+
+# GPU optimization setup
+if torch.cuda.is_available():
+    # Show CUDA information
+    print(f"CUDA is available with {torch.cuda.device_count()} device(s)")
+    print(f"Using device: {torch.cuda.get_device_name(0)}")
+    print(f"CUDA capability: {torch.cuda.get_device_capability(0)}")
+    
+    # Optimize memory usage
+    torch.cuda.empty_cache()
+    
+    # Set memory allocation strategy
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = os.environ.get(
+        'PYTORCH_CUDA_ALLOC_CONF', 'max_split_size_mb:128'
+    )
+else:
+    print("CUDA is not available, using CPU")
 def create_strategy_class(trained_model):
     class Strategy(RNNTradingStrategy):
         def init(self):
@@ -25,7 +43,17 @@ def create_strategy_class(trained_model):
 
 async def main():
     config = TradingConfig()
+    
+    # Apply environment variable overrides for training parameters
+    if 'BATCH_SIZE' in os.environ:
+        batch_size = int(os.environ['BATCH_SIZE'])
+        print(f"Using custom batch size from environment: {batch_size}")
+        # Will be picked up by create_pytorch_dataloaders
+    
     print(f"SYMBOLS from config: {config.SYMBOLS}")
+    
+    # Set the default tensor type to float32 for better efficiency
+    torch.set_default_tensor_type(torch.FloatTensor)
     BENCHMARK_SYMBOL = 'SPY'
     trading_symbols = [s for s in config.SYMBOLS if s != BENCHMARK_SYMBOL]
     if not trading_symbols:

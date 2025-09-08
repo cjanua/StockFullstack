@@ -4,11 +4,11 @@ import asyncio
 import numpy as np
 import torch
 
-from ai.agent.pytorch_system import train_lstm_model
-from ai.clean_data.pytorch_data import create_sequences
-from ai.config.settings import config
-from ai.features.feature_engine import AdvancedFeatureEngine
-from backend.alpaca.sdk.clients import AlpacaDataConnector
+from agent.pytorch_system import train_lstm_model
+from clean_data.pytorch_data import create_sequences
+from config.settings import config
+from features.feature_engine import AdvancedFeatureEngine
+from stock_fullstack.common.sdk.clients import AlpacaDataConnector
 
 
 async def test_data_pipeline():
@@ -78,7 +78,9 @@ async def test_data_pipeline():
 
     # 4. Test a simple forward pass
     if len(X) > 0:
-        test_batch = torch.FloatTensor(X[:1])  # Just one sample
+        # Ensure proper device handling for test
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        test_batch = torch.FloatTensor(X[:1]).to(device)  # Move to same device as model
 
         try:
             with torch.no_grad():

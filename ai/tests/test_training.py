@@ -3,8 +3,12 @@ import asyncio
 
 import torch
 
-from ai.agent.pytorch_system import train_lstm_model
-from ai.main import AlpacaDataConnector, AdvancedFeatureEngine, config
+from agent.pytorch_system import train_lstm_model
+from stock_fullstack.common.sdk.clients import AlpacaDataConnector
+from features.feature_engine import AdvancedFeatureEngine
+from config.settings import TradingConfig
+
+config = TradingConfig()
 
 
 
@@ -35,7 +39,7 @@ async def debug_single_symbol():
     targets = features['close'].copy()
     feature_only = features.drop(columns=['close'])
 
-    from ai.clean_data.pytorch_data import create_sequences
+    from clean_data.pytorch_data import create_sequences
     X, y = create_sequences(feature_only, targets, 60)
 
     print(f"Sequences created: {len(X)}")
@@ -50,8 +54,9 @@ async def debug_single_symbol():
         if model:
             print("✅ Training successful!")
 
-            # Test prediction
-            test_input = torch.FloatTensor(X[:1])
+            # Test prediction with proper device handling
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            test_input = torch.FloatTensor(X[:1]).to(device)
             with torch.no_grad():
                 prediction = model(test_input)
                 print(f"Test prediction: {prediction}")

@@ -6,7 +6,7 @@ from gymnasium import spaces
 from stable_baselines3 import A2C
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from ai.clean_data.preprocessing import split_data_by_periods
+from clean_data.preprocessing import split_data_by_periods
 
 
 class SwingTradingEnv(gym.Env):

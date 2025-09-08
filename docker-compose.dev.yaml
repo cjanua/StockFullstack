@@ -28,14 +28,14 @@ services:
 
   ai-training:
     build:
-      context: .
+      context: .  # Build from project root to include stock_fullstack package
       dockerfile: ai/Dockerfile
     container_name: ai-training-stockfullstack
     restart: unless-stopped
     environment:
       - LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
     volumes:
-      - ./:/workspace  # Mount your project directory
+      - .:/workspace  # Mount the entire project directory
       - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro  # WSL-specific library
       - /opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1:ro  # WSL-compatible HSA runtime
       - /usr/lib/wsl:/usr/lib/wsl  # Full WSL libraries for fallback
@@ -48,7 +48,7 @@ services:
     group_add:
       - video
     ipc: host
-    shm_size: 8g
+    shm_size: 16g
     networks:
       - stock_network
 

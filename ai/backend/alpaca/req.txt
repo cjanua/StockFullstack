@@ -1,0 +1,12 @@
+tabulate
+alpaca-py
+python-dotenv
+result
+redis
+seaborn
+scipy
+PyPortfolioOpt
+pandas
+numpy
+uvicorn
+fastapi

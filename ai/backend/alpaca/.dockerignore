@@ -1,0 +1,4 @@
+# backend/alpaca/.dockerignore
+
+**/__pycache__
+**/venv

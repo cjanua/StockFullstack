@@ -10,13 +10,14 @@ import yfinance as yf
 from sklearn.preprocessing import RobustScaler
 from talipp.indicators import ATR, BB, CCI, EMA, MACD, OBV, RSI, Stoch
 from talipp.ohlcv import OHLCV
+from ai.cache_utils import cache_on_disk
 
 
 class AdvancedFeatureEngine:
     def __init__(self):
         self.scalers = {}
         self.lookback_window = 60
-        from ai.config.settings import config
+        from config.settings import config
         self.cache_dir = Path(config.CACHE_DIR) / 'yahoo'
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +51,7 @@ class AdvancedFeatureEngine:
         from talipp.ohlcv import OHLCV
         return [OHLCV(row.open, row.high, row.low, row.close, row.volume) for row in data.itertuples()]
 
-
+    @cache_on_disk(dependencies=['ai/features/feature_engine.py'])
     def create_comprehensive_features(
         self,
         data: pd.DataFrame,
@@ -138,9 +139,9 @@ class AdvancedFeatureEngine:
         indicators['ema_ratio_12_50'] = (ema_12 / (ema_50 + 1e-8)).fillna(1.0)
 
         # IMPROVEMENT 41: EMA slope strength (trend momentum)
-        indicators['ema_12_slope'] = ema_12.pct_change(5).fillna(0)
-        indicators['ema_26_slope'] = ema_26.pct_change(5).fillna(0)
-        indicators['ema_50_slope'] = ema_50.pct_change(10).fillna(0)
+        indicators['ema_12_slope'] = ema_12.pct_change(5, fill_method=None).fillna(0)
+        indicators['ema_26_slope'] = ema_26.pct_change(5, fill_method=None).fillna(0)
+        indicators['ema_50_slope'] = ema_50.pct_change(10, fill_method=None).fillna(0)
 
         # IMPROVEMENT 42: Multi-timeframe EMA alignment score
         ema_alignment = pd.Series(0, index=data.index)
@@ -165,7 +166,7 @@ class AdvancedFeatureEngine:
 
         # RSI momentum and divergence (key for trend changes)
         indicators['rsi_momentum'] = rsi_14.diff(3)  # 3-period RSI change
-        indicators['rsi_price_divergence'] = (rsi_14.diff() * close.pct_change()) < 0  # Divergence signal
+        indicators['rsi_price_divergence'] = (rsi_14.diff() * close.pct_change(fill_method=None)) < 0  # Divergence signal
         indicators['rsi_avg'] = (rsi_9 + rsi_14 + rsi_21) / 3.0  # Multi-timeframe average
 
         # IMPROVEMENT 44: Enhanced MACD with histogram momentum
@@ -201,7 +202,7 @@ class AdvancedFeatureEngine:
         # IMPROVEMENT 47: Enhanced volatility indicators with GARCH-style features
         indicators['atr'] = pd.Series(ATR(14, input_values=ohlcv_list), index=data.index)
         indicators['atr_percent'] = indicators['atr'] / close
-        indicators['atr_momentum'] = indicators['atr'].pct_change(5)  # ATR rate of change
+        indicators['atr_momentum'] = indicators['atr'].pct_change(5, fill_method=None)  # ATR rate of change
 
         # Volatility regimes
         atr_ma = indicators['atr'].rolling(30).mean()
@@ -215,7 +216,7 @@ class AdvancedFeatureEngine:
 
         # Stochastic enhancements
         indicators['stoch_momentum'] = indicators['stoch_k'].diff(2)
-        indicators['stoch_divergence'] = (indicators['stoch_k'].diff() * close.pct_change()) < 0
+        indicators['stoch_divergence'] = (indicators['stoch_k'].diff() * close.pct_change(fill_method=None)) < 0
         indicators['stoch_cross'] = (indicators['stoch_k'] > indicators['stoch_d']).astype(int)
 
         # IMPROVEMENT 49: Volume-based indicators with institutional detection
@@ -228,7 +229,7 @@ class AdvancedFeatureEngine:
         indicators['volume_surge'] = (volume > vol_ma * 2.0).astype(int)  # Institutional activity
 
         # Price-volume relationships
-        indicators['pv_trend'] = (close.pct_change() * indicators['volume_ratio']).rolling(5).mean()
+        indicators['pv_trend'] = (close.pct_change(fill_method=None) * indicators['volume_ratio']).rolling(5).mean()
 
         # IMPROVEMENT 50: CCI with enhanced calculations
         indicators['cci'] = pd.Series(CCI(20, input_values=ohlcv_list), index=data.index)
@@ -267,7 +268,7 @@ class AdvancedFeatureEngine:
             mtf_features[f'{tf_name}_trend_strength'] = trend_strength
 
             # Momentum
-            momentum = tf_data['close'].pct_change(5).reindex(data.index, method='ffill')
+            momentum = tf_data['close'].pct_change(5, fill_method=None).reindex(data.index, method='ffill')
             mtf_features[f'{tf_name}_momentum'] = momentum
 
             # RSI for overbought/oversold across timeframes
@@ -275,7 +276,7 @@ class AdvancedFeatureEngine:
             mtf_features[f'{tf_name}_rsi'] = rsi
 
             # Volatility
-            volatility = tf_data['close'].pct_change().rolling(20).std().reindex(data.index, method='ffill')
+            volatility = tf_data['close'].pct_change(fill_method=None).rolling(20).std().reindex(data.index, method='ffill')
             mtf_features[f'{tf_name}_volatility'] = volatility
 
         return mtf_features
@@ -284,7 +285,7 @@ class AdvancedFeatureEngine:
     def calculate_volatility_features(self, data):
         """GARCH-style volatility decomposition."""
         features = {}
-        returns = data['close'].pct_change()
+        returns = data['close'].pct_change(fill_method=None)
 
         # IMPROVEMENT 52: Multi-horizon realized volatility (research-proven)
         for period in [5, 10, 20, 60]:
@@ -334,7 +335,7 @@ class AdvancedFeatureEngine:
         features['vol_clustering'] = vol_clusters.rolling(5).sum() / 5.0  # Smoothed clustering
 
         # IMPROVEMENT 60: Forward-looking volatility measures
-        features['vol_momentum'] = vol_20.pct_change(5)
+        features['vol_momentum'] = vol_20.pct_change(5, fill_method=None)
         features['vol_acceleration'] = features['vol_momentum'].diff(3)
 
         return features
@@ -386,11 +387,11 @@ class AdvancedFeatureEngine:
             features[f'direction_strength_{period}'] = np.abs(returns)
 
             # Directional persistence
-            direction_series = np.sign(close.pct_change())
+            direction_series = np.sign(close.pct_change(fill_method=None))
             features[f'direction_persistence_{period}'] = direction_series.rolling(period).mean()
 
         # IMPROVEMENT 63: Consecutive up/down pattern detection
-        daily_direction = np.sign(close.pct_change())
+        daily_direction = np.sign(close.pct_change(fill_method=None))
 
         # Count consecutive same-direction moves
         direction_changes = (daily_direction != daily_direction.shift()).astype(int)
@@ -406,7 +407,7 @@ class AdvancedFeatureEngine:
         features['bars_since_reversal'] = direction_changes.groupby(reversal_points).cumcount()
 
         # IMPROVEMENT 66: Directional strength by magnitude
-        returns = close.pct_change()
+        returns = close.pct_change(fill_method=None)
         up_moves = returns[returns > 0]
         down_moves = returns[returns < 0]
 
@@ -449,11 +450,11 @@ class AdvancedFeatureEngine:
         features['spread_proxy_pct_rank'] = features['spread_proxy'].rolling(252).rank(pct=True)
 
         # Amihud illiquidity measure
-        features['illiquidity'] = np.abs(close.pct_change()) / (volume + 1)
+        features['illiquidity'] = np.abs(close.pct_change(fill_method=None)) / (volume + 1)
         features['illiquidity_ma'] = features['illiquidity'].rolling(20).mean()
 
         # Price efficiency measures
-        returns = close.pct_change()
+        returns = close.pct_change(fill_method=None)
         features['autocorr_1'] = returns.rolling(20).apply(lambda x: x.autocorr(lag=1))
         features['autocorr_2'] = returns.rolling(20).apply(lambda x: x.autocorr(lag=2))
 
@@ -528,11 +529,11 @@ class AdvancedFeatureEngine:
         features['volume_ratio_to_20ma'] = volume / (vol_sma_20 + 1e-8)
 
         # Volume rate of change
-        features['volume_roc_5'] = volume.pct_change(5)
-        features['volume_roc_10'] = volume.pct_change(10)
+        features['volume_roc_5'] = volume.pct_change(5, fill_method=None)
+        features['volume_roc_10'] = volume.pct_change(10, fill_method=None)
 
         # On-Balance Volume variations
-        obv_sign = np.sign(close.pct_change())
+        obv_sign = np.sign(close.pct_change(fill_method=None))
         features['obv'] = (volume * obv_sign).cumsum()
         features['obv_ema_ratio'] = features['obv'] / features['obv'].ewm(span=20).mean()
 
@@ -557,7 +558,7 @@ class AdvancedFeatureEngine:
         features['volume_ratio'] = volume / vol_sma_20
 
         # Volume-price trend
-        features['vpt'] = ((close.pct_change() * volume).cumsum())
+        features['vpt'] = ((close.pct_change(fill_method=None) * volume).cumsum())
 
         # Price-volume correlation
         features['pv_corr_10'] = close.rolling(10).corr(volume)
@@ -591,7 +592,7 @@ class AdvancedFeatureEngine:
 
     #     # Universal features with asset-specific calibration
     #     volatility_window = 20 if symbol in ['TSLA'] else 30  # TSLA needs shorter window
-    #     features['adaptive_volatility'] = close.pct_change().rolling(volatility_window).std()
+    #     features['adaptive_volatility'] = close.pct_change(fill_method=None).rolling(volatility_window).std()
 
     #     return features
 
@@ -646,7 +647,7 @@ class AdvancedFeatureEngine:
             features[f'bear_regime_{ma_short}_{ma_long}'] = (sma_short < sma_long * 0.99).astype(int)
 
         # IMPROVEMENT 71: Volatility regime with percentile-based classification
-        returns = close.pct_change()
+        returns = close.pct_change(fill_method=None)
         volatility = returns.rolling(20).std()
 
         # Dynamic volatility percentiles
@@ -698,7 +699,7 @@ class AdvancedFeatureEngine:
         ema_12 = close.ewm(span=12).mean()
         ema_26 = close.ewm(span=26).mean()
 
-        returns = close.pct_change()
+        returns = close.pct_change(fill_method=None)
         rsi = pd.Series(index=data.index, dtype=float)
         # Simplified RSI calculation for image features
         for i in range(14, len(close)):
@@ -986,14 +987,14 @@ class AdvancedFeatureEngine:
         fallback_features['relative_strength'] = (close / (sma_20 + 1e-8)).fillna(1.0)
 
         # Volatility-based correlation stability
-        volatility = close.pct_change().rolling(20).std()
+        volatility = close.pct_change(fill_method=None).rolling(20).std()
         fallback_features['correlation_stability'] = volatility.rolling(60).std().fillna(0)
 
         print(f"    ✅ Created {len(fallback_features)} fallback features")
         return fallback_features
 
 
-    def calculate_cross_asset_features(self, data, market_data):
+    def calculate_cross_asset_features(self, data: pd.DataFrame, market_data: pd.DataFrame):
         """FIXED: Cross-asset features with STANDARDIZED data handling."""
         features = {}
 
@@ -1014,15 +1015,8 @@ class AdvancedFeatureEngine:
             print("    ❌ Market data index is not DatetimeIndex")
             return self._create_fallback_market_features(data)
 
-        # Check required columns
-        if 'close' not in data.columns:
-            print("    ❌ Asset data missing 'close' column")
-            return self._create_fallback_market_features(data)
-
-        if 'Close' not in market_data.columns:
-            print("    ❌ Market data missing 'Close' column")
-            return self._create_fallback_market_features(data)
-
+        print(data.columns)
+        print(market_data.columns)
         try:
             # Convert to daily frequency for alignment
             print("    - Converting to daily frequency")
@@ -1030,8 +1024,8 @@ class AdvancedFeatureEngine:
             market_daily = market_data.groupby(market_data.index.normalize()).last()
 
             # Calculate returns
-            asset_returns = data_daily['close'].pct_change()
-            market_returns = market_daily['Close'].pct_change()
+            asset_returns = data_daily['close'].pct_change(fill_method=None)
+            market_returns = market_daily['close'].pct_change(fill_method=None)
 
             # Find common dates for alignment
             common_dates = asset_returns.index.intersection(market_returns.index)
@@ -1076,7 +1070,7 @@ class AdvancedFeatureEngine:
             # Relative strength
             if len(aligned_data) >= 20:
                 asset_momentum = (data_daily['close'] / data_daily['close'].shift(20))
-                market_momentum = (market_daily['Close'] / market_daily['Close'].shift(20))
+                market_momentum = (market_daily['close'] / market_daily['close'].shift(20))
                 relative_strength = (asset_momentum / market_momentum).reindex(data.index, method='ffill').fillna(1.0)
                 features['relative_strength'] = relative_strength
 
@@ -1105,22 +1099,25 @@ class AdvancedFeatureEngine:
 
         # Standardize column names
         column_mapping = {
-            'Adj Close': 'Close',
-            'adj close': 'Close',
-            'close': 'Close',
-            'volume': 'Volume',
-            'open': 'Open',
-            'high': 'High',
-            'low': 'Low'
+            'Adj Close': 'adj_close',
+            'adj close': 'adj_close',
+            'close': 'close',
+            'volume': 'volume',
+            'open': 'open',
+            'high': 'high',
+            'low': 'low',
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Close': 'close',
+            'Volume': 'volume'
         }
 
-        for old_col, new_col in column_mapping.items():
-            if old_col in market_data.columns:
-                market_data = market_data.rename(columns={old_col: new_col})
+        market_data.rename(columns=column_mapping, inplace=True)
 
         # Ensure we have essential columns
-        if 'Close' not in market_data.columns and 'close' in market_data.columns:
-            market_data['Close'] = market_data['close']
+        if 'close' not in market_data.columns:
+            return pd.DataFrame()
 
         # Handle timezone
         try:
@@ -1135,7 +1132,7 @@ class AdvancedFeatureEngine:
             print(f"    Timezone processing warning: {e}")
 
         # Clean data
-        market_data = market_data.dropna(subset=['Close'])
+        market_data = market_data.dropna(subset=['close'])
         market_data = market_data.loc[~market_data.index.duplicated(keep='last')]
         market_data = market_data.sort_index()
 
@@ -1154,14 +1151,14 @@ class AdvancedFeatureEngine:
         base_price = 450
         returns = np.random.normal(0.0005, 0.015, len(synthetic_data))  # ~0.05% daily return, 1.5% vol
 
-        synthetic_data['Close'] = base_price
+        synthetic_data['close'] = base_price
         for i in range(1, len(synthetic_data)):
             synthetic_data.iloc[i, 0] = synthetic_data.iloc[i-1, 0] * (1 + returns[i])
 
-        synthetic_data['Volume'] = 100000000  # Typical SPY volume
-        synthetic_data['Open'] = synthetic_data['Close']
-        synthetic_data['High'] = synthetic_data['Close'] * 1.01
-        synthetic_data['Low'] = synthetic_data['Close'] * 0.99
+        synthetic_data['volume'] = 100000000  # Typical SPY volume
+        synthetic_data['open'] = synthetic_data['close']
+        synthetic_data['high'] = synthetic_data['close'] * 1.01
+        synthetic_data['low'] = synthetic_data['close'] * 0.99
 
         print(f"    Generated {len(synthetic_data)} synthetic data points")
         return synthetic_data
@@ -1206,8 +1203,8 @@ class AdvancedFeatureEngine:
     #     if market_data.index.tz is not None:
     #          market_data.index = market_data.index.tz_localize(None)
 
-    #     asset_returns = data['close'].pct_change()
-    #     market_returns = market_data['Close'].pct_change()
+    #     asset_returns = data['close'].pct_change(fill_method=None)
+    #     market_returns = market_data['close'].pct_change(fill_method=None)
 
     #     returns_df = pd.DataFrame({'asset': asset_returns, 'market': market_returns}).ffill()
     #     rolling_corr = returns_df['asset'].rolling(window=50).corr(returns_df['market'])
@@ -1218,7 +1215,7 @@ class AdvancedFeatureEngine:
     def calculate_risk_features(self, data):
         """Calculates features related to risk and volatility."""
         risk_features = {}
-        returns = data['close'].pct_change()
+        returns = data['close'].pct_change(fill_method=None)
         risk_features['volatility_20d'] = returns.rolling(window=20).std() * np.sqrt(252)
         return risk_features
 
