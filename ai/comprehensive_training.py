@@ -28,7 +28,7 @@ from ai.config.settings import config
 from ai.agent.pytorch_system import train_lstm_model
 from ai.data_sources.hybrid_manager import HybridDataManager
 from ai.features.feature_engine import AdvancedFeatureEngine
-from ai.models.lstm import TradingLSTM
+from ai.models.lstm import TradingLSTM, create_lstm
 
 
 class TradingSystem:
@@ -245,12 +245,12 @@ class ComprehensiveTrainingSystem:
                     error_message="Model file not found"
                 )
             
-            # Load model
+            # Load model with CONSISTENT parameters (same as training)
             input_size = len(feature_columns)
-            model = TradingLSTM(
+            model = create_lstm(
                 input_size=input_size,
-                hidden_size=self.config.LSTM_HIDDEN_SIZE,
-                num_layers=self.config.LSTM_NUM_LAYERS
+                model_type='standard',
+                hidden_size=256  # Use same default as training
             )
             model.load_state_dict(torch.load(model_path, map_location='cpu'))
             model.eval()

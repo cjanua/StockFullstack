@@ -19,7 +19,14 @@ class TradingConfig:
     LEARNING_RATE: float = 0.0005
     NUM_EPOCHS: int = 250
 
-    USE_ENSEMBLE: bool = False
+    USE_ENSEMBLE: bool = False  # Disable ensemble to focus on standard model
+    
+    # Feature engineering options
+    USE_PCA: bool = True  # Use PCA for dimensionality reduction
+    PCA_COMPONENTS: int = 50  # Number of PCA components to keep
+    
+    # Alternative: increase model capacity instead of PCA
+    ADAPTIVE_HIDDEN_SIZE: bool = True  # Scale hidden size based on input dimensions
 
     # Trading parameters
     INITIAL_CAPITAL: float = 100000

@@ -13,6 +13,7 @@ from clean_data.utils import validate_data
 from agent.pytorch_system import train_lstm_model
 from config.settings import TradingConfig
 from features.feature_engine import AdvancedFeatureEngine
+from models.lstm import create_lstm
 from strategies.rnn_trading import RNNTradingStrategy, perform_walk_forward_analysis
 
 load_dotenv()
@@ -33,6 +34,23 @@ if torch.cuda.is_available():
     )
 else:
     print("CUDA is not available, using CPU")
+
+def get_cache_hash(symbol, data, config, dependencies):
+    """Generates a robust cache hash."""
+    import hashlib
+    import pandas as pd
+
+    def get_file_hash(file_path):
+        with open(file_path, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+
+    code_hash = ''.join(get_file_hash(f) for f in dependencies)
+    data_hash = str(pd.util.hash_pandas_object(data).sum())
+    config_str = str(vars(config))
+    config_hash = hashlib.sha256(config_str.encode()).hexdigest()
+    
+    return hashlib.sha256((code_hash + data_hash + config_hash).encode()).hexdigest()
+
 def create_strategy_class(trained_model):
     class Strategy(RNNTradingStrategy):
         def init(self):
@@ -103,11 +121,32 @@ async def main():
 
     # 2. Feature engineering
     print("🔧 Engineering features...")
-    feature_engine = AdvancedFeatureEngine()
+    # Use PCA to reduce dimensionality from ~160 features to manageable size
+    feature_engine = AdvancedFeatureEngine(
+        use_pca=config.USE_PCA, 
+        n_pca_components=config.PCA_COMPONENTS
+    )
+    print(f"Feature engineering: PCA={'enabled' if config.USE_PCA else 'disabled'}, components={config.PCA_COMPONENTS}")
     processed_data = {}
     for symbol in market_data:
-        features = feature_engine.create_comprehensive_features(
-            market_data[symbol], symbol, spy_data)
+        # Caching for feature generation
+        feature_deps = ['ai/features/feature_engine.py']
+        feature_hash = get_cache_hash(symbol, market_data[symbol], config, feature_deps)
+        feature_cache_path = Path(os.getenv("MODEL_CACHE_DIR", project_root / "model_res" / "cache")) / f"features_{symbol}_{feature_hash}.pkl"
+        
+        if feature_cache_path.exists():
+            print(f"✅ Loading cached features for {symbol}...")
+            with open(feature_cache_path, 'rb') as f:
+                import pickle
+                features = pickle.load(f)
+        else:
+            print(f"🔧 Engineering features for {symbol}...")
+            features = feature_engine.create_comprehensive_features(
+                market_data[symbol], symbol, spy_data)
+            with open(feature_cache_path, 'wb') as f:
+                import pickle
+                pickle.dump(features, f)
+
         if not features.empty and len(features) > config.SEQUENCE_LENGTH * 2:
             nan_threshold = 0.05
             good_features = features.loc[:, features.isnull().sum() / len(features) < nan_threshold]
@@ -128,8 +167,9 @@ async def main():
     for symbol in processed_data:
         features = processed_data[symbol]
         if len(features) < config.SEQUENCE_LENGTH * 3:
-            print(f"Skipping {symbol}: too few samples after split consideration")
+            print(f"Warning: Insufficient data for {symbol} after feature engineering, skipping...")
             continue
+        
         split_idx = int(len(features) * 0.7)
         train_data = features.iloc[:split_idx]
         test_data = features.iloc[split_idx:]
@@ -138,38 +178,36 @@ async def main():
         holdout_data = test_data.iloc[holdout_idx:]
         print(f"Data splits for {symbol}: train={len(train_data)}, val={len(val_data)}, holdout={len(holdout_data)}")
 
-        model_type = 'standard'
-        config_hash = hashlib.sha256(str({
-            'symbols': config.SYMBOLS,
-            'lookback': config.LOOKBACK_DAYS,
-            'epochs': config.NUM_EPOCHS,
-            'seq_len': config.SEQUENCE_LENGTH,
-            'type': model_type
-        }).encode()).hexdigest()
-        train_hash = hashlib.sha256(str({
-            'rows': len(train_data),
-            'first_date': str(train_data.index[0]),
-            'last_date': str(train_data.index[-1])
-        }).encode()).hexdigest()
-        full_hash = config_hash + train_hash
-        model_path = cache_dir / f"model_{symbol}_{full_hash}.pth"
+        model_type = 'ensemble' if config.USE_ENSEMBLE else 'standard'
+        
+        # Caching for model training
+        model_deps = [
+            'ai/agent/pytorch_system.py', 
+            'ai/models/lstm.py', 
+            'ai/clean_data/pytorch_data.py',
+            'ai/config/settings.py'
+        ]
+        model_hash = get_cache_hash(symbol, train_data, config, model_deps)
+        model_path = cache_dir / f"model_{symbol}_{model_type}_{model_hash}.pth"
 
         if model_path.exists():
-            trained_model = train_lstm_model(
-                train_data, symbol, config, num_epochs=0, model_type=model_type)
+            print(f"✅ Loading cached model for {symbol}...")
+            trained_model = create_lstm(train_data.shape[1] - 1, model_type)
             trained_model.load_state_dict(torch.load(model_path))
-            print(f" - ✅ Loaded cached model for {symbol} from {model_path}")
         else:
+            print(f"🏋️ Training new model for {symbol}...")
             trained_model = train_lstm_model(
-                train_data, symbol, config, num_epochs=config.NUM_EPOCHS, model_type=model_type)
-            if trained_model is not None:
+                train_data, symbol, config, 
+                num_epochs=config.NUM_EPOCHS, 
+                model_type=model_type
+            )
+            if trained_model:
                 torch.save(trained_model.state_dict(), model_path)
-                print(f" - ✅ Saved model cache at {model_path}")
+
         if trained_model is not None:
             models[symbol] = trained_model
-            print(f" - ✅ {symbol} model trained successfully.")
         else:
-            print(f" - ❌ {symbol} model training failed.")
+            print(f"❌ Model training failed for {symbol}.")
 
     # 4. Backtesting validation with walk-forward
     print("📈 Running comprehensive backtests with walk-forward optimization...")

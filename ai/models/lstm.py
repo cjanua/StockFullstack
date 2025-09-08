@@ -8,10 +8,23 @@ from config.settings import config
 
 
 class TradingLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size=128, num_layers=1, output_size=3, dropout=0.2):
+    def __init__(self, input_size, hidden_size=256, num_layers=1, output_size=3, dropout=0.2):
         super().__init__()
         self.input_size = input_size
-        self.hidden_size = config.LSTM_HIDDEN_SIZE
+        
+        # FIXED: Consistent hidden size calculation to prevent model loading errors
+        # Use explicit hidden_size if provided, otherwise use consistent adaptive sizing
+        if hidden_size is not None:
+            self.hidden_size = hidden_size
+        else:
+            # Fallback adaptive sizing (only if hidden_size is None)
+            if input_size > 100:
+                self.hidden_size = int(input_size * 1.6)  # Consistent multiplier
+            else:
+                self.hidden_size = 128
+            
+        print(f"TradingLSTM: input_size={input_size}, hidden_size={self.hidden_size}")
+        
         self.num_layers = 1  # Force single layer (research proven)
 
         # IMPROVEMENT 2: Bidirectional LSTM for 60.70% vs 51.49% accuracy improvement
@@ -219,18 +232,11 @@ class CustomTradingLoss(nn.Module):
         return total_loss
 
 
-def create_lstm(input_size, model_type='standard'):
-    """Factory function to create research-optimized LSTM models."""
+def create_lstm(input_size, model_type='standard', hidden_size=256):
+    """Factory function to create a TradingLSTM model with consistent parameters."""
     if model_type == 'ensemble':
-        return EnsembleLSTM(input_size=input_size, output_size=3)
-    elif model_type == 'uncertainty':
-        model = TradingLSTM(input_size=input_size, hidden_size=128, dropout=0.15)
-        model.enable_uncertainty = True
-        return model
-    else:  # standard
-        return TradingLSTM(
-            input_size=input_size,
-            hidden_size=128,
-            num_layers=1,
-            dropout=0.15
-        )
+        print("Creating EnsembleLSTM model")
+        return EnsembleLSTM(input_size=input_size)
+    else:
+        print("Creating standard TradingLSTM model")
+        return TradingLSTM(input_size=input_size, hidden_size=hidden_size)

@@ -132,66 +132,55 @@ def train_lstm_model(
             
             # Use torch.amp.autocast() for mixed precision training if on modern GPU
             try:
-                # Use mixed precision for faster computation on newer GPUs
-                if device.type == 'cuda' and torch.cuda.get_device_capability(0)[0] >= 7:
-                    with torch.amp.autocast('cuda'):
-                        predictions = model(sequences)
-                        if sequences.shape[1] >= 10:
-                            price_changes = sequences[:, -1, 0] - sequences[:, -10, 0]
-                            trend_direction = torch.sign(price_changes)
-                        else:
-                            trend_direction = None
+                with torch.amp.autocast(device_type=device.type, enabled=(scaler is not None)):
+                    # Both model types only return predictions (1 value)
+                    outputs = model(sequences)
+                    
+                    # Calculate price changes for loss function
+                    if sequences.shape[1] >= 2:
+                        price_changes = sequences[:, -1, 0] - sequences[:, -2, 0]  # Recent price change
+                    else:
+                        price_changes = None
                         
-                        if sequences.shape[1] >= 2:
-                            actual_changes = sequences[:, -1, 0] - sequences[:, -2, 0]
-                        else:
-                            actual_changes = None
-                else:
-                    predictions = model(sequences)
-                    if sequences.shape[1] >= 10:  # Need enough sequence length
-                        price_changes = sequences[:, -1, 0] - sequences[:, -10, 0]  # 10-step price change
-                        trend_direction = torch.sign(price_changes)
+                    # Calculate trend direction
+                    if sequences.shape[1] >= 10:
+                        trend_changes = sequences[:, -1, 0] - sequences[:, -10, 0]  # 10-period trend
+                        trend_direction = torch.sign(trend_changes)
                     else:
                         trend_direction = None
-                    # Calculate actual price changes for magnitude weighting
-                    if sequences.shape[1] >= 2:
-                        actual_changes = sequences[:, -1, 0] - sequences[:, -2, 0]
-                    else:
-                        actual_changes = None
-                loss = loss_function(predictions, labels, actual_changes, trend_direction)
+                    
+                    loss = loss_function(outputs, labels, price_changes, trend_direction)
+
                 if torch.isnan(loss):
                     continue
-                
-                # Use gradient scaler for mixed precision if available
+
                 if scaler:
-                    # Scale loss and do backward pass
                     scaler.scale(loss).backward()
                     # Unscale before gradient clipping
                     scaler.unscale_(optimizer)
                     # Gradient clipping to prevent exploding gradients
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                    # Update weights with scaler
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    # Standard backward pass
                     loss.backward()
                     # Gradient clipping to prevent exploding gradients
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                 
                 scheduler.step()
-                epoch_loss += loss.item() * sequences.size(0)
-                _, predicted = torch.max(predictions.data, 1)
-                correct_directions += (predicted == labels).sum().item()
-                total_samples += labels.size(0)
+                
+                # Calculate directional accuracy
+                epoch_loss += loss.item() * len(sequences)
+                predicted_direction = torch.argmax(outputs, dim=1)
+                true_direction = torch.argmax(labels, dim=1) if labels.dim() > 1 else labels
+                correct_directions += (predicted_direction == true_direction).sum().item()
+                total_samples += len(sequences)
 
-                # print(f"Model device: {next(model.parameters()).device}")
-                # print(f"Sequences device: {sequences.device}")
-                # print(f"Labels device: {labels.device}")
             except Exception as e:
-                print(f"Error in batch {batch_idx}: {e}")
+                print(f"Error during model forward/backward pass: {e}")
                 continue
+
         if total_samples > 0:
             avg_loss = epoch_loss / total_samples
             directional_accuracy = correct_directions / total_samples
@@ -201,17 +190,21 @@ def train_lstm_model(
             if avg_loss < best_loss:
                 best_loss = avg_loss
                 patience_counter = 0
-                best_model_state = model.state_dict().copy()
+                best_model_state = model.state_dict()
             else:
                 patience_counter += 1
+            
             if epoch % 10 == 0:
+                current_lr = scheduler.get_last_lr()[0]
                 print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, "
-                      f"Directional Accuracy: {directional_accuracy:.2%}"
-                      f"LR: {scheduler.get_last_lr()[0]:.6f}")
-            max_patience = 60 if model_type == 'ensemble' else 40
+                      f"Directional Accuracy: {directional_accuracy:.2%}, "
+                      f"LR: {current_lr:.6f}")
+
+            max_patience = 25
             if patience_counter >= max_patience:
-                print(f"Early stopping at epoch {epoch+1}")
+                print(f"Early stopping at epoch {epoch+1} due to no improvement in loss.")
                 break
+    
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
     # --- Generate and save the loss curve plot ---

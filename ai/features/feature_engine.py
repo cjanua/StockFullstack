@@ -8,15 +8,19 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from sklearn.preprocessing import RobustScaler
+from sklearn.decomposition import PCA
 from talipp.indicators import ATR, BB, CCI, EMA, MACD, OBV, RSI, Stoch
 from talipp.ohlcv import OHLCV
 from ai.cache_utils import cache_on_disk
 
 
 class AdvancedFeatureEngine:
-    def __init__(self):
+    def __init__(self, use_pca=False, n_pca_components=50):
         self.scalers = {}
         self.lookback_window = 60
+        self.use_pca = use_pca
+        self.n_pca_components = n_pca_components
+        self.pca = None
         from config.settings import config
         self.cache_dir = Path(config.CACHE_DIR) / 'yahoo'
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -1238,7 +1242,33 @@ class AdvancedFeatureEngine:
             print("ERROR: DataFrame is empty after handling NaN values.")
             return df
 
-        scaler = RobustScaler()
-        df_scaled = pd.DataFrame(scaler.fit_transform(df), index=df.index, columns=df.columns)
+        # Separate target column before scaling/PCA
+        target_col = df['close'] if 'close' in df.columns else None
+        feature_cols = df.drop(columns=['close'], errors='ignore')
 
-        return df_scaled
+        # Scale features
+        scaler = RobustScaler()
+        df_scaled = pd.DataFrame(scaler.fit_transform(feature_cols), index=feature_cols.index, columns=feature_cols.columns)
+        
+        # Apply PCA if enabled
+        if self.use_pca and df_scaled.shape[1] > self.n_pca_components:
+            print(f"Applying PCA: reducing {df_scaled.shape[1]} features to {self.n_pca_components} components")
+            
+            if self.pca is None:
+                self.pca = PCA(n_components=self.n_pca_components, random_state=42)
+                pca_features = self.pca.fit_transform(df_scaled)
+                print(f"PCA explained variance ratio: {self.pca.explained_variance_ratio_.sum():.3f}")
+            else:
+                pca_features = self.pca.transform(df_scaled)
+            
+            # Create DataFrame with PCA components
+            pca_columns = [f'pca_component_{i}' for i in range(self.n_pca_components)]
+            df_final = pd.DataFrame(pca_features, index=df_scaled.index, columns=pca_columns)
+        else:
+            df_final = df_scaled
+
+        # Add target column back if it exists
+        if target_col is not None:
+            df_final['close'] = target_col
+
+        return df_final
