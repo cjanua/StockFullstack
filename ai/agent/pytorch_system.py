@@ -15,6 +15,49 @@ import warnings
 warnings.filterwarnings("ignore", message="redis-py works best with hiredis")
 warnings.filterwarnings("ignore", message="Can't initialize amdsmi")
 
+def create_lr_scheduler(optimizer, config, dataloader_length=None):
+    """Create a learning rate scheduler based on configuration."""
+    scheduler_type = getattr(config, 'LR_SCHEDULER_TYPE', 'ReduceLROnPlateau')
+    
+    if scheduler_type == "ReduceLROnPlateau":
+        return optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=getattr(config, 'LR_SCHEDULER_FACTOR', 0.5),
+            patience=getattr(config, 'LR_SCHEDULER_PATIENCE', 10),
+            verbose=True,
+            min_lr=getattr(config, 'LR_SCHEDULER_MIN_LR', 1e-7),
+            cooldown=getattr(config, 'LR_SCHEDULER_COOLDOWN', 5),
+            threshold=0.01,
+            threshold_mode='rel'
+        )
+    elif scheduler_type == "OneCycleLR" and dataloader_length:
+        return optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=0.003,
+            epochs=config.NUM_EPOCHS,
+            steps_per_epoch=dataloader_length,
+            pct_start=0.3,
+            anneal_strategy='cos'
+        )
+    elif scheduler_type == "StepLR":
+        return optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=30,  # Reduce every 30 epochs
+            gamma=0.5      # Reduce by half
+        )
+    else:
+        # Default to ReduceLROnPlateau
+        return optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=0.5,
+            patience=10,
+            verbose=True,
+            min_lr=1e-7,
+            cooldown=5
+        )
+
 def train_lstm_model(
     processed_data: pd.DataFrame, symbol: str, config, num_epochs=10, model_type='standard'
 ):
@@ -59,14 +102,9 @@ def train_lstm_model(
     if dataloader is None:
         print(f"Warning: Could not create dataloader for {symbol}. Skipping training.")
         return None
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer,
-        max_lr=0.003,
-        epochs=num_epochs,
-        steps_per_epoch=len(dataloader),
-        pct_start=0.3,
-        anneal_strategy='cos'
-    )
+    # Create flexible learning rate scheduler based on configuration
+    scheduler = create_lr_scheduler(optimizer, config, len(dataloader))
+    scheduler_type = getattr(config, 'LR_SCHEDULER_TYPE', 'ReduceLROnPlateau')
         # Device setup for GPU acceleration with improved error handling
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -168,7 +206,9 @@ def train_lstm_model(
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                 
-                scheduler.step()
+                # Step scheduler per batch for OneCycleLR
+                if scheduler_type == "OneCycleLR":
+                    scheduler.step()
                 
                 # Calculate directional accuracy
                 epoch_loss += loss.item() * len(sequences)
@@ -186,6 +226,13 @@ def train_lstm_model(
             directional_accuracy = correct_directions / total_samples
             epoch_losses.append(avg_loss)
             directional_accuracies.append(directional_accuracy)
+            
+            # Step scheduler per epoch for ReduceLROnPlateau and StepLR
+            if scheduler_type == "ReduceLROnPlateau":
+                scheduler.step(avg_loss)
+            elif scheduler_type == "StepLR":
+                scheduler.step()
+            
             # Early stopping
             if avg_loss < best_loss:
                 best_loss = avg_loss
@@ -195,10 +242,11 @@ def train_lstm_model(
                 patience_counter += 1
             
             if epoch % 10 == 0:
-                current_lr = scheduler.get_last_lr()[0]
+                # Get current learning rate from optimizer
+                current_lr = optimizer.param_groups[0]['lr']
                 print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, "
                       f"Directional Accuracy: {directional_accuracy:.2%}, "
-                      f"LR: {current_lr:.6f}")
+                      f"LR: {current_lr:.6f} ({scheduler_type})")
 
             max_patience = 25
             if patience_counter >= max_patience:

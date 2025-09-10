@@ -19,6 +19,13 @@ class TradingConfig:
     LEARNING_RATE: float = 0.0005
     NUM_EPOCHS: int = 250
 
+    # Learning Rate Scheduler Configuration
+    LR_SCHEDULER_TYPE: str = "ReduceLROnPlateau"  # Options: "ReduceLROnPlateau", "OneCycleLR", "StepLR"
+    LR_SCHEDULER_PATIENCE: int = 10               # Epochs to wait before reducing LR (ReduceLROnPlateau)
+    LR_SCHEDULER_FACTOR: float = 0.5              # Factor to reduce LR by (ReduceLROnPlateau)
+    LR_SCHEDULER_MIN_LR: float = 1e-7             # Minimum learning rate
+    LR_SCHEDULER_COOLDOWN: int = 5                # Epochs to wait after LR reduction
+
     USE_ENSEMBLE: bool = False  # Disable ensemble to focus on standard model
     
     # Feature engineering options

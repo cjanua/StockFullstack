@@ -301,7 +301,7 @@ case "$1" in
             $COMPOSE_BASE up -d ai-training
         fi
         
-        docker exec $CONTAINER_NAME python /workspace/ai/comprehensive_training.py
+        docker exec $CONTAINER_NAME python /workspace/ai/main.py
         ;;
     *)
         print_usage

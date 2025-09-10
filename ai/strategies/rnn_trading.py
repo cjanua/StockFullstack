@@ -196,11 +196,13 @@ class RNNTradingStrategy(Strategy):
 
             # Prepare input
             with torch.no_grad():
-                features_tensor = torch.FloatTensor(features).unsqueeze(0)
+                # Move tensor to same device as model
+                device = next(self.rnn_model.parameters()).device
+                features_tensor = torch.FloatTensor(features).unsqueeze(0).to(device)
                 if features_tensor.shape[-1] != self.rnn_model.input_size:
                     return None
                 prediction = self.rnn_model(features_tensor)
-                probabilities = prediction.numpy()[0]
+                probabilities = prediction.cpu().numpy()[0]  # Move back to CPU for numpy
 
                 action = np.argmax(probabilities)
                 confidence = probabilities[action]

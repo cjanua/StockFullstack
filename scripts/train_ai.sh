@@ -63,7 +63,16 @@ fi
 
 if [ "$clean" = true ]; then
     echo "Cleaning model cache inside the container..."
-    docker exec "$CONTAINER_NAME" rm -rf /workspace/model_res/cache/*
+    # Clear model results and cache directories in container
+    docker exec "$CONTAINER_NAME" rm -rf /workspace/model_res/*
+    docker exec "$CONTAINER_NAME" rm -rf /workspace/.cache/comprehensive/*
+    
+    # Also clear host-side caches (the container shares volumes) - use sudo for Docker-created files
+    echo "Cleaning host-side caches..."
+    sudo rm -rf "$SCRIPT_DIR/../model_res/ultimate"
+    sudo rm -rf "$SCRIPT_DIR/../.cache/comprehensive"
+    
+    echo "✅ All caches cleared"
 fi
 
 # Set environment variables for optimization

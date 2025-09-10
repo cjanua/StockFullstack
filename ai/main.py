@@ -1,361 +1,493 @@
+#!/usr/bin/env python3
+"""
+Ultimate Main.py: Comprehensive Model Training and Backtesting System
+Enhanced with feature alignment, cache management, and robust error handling.
+"""
+
 import asyncio
 import os
+import sys
+import json
+import warnings
+import traceback
+from datetime import datetime
 from pathlib import Path
-import hashlib
-import torch
-import numpy as np
+from typing import Dict, List, Tuple, Any
 import pandas as pd
-import yfinance as yf
-from backtesting import Backtest
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from dataclasses import dataclass, asdict
 from dotenv import load_dotenv
+from backtesting import Backtest
+from sklearn.decomposition import PCA  # Import PCA for external handling if needed
 
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Import custom modules
+from ai.cache_utils import cache_on_disk
+from ai.config.settings import TradingConfig
+from ai.agent.pytorch_system import train_lstm_model
+from ai.data_sources.hybrid_manager import HybridDataManager
+from ai.features.feature_engine import AdvancedFeatureEngine
+from ai.models.lstm import TradingLSTM, create_lstm, EnsembleLSTM, CustomTradingLoss
+from ai.strategies.rnn_trading import RNNTradingStrategy, create_rnn_strategy_class, perform_walk_forward_analysis
 from clean_data.utils import validate_data
-from agent.pytorch_system import train_lstm_model
-from config.settings import TradingConfig
-from features.feature_engine import AdvancedFeatureEngine
-from models.lstm import create_lstm
-from strategies.rnn_trading import RNNTradingStrategy, perform_walk_forward_analysis
+from clean_data.pytorch_data import create_sequences, create_pytorch_dataloaders
 
 load_dotenv()
 
 # GPU optimization setup
 if torch.cuda.is_available():
-    # Show CUDA information
     print(f"CUDA is available with {torch.cuda.device_count()} device(s)")
     print(f"Using device: {torch.cuda.get_device_name(0)}")
-    print(f"CUDA capability: {torch.cuda.get_device_capability(0)}")
-    
-    # Optimize memory usage
     torch.cuda.empty_cache()
-    
-    # Set memory allocation strategy
-    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = os.environ.get(
-        'PYTORCH_CUDA_ALLOC_CONF', 'max_split_size_mb:128'
-    )
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', 'max_split_size_mb:128')
 else:
     print("CUDA is not available, using CPU")
 
-def get_cache_hash(symbol, data, config, dependencies):
-    """Generates a robust cache hash."""
-    import hashlib
-    import pandas as pd
+@dataclass
+class TrainingResult:
+    symbol: str
+    success: bool
+    training_time: float
+    final_accuracy: float
+    final_loss: float
+    epochs_completed: int
+    best_accuracy: float
+    model_path: str
+    feature_columns: List[str]
+    error_message: str = ""
 
-    def get_file_hash(file_path):
-        with open(file_path, 'rb') as f:
-            return hashlib.sha256(f.read()).hexdigest()
+@dataclass
+class BacktestResult:
+    symbol: str
+    success: bool
+    total_return: float
+    annual_return: float
+    sharpe_ratio: float
+    max_drawdown: float
+    win_rate: float
+    total_trades: int
+    profitable_trades: int
+    avg_trade_return: float
+    volatility: float
+    calmar_ratio: float
+    error_message: str = ""
 
-    code_hash = ''.join(get_file_hash(f) for f in dependencies)
-    data_hash = str(pd.util.hash_pandas_object(data).sum())
-    config_str = str(vars(config))
-    config_hash = hashlib.sha256(config_str.encode()).hexdigest()
-    
-    return hashlib.sha256((code_hash + data_hash + config_hash).encode()).hexdigest()
+@dataclass
+class ComprehensiveReport:
+    timestamp: str
+    total_assets: int
+    successful_trainings: int
+    successful_backtests: int
+    total_training_time: float
+    system_info: Dict[str, Any]
+    training_results: List[TrainingResult]
+    backtest_results: List[BacktestResult]
+    summary_statistics: Dict[str, float]
 
-def create_strategy_class(trained_model):
-    class Strategy(RNNTradingStrategy):
-        def init(self):
-            self.rnn_model = trained_model
-            self.rnn_model.eval()
-            super().init()
-    return Strategy
+class UltimateTradingSystem:
+    """Enhanced trading system with feature alignment and cache management."""
+
+    def __init__(self):
+        self.config = TradingConfig()
+        self.data_manager = HybridDataManager(self.config)
+        self.feature_engine = AdvancedFeatureEngine(use_pca=False, n_pca_components=self.config.PCA_COMPONENTS)  # Disable internal PCA for control
+        self.results_dir = project_root / "model_res" / "ultimate"
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir = self.results_dir / "cache"
+        self.cache_dir.mkdir(exist_ok=True)
+        
+        # Suppress warnings
+        warnings.filterwarnings("ignore", category=UserWarning)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+
+    async def fetch_data(self, symbol: str) -> pd.DataFrame:
+        """Fetch and validate data asynchronously."""
+        print(f"📊 Fetching data for {symbol}...")
+        data = await asyncio.to_thread(
+            self.data_manager.yahoo_loader.get_historical_data,
+            [symbol],
+            lookback_days=self.config.LOOKBACK_DAYS
+        )
+        data = data.get(symbol, pd.DataFrame())
+        
+        if data.empty or not validate_data(data, symbol):
+            print(f"⚠️ Invalid or empty data for {symbol}")
+            return pd.DataFrame()
+        
+        data = data.ffill().bfill()
+        print(f"✅ Fetched {len(data)} rows for {symbol}")
+        return data
+
+    @cache_on_disk(dependencies=['ai/features/feature_engine.py'])
+    def process_features(self, symbol: str, data: pd.DataFrame) -> pd.DataFrame:
+        """Process features with caching and external PCA if enabled."""
+        print(f"🔧 Engineering features for {symbol}...")
+        features = self.feature_engine.create_comprehensive_features(data, symbol)
+        
+        nan_threshold = 0.05
+        good_features = features.loc[:, features.isnull().sum() / len(features) < nan_threshold]
+        if len(good_features.columns) < 10:
+            print(f"⚠️ Insufficient features for {symbol}")
+            return pd.DataFrame()
+        
+        # If USE_PCA, apply externally
+        if self.config.USE_PCA:
+            pca = PCA(n_components=self.config.PCA_COMPONENTS)
+            pca_features = pca.fit_transform(good_features)
+            good_features = pd.DataFrame(pca_features, index=good_features.index, columns=[f'pca_{i}' for i in range(self.config.PCA_COMPONENTS)])
+            print(f"PCA explained variance ratio: {np.sum(pca.explained_variance_ratio_):.3f}")
+        
+        print(f"✅ Generated {len(good_features.columns)} features for {symbol}")
+        return good_features
+
+    async def train_model(self, symbol: str, train_data: pd.DataFrame, val_data: pd.DataFrame) -> Tuple[torch.nn.Module, Dict[str, float]]:
+        """Enhanced training with validation, scheduler, and feature consistency."""
+        print(f"🚀 Training model for {symbol}...")
+        start_time = datetime.now()
+        
+        try:
+            train_features = await asyncio.to_thread(self.process_features, symbol, train_data)
+            if train_features.empty:
+                raise ValueError("No features generated for train data")
+            
+            val_features = await asyncio.to_thread(self.process_features, symbol, val_data)
+            if val_features.empty:
+                raise ValueError("No features generated for val data")
+            
+            # Align val_features to train_features columns
+            expected_columns = train_features.columns
+            val_features = val_features.reindex(columns=expected_columns, fill_value=0)
+            
+            # Use volatility-normalized thresholds for labeling
+            train_atr = (train_data['high'] - train_data['low']).rolling(14).mean().shift(1)
+            val_atr = (val_data['high'] - val_data['low']).rolling(14).mean().shift(1)
+            train_threshold = train_atr * 0.5
+            val_threshold = val_atr * 0.5
+            
+            # Create sequences with adaptive thresholds
+            X_train, y_train = create_sequences(train_features, train_data['close'], self.config.SEQUENCE_LENGTH)
+            X_val, y_val = create_sequences(val_features, val_data['close'], self.config.SEQUENCE_LENGTH)
+            
+            if len(X_train) == 0 or len(X_val) == 0:
+                raise ValueError("Insufficient sequences for training")
+            
+            train_loader = create_pytorch_dataloaders(train_features, train_data['close'], self.config)
+            val_loader = create_pytorch_dataloaders(val_features, val_data['close'], self.config)
+            
+            input_size = X_train.shape[-1] if len(X_train) > 0 else len(train_features.columns) - 1
+            model = create_lstm(input_size, model_type='ensemble' if self.config.USE_ENSEMBLE else 'standard', hidden_size=self.config.LSTM_HIDDEN_SIZE)
+            
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.config.LEARNING_RATE)
+            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
+            criterion = CustomTradingLoss()
+            
+            # Train loop with validation
+            best_val_acc = 0
+            for epoch in range(self.config.NUM_EPOCHS):
+                model.train()
+                train_loss = 0
+                for batch_x, batch_y in train_loader:
+                    optimizer.zero_grad()
+                    output = model(batch_x)
+                    loss = criterion(output, batch_y)
+                    loss.backward()
+                    optimizer.step()
+                    train_loss += loss.item()
+                
+                # Validation
+                model.eval()
+                val_loss = 0
+                val_correct = 0
+                with torch.no_grad():
+                    for batch_x, batch_y in val_loader:
+                        output = model(batch_x)
+                        val_loss += criterion(output, batch_y).item()
+                        pred = output.argmax(dim=1)
+                        val_correct += (pred == batch_y).sum().item()
+                
+                val_acc = val_correct / len(val_loader.dataset)
+                scheduler.step(val_loss / len(val_loader))
+                
+                if val_acc > best_val_acc:
+                    best_val_acc = val_acc
+            
+            training_time = (datetime.now() - start_time).total_seconds()
+            metrics = {
+                'final_accuracy': val_acc,
+                'final_loss': val_loss / len(val_loader),
+                'epochs_completed': self.config.NUM_EPOCHS,
+                'best_accuracy': best_val_acc,
+                'training_time': training_time
+            }
+            
+            model_path = str(self.results_dir / f"{symbol}_model.pth")
+            torch.save(model.state_dict(), model_path)
+            
+            return model, metrics
+        
+        except Exception as e:
+            print(f"❌ Training failed for {symbol}: {str(e)}")
+            return None, {'final_accuracy': 0, 'final_loss': 0, 'epochs_completed': 0, 'best_accuracy': 0, 'training_time': 0}
+
+    async def backtest_model(self, symbol: str, model: torch.nn.Module, test_data: pd.DataFrame) -> BacktestResult:
+        """Advanced backtesting with RNNTradingStrategy, walk-forward, and benchmarks."""
+        print(f"📊 Backtesting {symbol}...")
+        
+        try:
+            features = await asyncio.to_thread(self.process_features, symbol, test_data)
+            if features.empty:
+                raise ValueError("No features for backtesting")
+            
+            # Prepare backtest data - ensure proper column naming
+            # Check if columns are already properly named or need renaming
+            required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+            existing_cols = test_data.columns.tolist()
+            
+            # Debug: Print current columns
+            print(f"📊 Current columns for {symbol}: {existing_cols}")
+            
+            # Create mapping for column renaming
+            rename_map = {}
+            for req_col in required_cols:
+                # Check for lowercase version first
+                if req_col.lower() in existing_cols:
+                    rename_map[req_col.lower()] = req_col
+                # Check if already properly named
+                elif req_col not in existing_cols:
+                    print(f"⚠️ Missing column {req_col} for {symbol}")
+            
+            backtest_data = test_data.rename(columns=rename_map)
+            
+            # Ensure we have the required columns
+            missing_cols = [col for col in required_cols if col not in backtest_data.columns]
+            if missing_cols:
+                raise ValueError(f"Missing required columns: {missing_cols}")
+            
+            # Select only required columns plus features
+            backtest_data = backtest_data[required_cols]
+            backtest_data = backtest_data.join(features, how='inner').ffill().bfill()
+            
+            print(f"📊 Backtest data shape for {symbol}: {backtest_data.shape}")
+            print(f"📊 Backtest columns: {backtest_data.columns.tolist()[:10]}...")
+            
+            StrategyClass = create_rnn_strategy_class(model)
+            backtest_instance = Backtest(backtest_data, StrategyClass, cash=100_000, commission=0.001)
+            results = backtest_instance.run()
+            
+            # Walk-forward analysis
+            wf_results = perform_walk_forward_analysis(backtest_data, StrategyClass)
+            
+            # Benchmark comparison (e.g., buy-and-hold SPY) - skip for SPY itself
+            spy_results = {'Return [%]': 0}  # Default fallback
+            if symbol != 'SPY':
+                try:
+                    spy_data = await self.fetch_data('SPY')
+                    if not spy_data.empty and len(spy_data) >= len(backtest_data):
+                        # Prepare SPY data with same structure as backtest_data
+                        spy_rename_map = {col.lower(): col for col in ['Open', 'High', 'Low', 'Close', 'Volume']}
+                        spy_backtest_data = spy_data.rename(columns=spy_rename_map)
+                        spy_backtest_data = spy_backtest_data[['Open', 'High', 'Low', 'Close', 'Volume']]
+                        spy_backtest_data = spy_backtest_data.loc[backtest_data.index].ffill().bfill()
+                        
+                        if not spy_backtest_data.empty:
+                            spy_backtest = Backtest(spy_backtest_data, StrategyClass, cash=100_000, commission=0.001)
+                            spy_results = spy_backtest.run()
+                except Exception as e:
+                    print(f"⚠️ SPY benchmark failed: {str(e)}")
+                    spy_results = {'Return [%]': 0}
+            
+            # Monte Carlo simulation (simple version: resample trades)
+            if len(results._trades) > 0:
+                trade_returns = results._trades['ReturnPct'].values
+                mc_returns = [np.prod(1 + np.random.choice(trade_returns, len(trade_returns))) - 1 for _ in range(1000)]
+                mc_avg = np.mean(mc_returns)
+            else:
+                mc_avg = 0
+            
+            # Compile results
+            return BacktestResult(
+                symbol=symbol,
+                success=True,
+                total_return=results['Return [%]'] / 100,
+                annual_return=(results['Return [%]'] / 100) / (len(backtest_data) / 252),
+                sharpe_ratio=results['Sharpe Ratio'],
+                max_drawdown=results['Max. Drawdown [%]'] / 100,
+                win_rate=results['Win Rate [%]'] / 100 if 'Win Rate [%]' in results else 0,
+                total_trades=len(results._trades),
+                profitable_trades=len(results._trades[results._trades['ReturnPct'] > 0]),
+                avg_trade_return=results._trades['ReturnPct'].mean() if len(results._trades) > 0 else 0,
+                volatility=results._trades['ReturnPct'].std() * np.sqrt(252) if len(results._trades) > 0 else 0,
+                calmar_ratio=results['Calmar Ratio'] if 'Calmar Ratio' in results else 0
+            )
+        
+        except Exception as e:
+            print(f"❌ Backtest failed for {symbol}: {str(e)}")
+            return BacktestResult(symbol=symbol, success=False, error_message=str(e), total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0)
+
+    async def process_symbol(self, symbol: str, force_cache_refresh: bool = False) -> Tuple[TrainingResult, BacktestResult]:
+        """Process single symbol with training and backtesting, with cache refresh option."""
+        if force_cache_refresh:
+            for cache_file in self.cache_dir.glob(f"*{symbol}*.joblib"):
+                cache_file.unlink()
+            print(f"🔄 Cache refreshed for {symbol}")
+        
+        data = await self.fetch_data(symbol)
+        if data.empty:
+            return (TrainingResult(symbol=symbol, success=False, error_message="No data", training_time=0, final_accuracy=0, final_loss=0, epochs_completed=0, best_accuracy=0, model_path="", feature_columns=[]),
+                    BacktestResult(symbol=symbol, success=False, error_message="No data", total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0))
+        
+        # Enhanced splits: 70% train, 15% val, 15% test
+        train_idx = int(len(data) * 0.7)
+        val_idx = int(len(data) * 0.85)
+        train_data, val_data, test_data = data.iloc[:train_idx], data.iloc[train_idx:val_idx], data.iloc[val_idx:]
+        
+        model, metrics = await self.train_model(symbol, train_data, val_data)
+        training_result = TrainingResult(
+            symbol=symbol,
+            success=bool(model),
+            training_time=metrics.get('training_time', 0),
+            final_accuracy=metrics['final_accuracy'],
+            final_loss=metrics['final_loss'],
+            epochs_completed=metrics['epochs_completed'],
+            best_accuracy=metrics['best_accuracy'],
+            model_path=str(self.results_dir / f"{symbol}_model.pth") if model else "",
+            feature_columns=list(self.process_features(symbol, train_data).columns),
+            error_message="" if model else "Training failed"
+        )
+        
+        backtest_result = await self.backtest_model(symbol, model, test_data) if model else BacktestResult(
+            symbol=symbol, success=False, error_message="No model", total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0
+        )
+        
+        return training_result, backtest_result
+
+    async def run_comprehensive_analysis(self, symbols: List[str] = None, force_cache_refresh: bool = False) -> ComprehensiveReport:
+        """Run full analysis with parallel symbol processing and cache management."""
+        if symbols is None:
+            symbols = self.config.SYMBOLS
+        
+        print(f"🎯 Analyzing {len(symbols)} assets: {', '.join(symbols)}")
+        start_time = datetime.now()
+        
+        # Parallel processing with asyncio.gather
+        tasks = [self.process_symbol(symbol, force_cache_refresh) for symbol in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        training_results = []
+        backtest_results = []
+        for res in results:
+            if isinstance(res, Exception):
+                print(f"⚠️ Error in processing: {str(res)}")
+                continue
+            tr, br = res
+            training_results.append(tr)
+            backtest_results.append(br)
+        
+        total_time = (datetime.now() - start_time).total_seconds()
+        
+        report = ComprehensiveReport(
+            timestamp=datetime.now().isoformat(),
+            total_assets=len(symbols),
+            successful_trainings=sum(1 for r in training_results if r.success),
+            successful_backtests=sum(1 for r in backtest_results if r.success),
+            total_training_time=total_time,
+            system_info=self._get_system_info(),
+            training_results=training_results,
+            backtest_results=backtest_results,
+            summary_statistics=self._calculate_summary_statistics(training_results, backtest_results)
+        )
+        
+        self._save_reports(report)
+        return report
+
+    def _get_system_info(self) -> Dict[str, Any]:
+        return {
+            'cuda_available': torch.cuda.is_available(),
+            'cuda_device_count': torch.cuda.device_count(),
+            'pytorch_version': torch.__version__,
+            'device': torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU',
+            'sequence_length': self.config.SEQUENCE_LENGTH,
+            'lstm_hidden_size': self.config.LSTM_HIDDEN_SIZE,
+            'learning_rate': self.config.LEARNING_RATE,
+            'num_epochs': self.config.NUM_EPOCHS,
+            'use_ensemble': self.config.USE_ENSEMBLE,
+            'use_pca': self.config.USE_PCA
+        }
+
+    def _calculate_summary_statistics(self, training_results: List[TrainingResult], backtest_results: List[BacktestResult]) -> Dict[str, float]:
+        succ_train = [r for r in training_results if r.success]
+        succ_back = [r for r in backtest_results if r.success]
+        return {
+            'avg_training_time': np.mean([r.training_time for r in succ_train]) if succ_train else 0,
+            'avg_final_accuracy': np.mean([r.final_accuracy for r in succ_train]) if succ_train else 0,
+            'avg_total_return': np.mean([r.total_return for r in succ_back]) if succ_back else 0,
+            'avg_annual_return': np.mean([r.annual_return for r in succ_back]) if succ_back else 0,
+            'avg_sharpe_ratio': np.mean([r.sharpe_ratio for r in succ_back]) if succ_back else 0,
+            'avg_max_drawdown': np.mean([r.max_drawdown for r in succ_back]) if succ_back else 0,
+            'avg_win_rate': np.mean([r.win_rate for r in succ_back]) if succ_back else 0,
+        }
+
+    def _save_reports(self, report: ComprehensiveReport):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        json_path = self.results_dir / f"ultimate_report_{timestamp}.json"
+        md_path = self.results_dir / f"ultimate_report_{timestamp}.md"
+        
+        with open(json_path, 'w') as f:
+            json.dump(asdict(report), f, indent=2, default=str)
+        
+        with open(md_path, 'w') as f:
+            f.write("# Ultimate Trading System Report\n\n")
+            f.write(f"**Generated:** {report.timestamp}\n")
+            f.write(f"**Assets Processed:** {report.total_assets}\n")
+            f.write(f"**Successful Trainings:** {report.successful_trainings}\n")
+            f.write(f"**Successful Backtests:** {report.successful_backtests}\n")
+            f.write(f"**Total Runtime:** {report.total_training_time:.2f}s\n\n")
+            
+            f.write("## System Information\n")
+            for k, v in report.system_info.items():
+                f.write(f"- {k.title()}: {v}\n")
+            f.write("\n")
+            
+            f.write("## Summary Statistics\n")
+            for k, v in report.summary_statistics.items():
+                f.write(f"- {k.replace('_', ' ').title()}: {v:.4f}\n")
+            f.write("\n")
+            
+            f.write("## Training Results\n")
+            f.write("| Symbol | Success | Time (s) | Accuracy | Loss | Epochs | Best Acc |\n")
+            f.write("|--------|---------|----------|----------|------|--------|----------|\n")
+            for r in report.training_results:
+                status = "✅" if r.success else "❌"
+                f.write(f"| {r.symbol} | {status} | {r.training_time:.2f} | {r.final_accuracy:.4f} | {r.final_loss:.4f} | {r.epochs_completed} | {r.best_accuracy:.4f} |\n")
+            f.write("\n")
+            
+            f.write("## Backtest Results\n")
+            f.write("| Symbol | Success | Total Ret | Ann Ret | Sharpe | Max DD | Win Rate | Trades |\n")
+            f.write("|--------|---------|-----------|---------|--------|--------|----------|--------|\n")
+            for r in report.backtest_results:
+                status = "✅" if r.success else "❌"
+                f.write(f"| {r.symbol} | {status} | {r.total_return:.4f} | {r.annual_return:.4f} | {r.sharpe_ratio:.4f} | {r.max_drawdown:.4f} | {r.win_rate:.4f} | {r.total_trades} |\n")
+        
+        print(f"💾 Reports saved: {json_path}, {md_path}")
 
 async def main():
-    config = TradingConfig()
+    """Main entrypoint with cache refresh option."""
+    system = UltimateTradingSystem()
+    report = await system.run_comprehensive_analysis(force_cache_refresh=True)  # Force cache refresh for initial run
     
-    # Apply environment variable overrides for training parameters
-    if 'BATCH_SIZE' in os.environ:
-        batch_size = int(os.environ['BATCH_SIZE'])
-        print(f"Using custom batch size from environment: {batch_size}")
-        # Will be picked up by create_pytorch_dataloaders
-    
-    print(f"SYMBOLS from config: {config.SYMBOLS}")
-    
-    # Set the default tensor type to float32 for better efficiency
-    torch.set_default_tensor_type(torch.FloatTensor)
-    BENCHMARK_SYMBOL = 'SPY'
-    trading_symbols = [s for s in config.SYMBOLS if s != BENCHMARK_SYMBOL]
-    if not trading_symbols:
-        print(
-            "No symbols to trade and backtest. "
-            f"The SYMBOLS list in your config must contain at least one symbol "
-            f"other than the benchmark ('{BENCHMARK_SYMBOL}')."
-        )
-        print("Execution stopped.")
-        return
-    config.USE_UNCERTAINTY = True
-    config.ENHANCED_FEATURES = False
-    # 1. Data acquisition and preprocessing
-    print("📊 Acquiring market data from Yahoo Finance for extended history...")
-    market_data = {}
-    start_date = '2010-01-01'
-    end_date = pd.Timestamp.now().strftime('%Y-%m-%d')
-    for symbol in config.SYMBOLS:
-        yf_data = yf.download(symbol, start=start_date, end=end_date)
-        if isinstance(yf_data.columns, pd.MultiIndex):
-            yf_data.columns = yf_data.columns.get_level_values(0)
-        yf_data = yf_data.drop(columns=['Adj Close'], errors='ignore')
-        yf_data = yf_data.rename(columns={
-            'Open': 'open', 'High': 'high', 'Low': 'low', 
-            'Close': 'close', 'Volume': 'volume'
-        })
-        yf_data['trade_count'] = np.nan
-        yf_data['vwap'] = (yf_data['open'] + yf_data['high'] + yf_data['low'] + yf_data['close']) / 4
-
-        # Validate data
-        if not validate_data(yf_data, symbol):
-            continue
-
-        extended_data = yf_data
-        extended_data['trade_count'] = extended_data['trade_count'].fillna(extended_data['trade_count'].median())
-        extended_data = extended_data.ffill().bfill()
-        market_data[symbol] = extended_data
-        print(f"✅ Fetched and extended {symbol}: {len(extended_data)} rows from {extended_data.index.min()} to {extended_data.index.max()}")
-
-    # Standardize SPY data
-    if 'SPY' in market_data:
-        spy_data = market_data['SPY']
-        print(f"✅ Standardized SPY data: {len(spy_data)} rows")
-    else:
-        print("⚠️ No SPY data; fallback to empty DataFrame")
-        spy_data = pd.DataFrame()
-
-    # 2. Feature engineering
-    print("🔧 Engineering features...")
-    # Use PCA to reduce dimensionality from ~160 features to manageable size
-    feature_engine = AdvancedFeatureEngine(
-        use_pca=config.USE_PCA, 
-        n_pca_components=config.PCA_COMPONENTS
-    )
-    print(f"Feature engineering: PCA={'enabled' if config.USE_PCA else 'disabled'}, components={config.PCA_COMPONENTS}")
-    processed_data = {}
-    for symbol in market_data:
-        # Caching for feature generation
-        feature_deps = ['ai/features/feature_engine.py']
-        feature_hash = get_cache_hash(symbol, market_data[symbol], config, feature_deps)
-        feature_cache_path = Path(os.getenv("MODEL_CACHE_DIR", project_root / "model_res" / "cache")) / f"features_{symbol}_{feature_hash}.pkl"
-        
-        if feature_cache_path.exists():
-            print(f"✅ Loading cached features for {symbol}...")
-            with open(feature_cache_path, 'rb') as f:
-                import pickle
-                features = pickle.load(f)
-        else:
-            print(f"🔧 Engineering features for {symbol}...")
-            features = feature_engine.create_comprehensive_features(
-                market_data[symbol], symbol, spy_data)
-            with open(feature_cache_path, 'wb') as f:
-                import pickle
-                pickle.dump(features, f)
-
-        if not features.empty and len(features) > config.SEQUENCE_LENGTH * 2:
-            nan_threshold = 0.05
-            good_features = features.loc[:, features.isnull().sum() / len(features) < nan_threshold]
-            if len(good_features.columns) < 10:
-                print(f"Warning: Insufficient valid features for {symbol}, skipping...")
-                continue
-            processed_data[symbol] = good_features
-            print(f"✅ {symbol}: {len(good_features)} samples, {len(good_features.columns)} features")
-        else:
-            print(f"Warning: Insufficient features for {symbol}, skipping...")
-
-    # 3. Model training
-    project_root = Path(os.getenv("PROJECT_PATH", "."))
-    cache_dir = Path(os.environ.get("MODEL_CACHE_DIR", project_root / "model_res" / "cache"))
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    print("🤖 Training RNN models...")
-    models = {}
-    for symbol in processed_data:
-        features = processed_data[symbol]
-        if len(features) < config.SEQUENCE_LENGTH * 3:
-            print(f"Warning: Insufficient data for {symbol} after feature engineering, skipping...")
-            continue
-        
-        split_idx = int(len(features) * 0.7)
-        train_data = features.iloc[:split_idx]
-        test_data = features.iloc[split_idx:]
-        holdout_idx = int(len(test_data) * 0.8)
-        val_data = test_data.iloc[:holdout_idx]
-        holdout_data = test_data.iloc[holdout_idx:]
-        print(f"Data splits for {symbol}: train={len(train_data)}, val={len(val_data)}, holdout={len(holdout_data)}")
-
-        model_type = 'ensemble' if config.USE_ENSEMBLE else 'standard'
-        
-        # Caching for model training
-        model_deps = [
-            'ai/agent/pytorch_system.py', 
-            'ai/models/lstm.py', 
-            'ai/clean_data/pytorch_data.py',
-            'ai/config/settings.py'
-        ]
-        model_hash = get_cache_hash(symbol, train_data, config, model_deps)
-        model_path = cache_dir / f"model_{symbol}_{model_type}_{model_hash}.pth"
-
-        if model_path.exists():
-            print(f"✅ Loading cached model for {symbol}...")
-            trained_model = create_lstm(train_data.shape[1] - 1, model_type)
-            trained_model.load_state_dict(torch.load(model_path))
-        else:
-            print(f"🏋️ Training new model for {symbol}...")
-            trained_model = train_lstm_model(
-                train_data, symbol, config, 
-                num_epochs=config.NUM_EPOCHS, 
-                model_type=model_type
-            )
-            if trained_model:
-                torch.save(trained_model.state_dict(), model_path)
-
-        if trained_model is not None:
-            models[symbol] = trained_model
-        else:
-            print(f"❌ Model training failed for {symbol}.")
-
-    # 4. Backtesting validation with walk-forward
-    print("📈 Running comprehensive backtests with walk-forward optimization...")
-    backtest_results = {}
-    for symbol in trading_symbols:
-        if symbol not in processed_data or symbol not in models:
-            print(f"Skipping backtest for {symbol}: no processed data or model available")
-            continue
-        print(f"Starting backtest iteration for {symbol}")
-
-        # Extend data with yfinance if needed
-        try:
-            yf_data = yf.download(symbol, start=market_data[symbol].index.min() - pd.Timedelta(days=365), end=market_data[symbol].index.max())
-            if not yf_data.empty:
-                if isinstance(yf_data.columns, pd.MultiIndex):
-                    yf_data.columns = yf_data.columns.get_level_values(0)
-                yf_data = yf_data.drop(columns=['Adj Close'], errors='ignore')
-                yf_data = yf_data.rename(columns={
-                    'Open': 'open', 'High': 'high', 'Low': 'low', 
-                    'Close': 'close', 'Volume': 'volume'
-                })
-                if validate_data(yf_data, symbol):
-                    extended_data = pd.concat([yf_data, market_data[symbol]]).sort_index().drop_duplicates(keep='last')
-                    market_data[symbol] = extended_data
-                    print(f"Extended {symbol} data with yfinance: {len(extended_data)} rows")
-                else:
-                    print(f"Skipping backtest for {symbol}: extended data invalid")
-                    continue
-        except Exception as e:
-            print(f"yfinance extension failed for {symbol}: {e}")
-
-        # Recompute features
-        features = feature_engine.create_comprehensive_features(market_data[symbol], symbol, spy_data)
-        good_features = features.loc[:, features.isnull().sum() / len(features) < 0.05]
-        if len(good_features.columns) < 10:
-            print(f"Skipping backtest for {symbol}: insufficient valid features")
-            continue
-        processed_data[symbol] = good_features
-        print(f"Recomputed features for {symbol}: {len(good_features)} rows")
-
-        # Split data
-        split_idx = int(len(good_features) * 0.8)
-        train_data = good_features.iloc[:split_idx]
-        test_data = good_features.iloc[split_idx:]
-        holdout_idx = int(len(test_data) * 0.8)
-        val_data = test_data.iloc[:holdout_idx]
-        holdout_data = test_data.iloc[holdout_idx:]
-        print(f"Data splits for {symbol}: train={len(train_data)}, val={len(val_data)}, holdout={len(holdout_data)}")
-
-        # Walk-forward optimization
-        wf_results = perform_walk_forward_analysis(val_data, create_strategy_class(models[symbol]), train_window=252, test_window=63)
-        if wf_results.empty:
-            print(f"No walk-forward results for {symbol} due to insufficient data")
-            continue
-
-        print(f"Walk-forward results for {symbol}: Avg Return {wf_results['return'].mean():.1f}%")
-
-        # Prepare holdout data for backtesting
-        ohlc_data_raw = market_data[symbol].loc[holdout_data.index]
-        ohlc_data_raw = ohlc_data_raw.loc[~ohlc_data_raw.index.duplicated(keep='last')]
-        features_only = holdout_data.drop(columns=['close'], errors='ignore')
-        features_only = features_only.loc[~features_only.index.duplicated(keep='last')]
-        combined_data = ohlc_data_raw[['open', 'high', 'low', 'close', 'volume']].join(features_only, how='inner')
-        combined_data = combined_data.loc[~combined_data.index.duplicated(keep='last')]
-        combined_data.ffill(inplace=True)
-        combined_data.bfill(inplace=True)
-        print(f"Combined holdout data for {symbol}: {len(combined_data)} rows")
-
-        if len(combined_data) < 50:
-            print(f"Skipping backtest for {symbol}: holdout data too short (<50 rows)")
-            continue
-
-        if not validate_data(combined_data, symbol, min_rows=50):
-            print(f"Skipping backtest for {symbol}: invalid holdout data")
-            continue
-
-        # Rename columns for backtesting library
-        backtest_data = combined_data.rename(columns={
-            'open': 'Open', 'high': 'High', 'low': 'Low', 
-            'close': 'Close', 'volume': 'Volume'
-        })
-
-        StrategyClass = create_strategy_class(models[symbol])
-        try:
-            bt = Backtest(backtest_data, StrategyClass, cash=100_000, commission=0.001)
-            results = bt.run()
-            backtest_results[symbol] = {'backtest_results': results, 'wf_results': wf_results}
-            print(f"\n--- Improved Results for {symbol} ---")
-            print(f"Return: {results['Return [%]']:.1f}%")
-            print(f"Sharpe: {results['Sharpe Ratio']:.2f}")
-            print(f"Max Drawdown: {results['Max. Drawdown [%]']:.1f}%")
-            print(f"Trades: {len(results._trades) if hasattr(results, '_trades') else 0}")
-        except Exception as e:
-            print(f"Backtest failed for {symbol}: {e}")
-            continue
-
-        # Plotting
-        project_root = Path(os.getenv("PROJECT_PATH", "."))
-        plot_filename = project_root / "model_res" / "backtests" / f"backtest_{symbol}.html"
-        plot_filename.parent.mkdir(parents=True, exist_ok=True)
-        bt.plot(filename=str(plot_filename), open_browser=False)
-
-    # Performance summary
-    print("\n" + "="*100)
-    print("📊 PERFORMANCE SUMMARY")
-    print("="*100)
-    total_positive = 0
-    total_sharpe_above_05 = 0
-    max_dd_list = []
-    for symbol, result_dict in backtest_results.items():
-        if 'backtest_results' not in result_dict:
-            continue
-        results = result_dict['backtest_results']
-        ret = results.get('Return [%]', 0)
-        sharpe = results.get('Sharpe Ratio', 0)
-        max_dd = results.get('Max. Drawdown [%]', 0)
-        if ret > 0:
-            total_positive += 1
-        if sharpe > 0.5:
-            total_sharpe_above_05 += 1
-        max_dd_list.append(abs(max_dd))
-        print(f"{symbol:>6} | Return: {ret:>6.1f}% | Sharpe: {sharpe:>5.2f} | MaxDD: {max_dd:>6.1f}%")
-
-    print("\nSUMMARY:")
-    num_results = len(backtest_results)
-    if num_results > 0:
-        positive_pct = (total_positive / num_results) * 100
-        sharpe_pct = (total_sharpe_above_05 / num_results) * 100
-        print(f"Positive Returns: {total_positive}/{num_results} ({positive_pct:.1f}%)")
-        print(f"Sharpe > 0.5: {total_sharpe_above_05}/{num_results} ({sharpe_pct:.1f}%)")
-    else:
-        print("Positive Returns: 0/0")
-        print("Sharpe > 0.5: 0/0")
-
-    if max_dd_list:
-        avg_max_dd = np.mean(max_dd_list)
-        worst_max_dd = max(max_dd_list)
-        print(f"Average Max Drawdown: {avg_max_dd:.1f}%")
-        print(f"Worst Max Drawdown: {worst_max_dd:.1f}%")
-        if worst_max_dd < 25:
-            print("🎯 MAJOR IMPROVEMENT: Maximum drawdown under 25%!")
-    else:
-        print("Average Max Drawdown: N/A")
-        print("Worst Max Drawdown: N/A")
-    print("="*100)
-
-def run_main():
-    asyncio.run(main())
+    print("\n🎉 Analysis Complete!")
+    print(f"✅ Trainings: {report.successful_trainings}/{report.total_assets}")
+    print(f"✅ Backtests: {report.successful_backtests}/{report.total_assets}")
+    print(f"⏱️ Runtime: {report.total_training_time:.2f}s")
+    print(f"📊 Avg Accuracy: {report.summary_statistics['avg_final_accuracy']:.4f}")
+    print(f"📈 Avg Ann Return: {report.summary_statistics['avg_annual_return']:.4f}")
+    print(f"📉 Avg Sharpe: {report.summary_statistics['avg_sharpe_ratio']:.4f}")
 
 if __name__ == "__main__":
     asyncio.run(main())
