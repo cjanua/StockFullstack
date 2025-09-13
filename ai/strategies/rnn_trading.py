@@ -45,6 +45,8 @@ class RNNTradingStrategy(Strategy):
     volatility_lookback = 20
     regime_lookback = 60
     trend_confirmation_period = 5
+    
+    correlated_pairs = {'TQQQ': ['SOXL'], 'SOXL': ['TQQQ'], 'NVDA': ['AMD'], 'AMD': ['NVDA']}
 
     def init(self):
         super().init()
@@ -54,11 +56,15 @@ class RNNTradingStrategy(Strategy):
         self.regime_indicator = self._calculate_market_regime()
         self.volatility_indicator = self._calculate_volatility_regime()
         self.trend_indicator = self._calculate_trend_strength()
+        # Correlation filter
+        symbol = self._data.name if hasattr(self._data, 'name') else 'unknown'
+        if symbol in self.correlated_pairs:
+            print(f"⚠️ Correlation filter active for {symbol}: Avoid positions if paired asset signals conflict")
         # INIT ATR indicator
         self.data.ATR = self.I(
             atr_indicator,
-            self.data.Open, self.data.High, self.data.Low, self.data.Close,
-            self.data.Volume, period=14
+            self.data.open, self.data.high, self.data.low, self.data.close,
+            self.data.volume, period=14
         )
 
         # Performance tracking
@@ -170,7 +176,7 @@ class RNNTradingStrategy(Strategy):
             return 0.0
 
         # Risk is the potential loss from stop-loss
-        position_value = abs(self.position.size * self.data.Close[-1])
+        position_value = abs(self.position.size * self.data.close[-1])
         stop_distance = self.stop_loss_pct
         risk_amount = position_value * stop_distance
 
@@ -178,10 +184,10 @@ class RNNTradingStrategy(Strategy):
 
 
     def _get_prediction(self):
-        """Get model prediction with error handling (same as before)."""
+        """Get model prediction with error handling and ensemble support."""
         try:
-            # Extract features (excluding OHLCV)
-            ohlcv_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            # Extract features (excluding OHLCV) - use lowercase
+            ohlcv_columns = ['open', 'high', 'low', 'close', 'volume']
             feature_cols = [col for col in self.data.df.columns if col not in ohlcv_columns]
 
             if len(feature_cols) == 0:
@@ -199,13 +205,21 @@ class RNNTradingStrategy(Strategy):
                 # Move tensor to same device as model
                 device = next(self.rnn_model.parameters()).device
                 features_tensor = torch.FloatTensor(features).unsqueeze(0).to(device)
-                if features_tensor.shape[-1] != self.rnn_model.input_size:
+                if features_tensor.shape[-1] != getattr(self.rnn_model, 'input_size', features_tensor.shape[-1]):
                     return None
-                prediction = self.rnn_model(features_tensor)
-                probabilities = prediction.cpu().numpy()[0]  # Move back to CPU for numpy
+                
+                # Ensemble prediction averaging if model is EnsembleLSTM
+                if hasattr(self.rnn_model, 'models'):  # Ensemble model
+                    prediction = self.rnn_model(features_tensor)  # EnsembleLSTM handles averaging
+                    probabilities = prediction.cpu().numpy()[0]
+                    confidence = np.max(probabilities)
+                else:
+                    # Single model prediction
+                    prediction = self.rnn_model(features_tensor)
+                    probabilities = prediction.cpu().numpy()[0]
+                    confidence = np.max(probabilities)
 
                 action = np.argmax(probabilities)
-                confidence = probabilities[action]
 
                 # Penalize low-conviction predictions
                 entropy = -np.sum(probabilities * np.log(probabilities + 1e-8))
@@ -287,7 +301,7 @@ class RNNTradingStrategy(Strategy):
 
     def _calculate_market_regime(self):
         """Detect market regime using multiple indicators."""
-        closes = pd.Series(self.data.Close)
+        closes = pd.Series(self.data.close)
         sma_10 = closes.rolling(10).mean()
         sma_30 = closes.rolling(30).mean()
 
@@ -307,7 +321,7 @@ class RNNTradingStrategy(Strategy):
 
     def _calculate_volatility_regime(self):
         """Detect volatility regime."""
-        returns = pd.Series(self.data.Close).pct_change()
+        returns = pd.Series(self.data.close).pct_change()
         volatility = returns.rolling(self.volatility_lookback).std()
         vol_ma = volatility.rolling(40).mean()
 
@@ -367,13 +381,18 @@ class RNNTradingStrategy(Strategy):
         if abs(trend_strength) > 0.25:
             kelly_fraction *= 1.15  # Size up in strong trends
 
-        # Volatility adjustment
+        # Volatility adjustment - scaled for high/low vol
         try:
-            recent_returns = pd.Series(self.data.Close[-20:]).pct_change().dropna()
+            recent_returns = pd.Series(self.data.close[-20:]).pct_change().dropna()
             if len(recent_returns) > 5:
                 volatility = recent_returns.std()
-                vol_penalty = max(0.6, 1.0 - volatility * 12)  # Harsher volatility penalty
-                kelly_fraction *= vol_penalty
+                # vol_penalty = max(0.6, 1.0 - volatility * 12)  # Harsher volatility penalty
+                # kelly_fraction *= vol_penalty
+                if volatility > 0.02:  # High vol cap at 0.20
+                    vol_fraction = 0.20
+                else:  # Low vol expand to 0.40
+                    vol_fraction = 0.40
+                kelly_fraction = min(kelly_fraction, vol_fraction)
         except Exception as _:
             kelly_fraction *= 0.9  # Conservative fallback
 
@@ -387,7 +406,7 @@ class RNNTradingStrategy(Strategy):
 
     def _enter_position(self, action, confidence, regime, trend_strength):
         """Enhanced entry logic with regime filtering."""
-        current_price = self.data.Close[-1]
+        current_price = self.data.close[-1]
         if action == 1:
             return
         
@@ -399,6 +418,7 @@ class RNNTradingStrategy(Strategy):
             threshold_adjust = 1.05  # Tighten when underperforming
         else:
             threshold_adjust = 1.0
+
         
         if regime == 'bull' and trend_strength > 0.15:
             threshold = self.low_confidence_threshold * 0.9 * threshold_adjust
@@ -519,7 +539,7 @@ class RNNTradingStrategy(Strategy):
 
     def _calculate_trend_strength(self):
         """Calculate trend strength indicator."""
-        closes = pd.Series(self.data.Close)
+        closes = pd.Series(self.data.close)
 
         # Multiple timeframe trend analysis
         ema_12 = closes.ewm(span=12).mean()
@@ -593,7 +613,7 @@ def run_comprehensive_backtest(data, strategy_class, plt_file):
     }
 
 def perform_walk_forward_analysis(data, strategy_class,
-                                 train_window=180, test_window=45):
+                                 train_window=180, test_window=30):
     """Walk-forward analysis with parameter optimization."""
     results = []
 

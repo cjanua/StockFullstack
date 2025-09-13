@@ -33,21 +33,27 @@ services:
     container_name: ai-training-stockfullstack
     restart: unless-stopped
     environment:
-      - LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/opt/rocm/lib:$LD_LIBRARY_PATH
+      - PATH=/opt/rocm/bin:$PATH
+      - ROCM_PATH=/opt/rocm
+      - HIP_VISIBLE_DEVICES=all
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0  # For RX 7800 XT compatibility
     volumes:
       - .:/workspace  # Mount the entire project directory
-      - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro  # WSL-specific library
-      - /opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1:ro  # WSL-compatible HSA runtime
-      - /usr/lib/wsl:/usr/lib/wsl  # Full WSL libraries for fallback
+      - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro  # WSL GPU libraries
+      - /opt/rocm:/opt/rocm:ro  # ROCm installation (if available on host)
     devices:
-      - /dev/dxg:/dev/dxg
+      - /dev/dxg:/dev/dxg  # WSL GPU device
+      - /dev/kfd:/dev/kfd  # ROCm kernel driver (if available)
     cap_add:
       - SYS_PTRACE
     security_opt:
       - seccomp=unconfined
     group_add:
       - video
+      - render
     ipc: host
+    privileged: true  # For GPU access
     shm_size: 16g
     networks:
       - stock_network

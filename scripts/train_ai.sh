@@ -92,4 +92,4 @@ fi
 ENV_VARS+="PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128 "
 
 echo "Starting training with optimized settings..."
-docker exec -it "$CONTAINER_NAME" /bin/bash -c "${ENV_VARS} python ai/main.py" > ./ai.log 2>&1
+docker exec -it "$CONTAINER_NAME" /bin/bash -c "cd /workspace && ${ENV_VARS} python ai/main.py" > ./ai.log 2>&1

@@ -22,8 +22,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from dataclasses import dataclass, asdict
 from dotenv import load_dotenv
 from backtesting import Backtest
-from sklearn.decomposition import PCA  # Import PCA for external handling if needed
-
+from sklearn.decomposition import PCA
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -77,6 +76,7 @@ class BacktestResult:
     avg_trade_return: float
     volatility: float
     calmar_ratio: float
+    walk_forward_sharpe: float = 0.0
     error_message: str = ""
 
 @dataclass
@@ -103,22 +103,80 @@ class UltimateTradingSystem:
         self.cache_dir = self.results_dir / "cache"
         self.cache_dir.mkdir(exist_ok=True)
         
+        # Device detection for GPU acceleration
+        self.device = self._setup_device()
+        print(f"🚀 Using device: {self.device}")
+        
         # Suppress warnings
         warnings.filterwarnings("ignore", category=UserWarning)
         warnings.filterwarnings("ignore", category=FutureWarning)
+    
+    def _setup_device(self):
+        """Setup the best available device (CUDA, ROCm, or CPU)."""
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            try:
+                device = torch.device("cuda")
+                print(f"✅ CUDA available with {torch.cuda.device_count()} device(s)")
+                print(f"   Using device: {torch.cuda.get_device_name(0)}")
+                return device
+            except Exception as e:
+                print(f"⚠️ CUDA detected but failed to initialize: {e}")
+        
+        if hasattr(torch, 'version') and hasattr(torch.version, 'hip') and torch.version.hip is not None:
+            try:
+                # Test if ROCm actually works
+                test_tensor = torch.tensor([1.0]).cuda()
+                device = torch.device("cuda")  # ROCm uses cuda API
+                print("✅ ROCm/HIP available and working, using AMD GPU acceleration")
+                return device
+            except Exception as e:
+                print(f"⚠️ ROCm detected but no compatible GPU found: {e}")
+        
+        device = torch.device("cpu")
+        print("⚠️ No GPU acceleration available, optimizing for CPU training")
+        print("💡 Consider enabling GPU passthrough in WSL2 or using a system with dedicated GPU")
+        
+        # Optimize CPU performance
+        import os
+        cpu_cores = os.cpu_count()
+        torch.set_num_threads(min(cpu_cores, 8))  # Use up to 8 cores to avoid oversubscription
+        print(f"🧠 Using {torch.get_num_threads()}/{cpu_cores} CPU threads for training")
+        
+        # Optimize training config for CPU
+        if hasattr(self, 'config'):
+            self.config.NUM_EPOCHS = min(self.config.NUM_EPOCHS, 50)  # Reduce epochs for CPU
+            print(f"🔧 Reduced epochs to {self.config.NUM_EPOCHS} for CPU training")
+        
+        return device
 
     async def fetch_data(self, symbol: str) -> pd.DataFrame:
         """Fetch and validate data asynchronously."""
         print(f"📊 Fetching data for {symbol}...")
-        data = await asyncio.to_thread(
-            self.data_manager.yahoo_loader.get_historical_data,
-            [symbol],
-            lookback_days=self.config.LOOKBACK_DAYS
-        )
-        data = data.get(symbol, pd.DataFrame())
+        data_dict = await self.data_manager.get_combined_data([symbol])
         
-        if data.empty or not validate_data(data, symbol):
+        if symbol not in data_dict:
+            print(f"⚠️ No data found for {symbol}")
+            return pd.DataFrame()
+            
+        symbol_data = data_dict[symbol]
+        training_data = symbol_data.get('training', pd.DataFrame())
+        testing_data = symbol_data.get('testing', pd.DataFrame())
+        
+        # Combine training and testing data
+        if not training_data.empty and not testing_data.empty:
+            data = pd.concat([training_data, testing_data]).sort_index()
+        elif not training_data.empty:
+            data = training_data
+        elif not testing_data.empty:
+            data = testing_data
+        else:
+            data = pd.DataFrame()
+        if data is None or data.empty:
             print(f"⚠️ Invalid or empty data for {symbol}")
+            return pd.DataFrame()
+        
+        if not validate_data(data, symbol):
+            print(f"⚠️ Invalid data for {symbol}")
             return pd.DataFrame()
         
         data = data.ffill().bfill()
@@ -129,20 +187,13 @@ class UltimateTradingSystem:
     def process_features(self, symbol: str, data: pd.DataFrame) -> pd.DataFrame:
         """Process features with caching and external PCA if enabled."""
         print(f"🔧 Engineering features for {symbol}...")
-        features = self.feature_engine.create_comprehensive_features(data, symbol)
-        
+        pca = self.data_manager.get_pca() if self.config.USE_PCA else None
+        features = self.feature_engine.create_comprehensive_features(data, symbol, market_context_data=None, pca=pca)
         nan_threshold = 0.05
-        good_features = features.loc[:, features.isnull().sum() / len(features) < nan_threshold]
+        good_features = features.loc[:, features.isnull().sum() / len(features) < nan_threshold] if not features.empty else pd.DataFrame()
         if len(good_features.columns) < 10:
             print(f"⚠️ Insufficient features for {symbol}")
             return pd.DataFrame()
-        
-        # If USE_PCA, apply externally
-        if self.config.USE_PCA:
-            pca = PCA(n_components=self.config.PCA_COMPONENTS)
-            pca_features = pca.fit_transform(good_features)
-            good_features = pd.DataFrame(pca_features, index=good_features.index, columns=[f'pca_{i}' for i in range(self.config.PCA_COMPONENTS)])
-            print(f"PCA explained variance ratio: {np.sum(pca.explained_variance_ratio_):.3f}")
         
         print(f"✅ Generated {len(good_features.columns)} features for {symbol}")
         return good_features
@@ -153,6 +204,9 @@ class UltimateTradingSystem:
         start_time = datetime.now()
         
         try:
+            print(f"🐛 DEBUG: Starting train_model for {symbol}")
+            print(f"🐛 DEBUG: train_data shape: {train_data.shape}, columns: {list(train_data.columns)}")
+            print(f"🐛 DEBUG: val_data shape: {val_data.shape}, columns: {list(val_data.columns)}")
             train_features = await asyncio.to_thread(self.process_features, symbol, train_data)
             if train_features.empty:
                 raise ValueError("No features generated for train data")
@@ -160,11 +214,24 @@ class UltimateTradingSystem:
             val_features = await asyncio.to_thread(self.process_features, symbol, val_data)
             if val_features.empty:
                 raise ValueError("No features generated for val data")
-            
-            # Align val_features to train_features columns
-            val_features = val_features.reindex(columns=train_features.columns, fill_value=0)
-            
+
+            # Align val_features to train_features columns (fill missing with 0)
+            missing_cols = set(train_features.columns) - set(val_features.columns)
+            for col in missing_cols:
+                val_features[col] = 0
+            val_features = val_features[train_features.columns]
             # Use volatility-normalized thresholds for labeling
+            print(f"🔍 Debug - train_data columns: {list(train_data.columns)}")
+            print(f"🔍 Debug - val_data columns: {list(val_data.columns)}")
+            
+            if 'high' not in train_data.columns or 'low' not in train_data.columns:
+                print(f"❌ Missing high/low columns in train_data: {list(train_data.columns)}")
+                raise ValueError(f"train_data missing required columns. Available: {list(train_data.columns)}")
+            
+            if 'high' not in val_data.columns or 'low' not in val_data.columns:
+                print(f"❌ Missing high/low columns in val_data: {list(val_data.columns)}")
+                raise ValueError(f"val_data missing required columns. Available: {list(val_data.columns)}")
+                
             train_atr = (train_data['high'] - train_data['low']).rolling(14).mean().shift(1)
             val_atr = (val_data['high'] - val_data['low']).rolling(14).mean().shift(1)
             train_threshold = train_atr * 0.5
@@ -180,8 +247,15 @@ class UltimateTradingSystem:
             train_loader = create_pytorch_dataloaders(train_features, train_data['close'], self.config)
             val_loader = create_pytorch_dataloaders(val_features, val_data['close'], self.config)
             
+            if train_loader is None or val_loader is None:
+                raise ValueError("Failed to create dataloaders - insufficient sequences")
+            
             input_size = X_train.shape[-1] if len(X_train) > 0 else len(train_features.columns) - 1
             model = create_lstm(input_size, model_type='ensemble' if self.config.USE_ENSEMBLE else 'standard', hidden_size=self.config.LSTM_HIDDEN_SIZE)
+            
+            # Move model to device for GPU acceleration
+            model = model.to(self.device)
+            print(f"📱 Model moved to device: {self.device}")
             
             optimizer = torch.optim.Adam(model.parameters(), lr=self.config.LEARNING_RATE)
             scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
@@ -189,10 +263,14 @@ class UltimateTradingSystem:
             
             # Train loop with validation
             best_val_acc = 0
+            print(f"🏋️ Training {symbol} for {self.config.NUM_EPOCHS} epochs on {self.device}")
             for epoch in range(self.config.NUM_EPOCHS):
                 model.train()
                 train_loss = 0
                 for batch_x, batch_y in train_loader:
+                    # Move batch data to device for GPU acceleration
+                    batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                    
                     optimizer.zero_grad()
                     output = model(batch_x)
                     loss = criterion(output, batch_y)
@@ -206,6 +284,9 @@ class UltimateTradingSystem:
                 val_correct = 0
                 with torch.no_grad():
                     for batch_x, batch_y in val_loader:
+                        # Move batch data to device for GPU acceleration
+                        batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                        
                         output = model(batch_x)
                         val_loss += criterion(output, batch_y).item()
                         pred = output.argmax(dim=1)
@@ -213,6 +294,10 @@ class UltimateTradingSystem:
                 
                 val_acc = val_correct / len(val_loader.dataset)
                 scheduler.step(val_loss / len(val_loader))
+                
+                # Progress reporting every 5 epochs
+                if epoch % 5 == 0 or epoch == self.config.NUM_EPOCHS - 1:
+                    print(f"  Epoch {epoch+1:3d}/{self.config.NUM_EPOCHS}: train_loss={train_loss/len(train_loader):.4f}, val_acc={val_acc:.4f}")
                 
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
@@ -232,7 +317,9 @@ class UltimateTradingSystem:
             return model, metrics
         
         except Exception as e:
+            import traceback
             print(f"❌ Training failed for {symbol}: {str(e)}")
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
             return None, {'final_accuracy': 0, 'final_loss': 0, 'epochs_completed': 0, 'best_accuracy': 0, 'training_time': 0}
 
     async def backtest_model(self, symbol: str, model: torch.nn.Module, test_data: pd.DataFrame, feature_columns: List[str]) -> BacktestResult:
@@ -283,7 +370,9 @@ class UltimateTradingSystem:
             results = backtest_instance.run()
             
             # Walk-forward analysis
-            wf_results = perform_walk_forward_analysis(backtest_data, StrategyClass)
+            wf_results = perform_walk_forward_analysis(backtest_data, StrategyClass, train_window=180, test_window=30)
+            wf_sharpe = wf_results['sharpe'].mean() if not wf_results.empty else 0.0
+            print(f"📊 Walk-forward avg Sharpe for {symbol}: {wf_sharpe:.3f}")
             
             # Benchmark comparison (e.g., buy-and-hold SPY) - skip for SPY itself
             spy_results = {'Return [%]': 0}  # Default fallback
@@ -325,7 +414,8 @@ class UltimateTradingSystem:
                 profitable_trades=len(results._trades[results._trades['ReturnPct'] > 0]),
                 avg_trade_return=results._trades['ReturnPct'].mean() if len(results._trades) > 0 else 0,
                 volatility=results._trades['ReturnPct'].std() * np.sqrt(252) if len(results._trades) > 0 else 0,
-                calmar_ratio=results['Calmar Ratio'] if 'Calmar Ratio' in results else 0
+                calmar_ratio=results['Calmar Ratio'] if 'Calmar Ratio' in results else 0,
+                walk_forward_sharpe=wf_sharpe
             )
         
         except Exception as e:
@@ -345,10 +435,19 @@ class UltimateTradingSystem:
                     BacktestResult(symbol=symbol, success=False, error_message="No data", total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0))
         
         # Enhanced splits: 70% train, 15% val, 15% test
+        # No rename needed: standardize to lowercase upstream
         train_idx = int(len(data) * 0.7)
         val_idx = int(len(data) * 0.85)
         train_data, val_data, test_data = data.iloc[:train_idx], data.iloc[train_idx:val_idx], data.iloc[val_idx:]
-        
+    
+        original_ensemble = self.config.USE_ENSEMBLE
+        original_pca = self.config.USE_PCA
+        if symbol in ['SQQQ', 'TSLA']:  # Top performers
+            self.config.USE_ENSEMBLE = True
+        if symbol in ['NVDA', 'AMD']:  # High-dim assets
+            self.config.USE_PCA = True
+    
+        self.feature_engine = AdvancedFeatureEngine(use_pca=self.config.USE_PCA, n_pca_components=self.config.PCA_COMPONENTS)
         model, metrics = await self.train_model(symbol, train_data, val_data)
         training_result = TrainingResult(
             symbol=symbol,
@@ -366,6 +465,9 @@ class UltimateTradingSystem:
         backtest_result = await self.backtest_model(symbol, model, test_data, training_result.feature_columns) if model else BacktestResult(
             symbol=symbol, success=False, error_message="No model", total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0
         )
+        # Restore original config (per your commit)
+        self.config.USE_ENSEMBLE = original_ensemble
+        self.config.USE_PCA = original_pca
         return training_result, backtest_result
 
     async def run_comprehensive_analysis(self, symbols: List[str] = None, force_cache_refresh: bool = False) -> ComprehensiveReport:
@@ -469,16 +571,25 @@ class UltimateTradingSystem:
             f.write("\n")
             
             f.write("## Backtest Results\n")
-            f.write("| Symbol | Success | Total Ret | Ann Ret | Sharpe | Max DD | Win Rate | Trades |\n")
-            f.write("|--------|---------|-----------|---------|--------|--------|----------|--------|\n")
+            f.write("| Symbol | Success | Total Ret | Ann Ret | Sharpe | Max DD | Win Rate | Trades | WF Sharpe |\n")
+            f.write("|--------|---------|-----------|---------|--------|--------|----------|--------|-----------|\n")
             for r in report.backtest_results:
                 status = "✅" if r.success else "❌"
-                f.write(f"| {r.symbol} | {status} | {r.total_return:.4f} | {r.annual_return:.4f} | {r.sharpe_ratio:.4f} | {r.max_drawdown:.4f} | {r.win_rate:.4f} | {r.total_trades} |\n")
-        
+                f.write(f"| {r.symbol} | {status} | {r.total_return:.4f} | {r.annual_return:.4f} | {r.sharpe_ratio:.4f} | {r.max_drawdown:.4f} | {r.win_rate:.4f} | {r.total_trades} | {r.walk_forward_sharpe:.4f} |\n")        
         print(f"💾 Reports saved: {json_path}, {md_path}")
 
 async def main():
     """Main entrypoint with cache refresh option."""
+    # ROCM/CUDA Detection (restore old behavior)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"CUDA available with {torch.cuda.device_count()} device(s)")
+        print(f"Using device: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device("cpu")
+        print("CUDA not available, using CPU")
+    # Pass device to UltimateTradingSystem if needed (e.g., self.device = device)
+
     system = UltimateTradingSystem()
     report = await system.run_comprehensive_analysis(force_cache_refresh=True)  # Force cache refresh for initial run
     

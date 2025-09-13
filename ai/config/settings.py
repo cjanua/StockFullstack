@@ -26,11 +26,11 @@ class TradingConfig:
     LR_SCHEDULER_MIN_LR: float = 1e-7             # Minimum learning rate
     LR_SCHEDULER_COOLDOWN: int = 5                # Epochs to wait after LR reduction
 
-    USE_ENSEMBLE: bool = False  # Disable ensemble to focus on standard model
+    USE_ENSEMBLE: bool = True  # Disable ensemble to focus on standard model
     
     # Feature engineering options
-    USE_PCA: bool = False  # Use PCA for dimensionality reduction
-    PCA_COMPONENTS: int = 50  # Number of PCA components to keep
+    USE_PCA: bool = True  # Use PCA for dimensionality reduction
+    PCA_COMPONENTS: int = 100  # Number of PCA components to keep
     
     # Alternative: increase model capacity instead of PCA
     ADAPTIVE_HIDDEN_SIZE: bool = True  # Scale hidden size based on input dimensions

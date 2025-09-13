@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import logging
+from sklearn.decomposition import PCA
 
 from ai.data_sources.yahoo_loader import YahooFinanceLoader
 from stock_fullstack.common.sdk.clients import AlpacaDataConnector
@@ -56,7 +57,10 @@ class HybridDataManager:
                 logger.info(f"Training data for {symbol}: {len(filtered_df)} rows ending {filtered_df.index.max()}")
             else:
                 logger.warning(f"Insufficient training data for {symbol}: {len(filtered_df)} rows")
-        
+
+        # Cache training data for lazy PCA fitting
+        self._training_data = filtered_data
+
         return filtered_data
     
     async def get_testing_data(self, symbols: List[str]) -> Dict[str, pd.DataFrame]:
@@ -116,6 +120,37 @@ class HybridDataManager:
             logger.info(f"{symbol}: Training({train_info}), Testing({test_info})")
         
         return combined
+    def get_pca(self) -> Optional[PCA]:
+        """Return the fitted PCA instance or None if not fitted."""
+        # Fit PCA lazily/on-demand if not already done
+        if not hasattr(self, 'pca') or self.pca is None:
+            from ai.features.feature_engine import AdvancedFeatureEngine
+            feature_engine = AdvancedFeatureEngine(use_pca=False, n_pca_components=100)
+            all_features = []
+            for symbol, df in self._training_data.items():  # Use cached training data
+                try:
+                    feat = feature_engine.create_comprehensive_features(df, symbol, market_context_data=None, pca=None)
+                    if not feat.empty:
+                        all_features.append(feat)
+                except Exception as e:
+                    logger.warning(f"Failed to create features for {symbol} during lazy PCA fit: {e}")
+
+            if all_features:
+                combined_features = pd.concat(all_features, axis=0).dropna()
+                # Exclude 'close' column for PCA fitting (consistent with transform phase)
+                pca_features = combined_features.drop(columns=['close'], errors='ignore')
+                if not pca_features.empty and len(pca_features.columns) > 1:
+                    self.pca = PCA(n_components=min(100, len(pca_features.columns)), random_state=42).fit(pca_features)
+                    logger.info(f"Lazy PCA fitted on {len(pca_features)} rows, {len(pca_features.columns)} cols (excluding 'close'): {self.pca.explained_variance_ratio_.sum():.3f} variance")
+                else:
+                    logger.warning("Insufficient features for lazy PCA")
+            else:
+                logger.warning("No features for lazy PCA")
+
+        if self.pca is None:
+            logger.warning("PCA not fitted, returning None")
+            return None
+        return self.pca
     
     def validate_data_quality(self, symbol_data: Dict[str, pd.DataFrame]) -> Dict[str, dict]:
         """

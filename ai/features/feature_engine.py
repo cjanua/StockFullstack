@@ -3,6 +3,7 @@
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -15,7 +16,7 @@ from ai.cache_utils import cache_on_disk
 
 
 class AdvancedFeatureEngine:
-    def __init__(self, use_pca=False, n_pca_components=50):
+    def __init__(self, use_pca=True, n_pca_components=100):  # Align with desired components
         self.scalers = {}
         self.lookback_window = 60
         self.use_pca = use_pca
@@ -53,26 +54,25 @@ class AdvancedFeatureEngine:
     def _create_ohlcv_list(self, data):
         """Helper to create OHLCV list for talipp indicators."""
         from talipp.ohlcv import OHLCV
-        return [OHLCV(row.open, row.high, row.low, row.close, row.volume) for row in data.itertuples()]
+        return [OHLCV(row.open, row.high, row.low, row.close, row.volume) for row in data.itertuples()]  # Lowercase for consistency
 
     @cache_on_disk(dependencies=['ai/features/feature_engine.py'])
     def create_comprehensive_features(
         self,
         data: pd.DataFrame,
         symbol: str,
-        market_context_data: pd.DataFrame = None
+        market_context_data: pd.DataFrame = None,
+        pca: Optional[PCA] = None
     ) -> pd.DataFrame:
         """Generate multi-timeframe feature set for RNN."""
         if data.index.has_duplicates:
             print("Warning: Data contains duplicate timestamps, dropping duplicates.")
             data = data.loc[~data.index.duplicated(keep='first')]
-
-        agg_rules = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}
+        agg_rules = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}  # Lowercase
         data = data.resample('D').agg(agg_rules).dropna()
         if data.empty:
             print("Warning: Not enough data to create hourly features.")
             return pd.DataFrame()
-
 
         ohlcv_list = self._create_ohlcv_list(data)
         features = {}
@@ -105,26 +105,42 @@ class AdvancedFeatureEngine:
         # 9. Regime Detection Features
         features.update(self.detect_market_regime(data, ohlcv_list))
 
-        # 10.
-        # features.update(self.calculate_asset_specific_features(data, symbol))
+        # 10. Directional Features
         features.update(self.calculate_directional_features(data))
 
-        # features.update(self.create_image_features(data))
-
-
+        # Collect market context after core features (if provided)
         if market_context_data is not None:
             features.update(self.calculate_market_context_features(data, market_context_data))
 
+        # Risk features last
         features.update(self.calculate_risk_features(data))
-        features['close'] = data['close']
 
-        return self.normalize_and_structure_features(features)
+        # Ensure minimum features and convert to DataFrame with alignment
+        features_df = self._ensure_minimum_features(features, data.index)  # Pass index for alignment
+        if 'close' in data.columns:
+            features_df['close'] = data['close']  # Fallback if missing
+        else:
+            print(f"⚠️ 'close' column missing for {symbol}; using 'Close' fallback")
+            if 'Close' in data.columns:
+                features_df['close'] = data['Close']
+
+        # Apply passed PCA if provided (external fit)
+        if pca is not None and not features_df.empty:
+            self.pca = pca  # Set instance var to use in normalize
+            print(f"✅ Using passed PCA ({pca.n_components_} components)")
+
+        return self.normalize_and_structure_features(features_df)
 
     def calculate_technical_indicators(self, data, ohlcv_list: list[OHLCV]):
         """Comprehensive technical indicator calculation."""
         indicators = {}
-        close, high, low, volume = data['close'], data['high'], data['low'], data['volume']
+        close, high, low, volume = data.get('close', pd.Series()), data.get('high', pd.Series()), data.get('low', pd.Series()), data.get('volume', pd.Series())
+        if close.empty or high.empty or low.empty or volume.empty:
+            return {f'fallback_{i}': pd.Series(0, index=data.index) for i in range(self.n_pca_components)}
+
         close_list = close.tolist()
+
+        close, high, low, volume = data['close'], data['high'], data['low'], data['volume']  # Lowercase
         # Helper to create Series and handle None as NaN
         def create_ema_series(period):
             ema_vals = EMA(period, close_list)
@@ -179,11 +195,11 @@ class AdvancedFeatureEngine:
         indicators['macd_signal'] = pd.Series([val.signal if val else None for val in macd_output], index=data.index)
         indicators['macd_histogram'] = pd.Series([val.histogram if val else None for val in macd_output], index=data.index)
 
-        # MACD enhancements
-        indicators['macd_histogram_momentum'] = indicators['macd_histogram'].diff(2)  # Histogram acceleration
-        indicators['macd_zero_cross'] = (indicators['macd_line'] > 0).astype(int)
-        indicators['macd_signal_cross'] = (indicators['macd_line'] > indicators['macd_signal']).astype(int)
-        indicators['macd_strength'] = abs(indicators['macd_line'] / (indicators['macd_signal'] + 1e-8))
+        # MACD enhancements - handle None values properly
+        indicators['macd_histogram_momentum'] = indicators['macd_histogram'].fillna(0).diff(2)  # Histogram acceleration
+        indicators['macd_zero_cross'] = (indicators['macd_line'].fillna(0) > 0).astype(int)
+        indicators['macd_signal_cross'] = (indicators['macd_line'].fillna(0) > indicators['macd_signal'].fillna(0)).astype(int)
+        indicators['macd_strength'] = abs(indicators['macd_line'].fillna(0) / (indicators['macd_signal'].fillna(0) + 1e-8))
 
         # IMPROVEMENT 45: Enhanced Bollinger Bands with squeeze and expansion detection
         bb_output = BB(period=20, std_dev_mult=2.0, input_values=close_list)
@@ -241,6 +257,40 @@ class AdvancedFeatureEngine:
         indicators['cci_extreme'] = (abs(indicators['cci']) > 150).astype(int)
 
         return indicators
+    def _ensure_minimum_features(self, features: dict, target_index: pd.Index) -> pd.DataFrame:
+        """Ensure features align to target index, filter low-quality, return DataFrame."""
+        if not features:
+            return pd.DataFrame(index=target_index)
+
+        # Align each feature to target_index
+        aligned_features = {}
+        first_len = len(target_index)
+        for key, feat_series in features.items():
+            if hasattr(feat_series, 'index'):
+                # Reindex with ffill, then bfill/zero for remaining
+                aligned = feat_series.reindex(target_index, method='ffill').fillna(method='bfill').fillna(0)
+            else:
+                # If array-like, create Series and align
+                aligned = pd.Series(feat_series, index=target_index[:len(feat_series)] if len(feat_series) < first_len else target_index)
+                if len(aligned) < first_len:
+                    aligned = aligned.reindex(target_index).fillna(0)
+                else:
+                    aligned = aligned.iloc[:first_len]
+            aligned_features[key] = aligned
+
+        features_df = pd.DataFrame(aligned_features, index=target_index)
+
+        # Filter features with >5% NaNs (post-alignment should have few)
+        nan_threshold = 0.05
+        good_cols = features_df.columns[features_df.isnull().sum() / len(features_df) < nan_threshold]
+        features_df = features_df[good_cols]
+
+        if len(features_df.columns) < 10:
+            print(f"⚠️ Insufficient features after filtering: {len(features_df.columns)}")
+            return pd.DataFrame(index=target_index)
+
+        print(f"✅ Generated {len(features_df.columns)} aligned features")
+        return features_df
 
     def create_multitimeframe_features(self, data):
         """Enhanced multi-timeframe analysis optimized for different holding periods."""
@@ -895,8 +945,8 @@ class AdvancedFeatureEngine:
         # Sort by date
         raw_data = raw_data.sort_index()
 
-        # Remove rows with missing Close values
-        raw_data = raw_data.dropna(subset=['Close'])
+        # Remove rows with missing close values
+        raw_data = raw_data.dropna(subset=['close'])
 
         # Step 7: Align to target index (daily frequency)
         if not target_index.empty:
@@ -907,7 +957,7 @@ class AdvancedFeatureEngine:
 
             # Reindex to target dates with forward fill
             aligned_data = raw_data.reindex(target_daily, method='ffill')
-            aligned_data = aligned_data.dropna(subset=['Close'])
+            aligned_data = aligned_data.dropna(subset=['close'])
 
             if not aligned_data.empty:
                 raw_data = aligned_data
@@ -924,7 +974,7 @@ class AdvancedFeatureEngine:
                 raw_data[col] = pd.to_numeric(raw_data[col], errors='coerce')
 
         # Remove any rows that became NaN during numeric conversion
-        raw_data = raw_data.dropna(subset=['Close'])
+        raw_data = raw_data.dropna(subset=['close'])
 
         print(f"    ✅ Standardized market data: {len(raw_data)} rows")
         print(f"    - Index type: {type(raw_data.index)}")
@@ -957,18 +1007,18 @@ class AdvancedFeatureEngine:
         for ret in returns[1:]:
             prices.append(prices[-1] * (1 + ret))
 
-        # Create OHLCV data in STANDARD format
-        synthetic_data['Close'] = prices
-        synthetic_data['Open'] = synthetic_data['Close'] * (
+        # Create OHLCV data in standard format (lowercase)
+        synthetic_data['close'] = prices
+        synthetic_data['open'] = synthetic_data['close'] * (
             1 + np.random.normal(0, 0.005, len(synthetic_data)))
 
-        synthetic_data['High'] = synthetic_data[['Open', 'Close']].max(axis=1) * (
+        synthetic_data['high'] = synthetic_data[['open', 'close']].max(axis=1) * (
             1 + np.random.uniform(0, 0.02, len(synthetic_data)))
 
-        synthetic_data['Low'] = synthetic_data[['Open', 'Close']].min(axis=1) * (
+        synthetic_data['low'] = synthetic_data[['open', 'close']].min(axis=1) * (
             1 - np.random.uniform(0, 0.02, len(synthetic_data)))
 
-        synthetic_data['Volume'] = 100000000  # Typical volume
+        synthetic_data['volume'] = 100000000  # Typical volume
 
         print(f"    ✅ Generated fallback data: {len(synthetic_data)} rows")
         return synthetic_data
@@ -1223,6 +1273,15 @@ class AdvancedFeatureEngine:
         risk_features['volatility_20d'] = returns.rolling(window=20).std() * np.sqrt(252)
         return risk_features
 
+    def transform_with_pca(self, features, pca):
+        """Transform features using a pre-fitted PCA instance."""
+        if pca is None or not hasattr(pca, 'components_'):
+             print("Warning: No valid PCA instance provided, returning original features")
+        df = pd.DataFrame(features)
+        scaled = RobustScaler().fit_transform(df)
+        pca_features = pca.transform(scaled)
+        return pd.DataFrame(pca_features, index=df.index, columns=[f'pca_component_{i}' for i in range(pca.n_components_)])
+
     def normalize_and_structure_features(self, features: dict) -> pd.DataFrame:
         """Combines all feature series into a single, cleaned, and normalized DataFrame."""
         valid_features = {k: v for k, v in features.items() if isinstance(v, pd.Series) and not v.isnull().all()}
@@ -1250,20 +1309,17 @@ class AdvancedFeatureEngine:
         scaler = RobustScaler()
         df_scaled = pd.DataFrame(scaler.fit_transform(feature_cols), index=feature_cols.index, columns=feature_cols.columns)
         
-        # Apply PCA if enabled
-        if self.use_pca and df_scaled.shape[1] > self.n_pca_components:
-            print(f"Applying PCA: reducing {df_scaled.shape[1]} features to {self.n_pca_components} components")
+        # Apply PCA if enabled (use instance self.pca if set externally)
+        if self.use_pca and df_scaled.shape[1] > self.n_pca_components and self.pca is not None:
+            print(f"Applying PCA: reducing {df_scaled.shape[1]} features to {self.pca.n_components_} components")
             
-            if self.pca is None:
-                self.pca = PCA(n_components=self.n_pca_components, random_state=42)
-                pca_features = self.pca.fit_transform(df_scaled)
-                print(f"PCA explained variance ratio: {self.pca.explained_variance_ratio_.sum():.3f}")
-            else:
+            # Transform with existing fitted PCA (no new fit)
+            try:
                 pca_features = self.pca.transform(df_scaled)
-            
-            # Create DataFrame with PCA components
-            pca_columns = [f'pca_component_{i}' for i in range(self.n_pca_components)]
-            df_final = pd.DataFrame(pca_features, index=df_scaled.index, columns=pca_columns)
+                df_final = pd.DataFrame(pca_features, index=df_scaled.index, columns=[f'PCA_{i}' for i in range(self.pca.n_components_)])
+            except Exception as e:
+                print(f"⚠️ PCA transform failed: {e}")
+                df_final = df_scaled
         else:
             df_final = df_scaled
 

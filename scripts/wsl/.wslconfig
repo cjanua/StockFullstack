@@ -1,0 +1,18 @@
+# WSL2 Configuration for GPU Support
+# Place this file at: %USERPROFILE%\.wslconfig
+
+[wsl2]
+# Enable GPU passthrough for AMD/ROCm
+memory=20GB
+processors=16
+
+# Network configuration
+networkingMode=mirrored
+
+# Enable GPU and device passthrough
+nestedVirtualization=true
+
+# Experimental features for better GPU support
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true
