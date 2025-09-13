@@ -29,7 +29,7 @@ class TradingConfig:
     USE_ENSEMBLE: bool = False  # Disable ensemble to focus on standard model
     
     # Feature engineering options
-    USE_PCA: bool = True  # Use PCA for dimensionality reduction
+    USE_PCA: bool = False  # Use PCA for dimensionality reduction
     PCA_COMPONENTS: int = 50  # Number of PCA components to keep
     
     # Alternative: increase model capacity instead of PCA

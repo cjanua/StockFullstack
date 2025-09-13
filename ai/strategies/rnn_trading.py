@@ -388,19 +388,27 @@ class RNNTradingStrategy(Strategy):
     def _enter_position(self, action, confidence, regime, trend_strength):
         """Enhanced entry logic with regime filtering."""
         current_price = self.data.Close[-1]
-
         if action == 1:
             return
-
-        if regime == 'bull' and trend_strength > 0.15:
-            threshold = self.low_confidence_threshold * 0.9  # More aggressive in bull trends
-        elif regime == 'bear' and trend_strength < -0.15:
-            threshold = self.medium_confidence_threshold * 0.95  # Bear market short opportunities
-        elif abs(trend_strength) > 0.3:  # Strong trend either direction
-            threshold = self.medium_confidence_threshold
+        
+        # Dynamic threshold adjustment based on recent performance
+        base_high_threshold = 0.60  # Reduced from 0.65 for more opportunities
+        if self.recent_win_rate > 0.6:
+            threshold_adjust = 0.95  # Relax when performing well
+        elif self.recent_win_rate < 0.4:
+            threshold_adjust = 1.05  # Tighten when underperforming
         else:
-            threshold = self.high_confidence_threshold * 0.95  # Ranging market
-
+            threshold_adjust = 1.0
+        
+        if regime == 'bull' and trend_strength > 0.15:
+            threshold = self.low_confidence_threshold * 0.9 * threshold_adjust
+        elif regime == 'bear' and trend_strength < -0.15:
+            threshold = self.medium_confidence_threshold * 0.95 * threshold_adjust
+        elif abs(trend_strength) > 0.3:  # Strong trend either direction
+            threshold = self.medium_confidence_threshold * threshold_adjust
+        else:
+            threshold = base_high_threshold * threshold_adjust  # Ranging market
+        
         if confidence < threshold:
             return
 

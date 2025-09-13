@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#ai/main.py
 """
 Ultimate Main.py: Comprehensive Model Training and Backtesting System
 Enhanced with feature alignment, cache management, and robust error handling.
@@ -96,7 +97,7 @@ class UltimateTradingSystem:
     def __init__(self):
         self.config = TradingConfig()
         self.data_manager = HybridDataManager(self.config)
-        self.feature_engine = AdvancedFeatureEngine(use_pca=False, n_pca_components=self.config.PCA_COMPONENTS)  # Disable internal PCA for control
+        self.feature_engine = AdvancedFeatureEngine(use_pca=self.config.USE_PCA, n_pca_components=self.config.PCA_COMPONENTS)
         self.results_dir = project_root / "model_res" / "ultimate"
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir = self.results_dir / "cache"
@@ -161,8 +162,7 @@ class UltimateTradingSystem:
                 raise ValueError("No features generated for val data")
             
             # Align val_features to train_features columns
-            expected_columns = train_features.columns
-            val_features = val_features.reindex(columns=expected_columns, fill_value=0)
+            val_features = val_features.reindex(columns=train_features.columns, fill_value=0)
             
             # Use volatility-normalized thresholds for labeling
             train_atr = (train_data['high'] - train_data['low']).rolling(14).mean().shift(1)
@@ -235,7 +235,7 @@ class UltimateTradingSystem:
             print(f"❌ Training failed for {symbol}: {str(e)}")
             return None, {'final_accuracy': 0, 'final_loss': 0, 'epochs_completed': 0, 'best_accuracy': 0, 'training_time': 0}
 
-    async def backtest_model(self, symbol: str, model: torch.nn.Module, test_data: pd.DataFrame) -> BacktestResult:
+    async def backtest_model(self, symbol: str, model: torch.nn.Module, test_data: pd.DataFrame, feature_columns: List[str]) -> BacktestResult:
         """Advanced backtesting with RNNTradingStrategy, walk-forward, and benchmarks."""
         print(f"📊 Backtesting {symbol}...")
         
@@ -243,6 +243,9 @@ class UltimateTradingSystem:
             features = await asyncio.to_thread(self.process_features, symbol, test_data)
             if features.empty:
                 raise ValueError("No features for backtesting")
+            
+            # Align test features to training columns to prevent dimension mismatch
+            features = features.reindex(columns=feature_columns, fill_value=0)
             
             # Prepare backtest data - ensure proper column naming
             # Check if columns are already properly named or need renaming
@@ -269,13 +272,12 @@ class UltimateTradingSystem:
             if missing_cols:
                 raise ValueError(f"Missing required columns: {missing_cols}")
             
-            # Select only required columns plus features
+            # Select only required columns plus aligned features
             backtest_data = backtest_data[required_cols]
             backtest_data = backtest_data.join(features, how='inner').ffill().bfill()
             
             print(f"📊 Backtest data shape for {symbol}: {backtest_data.shape}")
             print(f"📊 Backtest columns: {backtest_data.columns.tolist()[:10]}...")
-            
             StrategyClass = create_rnn_strategy_class(model)
             backtest_instance = Backtest(backtest_data, StrategyClass, cash=100_000, commission=0.001)
             results = backtest_instance.run()
@@ -361,10 +363,9 @@ class UltimateTradingSystem:
             error_message="" if model else "Training failed"
         )
         
-        backtest_result = await self.backtest_model(symbol, model, test_data) if model else BacktestResult(
+        backtest_result = await self.backtest_model(symbol, model, test_data, training_result.feature_columns) if model else BacktestResult(
             symbol=symbol, success=False, error_message="No model", total_return=0, annual_return=0, sharpe_ratio=0, max_drawdown=0, win_rate=0, total_trades=0, profitable_trades=0, avg_trade_return=0, volatility=0, calmar_ratio=0
         )
-        
         return training_result, backtest_result
 
     async def run_comprehensive_analysis(self, symbols: List[str] = None, force_cache_refresh: bool = False) -> ComprehensiveReport:

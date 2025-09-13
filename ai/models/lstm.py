@@ -1,4 +1,4 @@
-# Fix for ai/models/lstm.py - replace the TradingLSTM class
+#  ai/models/lstm.py 
 
 import torch
 import torch.nn as nn

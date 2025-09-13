@@ -21,371 +21,335 @@ Using device: AMD Radeon RX 7800 XT
 📊 Fetching data for UVXY...
 ✅ Fetched 690 rows for SPY
 🚀 Training model for SPY...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPY...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for SPY
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPY...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SPY
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(152), 'Hold': np.int64(52), 'Up': np.int64(198)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(152), 'Hold': np.int64(52), 'Up': np.int64(198)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
-Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPY...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for SPY
-📊 Backtesting SPY...
-✅ Fetched 690 rows for UVXY
-🚀 Training model for UVXY...
-✅ Fetched 690 rows for TSLA
-🚀 Training model for TSLA...
+✅ Fetched 690 rows for SPXS
+🚀 Training model for SPXS...
 ✅ Fetched 690 rows for TQQQ
 🚀 Training model for TQQQ...
-✅ Fetched 690 rows for SOXL
-🚀 Training model for SOXL...
 ✅ Fetched 690 rows for SQQQ
 🚀 Training model for SQQQ...
+✅ Fetched 690 rows for SOXL
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPY...
+🚀 Training model for SOXL...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPXS...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for TQQQ...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SQQQ...
 ✅ Fetched 690 rows for NVDA
 🚀 Training model for NVDA...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SOXL...
+✅ Fetched 690 rows for TSLA
+🚀 Training model for TSLA...
+CACHE MISS: Running create_comprehensive_features and caching result.
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Fetched 690 rows for UVXY
+🚀 Training model for UVXY...
+CACHE MISS: Running create_comprehensive_features and caching result.
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for NVDA...
+CACHE MISS: Running create_comprehensive_features and caching result.
 ✅ Fetched 690 rows for AMD
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for TSLA...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for UVXY...
 🚀 Training model for AMD...
+CACHE MISS: Running create_comprehensive_features and caching result.
+CACHE MISS: Running create_comprehensive_features and caching result.
+CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running process_features and caching result.
-✅ Fetched 690 rows for SPXS
+🔧 Engineering features for AMD...
+CACHE MISS: Running create_comprehensive_features and caching result.
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for NVDA
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for NVDA...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for TQQQ
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for TQQQ...
+✅ Generated 161 features for SPXS
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for SPY
+✅ Generated 161 features for TSLA
+✅ Generated 161 features for SOXL
+✅ Generated 161 features for UVXY
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPXS...
+CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for SPY...
-🚀 Training model for SPXS...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for UVXY...
+✅ Generated 161 features for SQQQ
+CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for TQQQ...
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for TSLA...
-CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for SOXL...
 CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for AMD...
+🔧 Engineering features for UVXY...
 CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for NVDA...
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPXS...
-CACHE MISS: Running process_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
 🔧 Engineering features for SQQQ...
 CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for SPY
-📊 Current columns for SPY: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for SPY: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]PCA explained variance ratio: 1.000
-✅ Generated 50 features for UVXY
-PCA explained variance ratio: 0.996
-✅ Generated 50 features for TQQQ
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for NVDA
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for AMD
-PCA explained variance ratio: 0.992
-✅ Generated 50 features for SPXS
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SOXL
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for TSLA
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SQQQ
-                                         CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for TQQQ...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for NVDA...
+✅ Generated 161 features for AMD
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for AMD...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for UVXY...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPXS...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for TSLA...
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SQQQ...
 CACHE MISS: Running create_comprehensive_features and caching result.
 CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SOXL...
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.997
-✅ Generated 50 features for SPXS
+✅ Generated 155 features for NVDA
 Creating sequences from 462 data points...
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for NVDA
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for AMD
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for UVXY
-PCA explained variance ratio: 0.998
-✅ Generated 50 features for SOXL
-PCA explained variance ratio: 0.998
-✅ Generated 50 features for SQQQ
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for TQQQ
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for TSLA
+✅ Generated 155 features for SPXS
+✅ Generated 155 features for TQQQ
+✅ Generated 155 features for SOXL
+✅ Generated 155 features for SPY
+✅ Generated 155 features for AMD
+✅ Generated 155 features for UVXY
+✅ Generated 155 features for TSLA
+✅ Generated 155 features for SQQQ
 Successfully created 402 sequences
-Class distribution: {'Down': np.int64(212), 'Hold': np.int64(23), 'Up': np.int64(167)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(212), 'Hold': np.int64(23), 'Up': np.int64(167)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
-Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPXS...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.992
-✅ Generated 50 features for SPXS
-📊 Backtesting SPXS...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SPXS...
-CACHE MISS: Running create_comprehensive_features and caching result.
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SPXS
 Class distribution: {'Down': np.int64(168), 'Hold': np.int64(16), 'Up': np.int64(218)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
-Class distribution: {'Down': np.int64(13), 'Hold': np.int64(11)}
+Class distribution: {'Down': np.int64(14), 'Hold': np.int64(10)}
 Creating sequences from 462 data points...
 Successfully created 402 sequences
 Class distribution: {'Down': np.int64(168), 'Hold': np.int64(16), 'Up': np.int64(218)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
-Class distribution: {'Down': np.int64(13), 'Hold': np.int64(11)}
+Class distribution: {'Down': np.int64(14), 'Hold': np.int64(10)}
 Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
+TradingLSTM: input_size=161, hidden_size=128
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for NVDA...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for NVDA
+✅ Generated 161 features for NVDA
 📊 Backtesting NVDA...
 Creating sequences from 462 data points...
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for NVDA...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for NVDA
+✅ Generated 151 features for NVDA
 Successfully created 402 sequences
-Class distribution: {'Down': np.int64(193), 'Hold': np.int64(15), 'Up': np.int64(194)}
+Class distribution: {'Down': np.int64(213), 'Hold': np.int64(24), 'Up': np.int64(165)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
 Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
 Creating sequences from 462 data points...
 Successfully created 402 sequences
-Class distribution: {'Down': np.int64(193), 'Hold': np.int64(15), 'Up': np.int64(194)}
+Class distribution: {'Down': np.int64(213), 'Hold': np.int64(24), 'Up': np.int64(165)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
 Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
 Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
+TradingLSTM: input_size=161, hidden_size=128
+^[[DCACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPXS...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for SPXS
+📊 Backtesting SPXS...
+Creating sequences from 462 data points...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPXS...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for SPXS
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(162), 'Hold': np.int64(17), 'Up': np.int64(223)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(10), 'Hold': np.int64(1), 'Up': np.int64(13)}
+Creating sequences from 462 data points...
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(162), 'Hold': np.int64(17), 'Up': np.int64(223)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(10), 'Hold': np.int64(1), 'Up': np.int64(13)}
+Creating standard TradingLSTM model
+TradingLSTM: input_size=161, hidden_size=128
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for TQQQ...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for TQQQ
+📊 Backtesting TQQQ...
+Creating sequences from 462 data points...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for TQQQ...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for TQQQ
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(180), 'Hold': np.int64(14), 'Up': np.int64(208)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(13), 'Hold': np.int64(1), 'Up': np.int64(10)}
+Creating sequences from 462 data points...
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(180), 'Hold': np.int64(14), 'Up': np.int64(208)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(13), 'Hold': np.int64(1), 'Up': np.int64(10)}
+Creating standard TradingLSTM model
+TradingLSTM: input_size=161, hidden_size=128
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SOXL...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for SOXL
+📊 Backtesting SOXL...
+Creating sequences from 462 data points...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SOXL...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for SOXL
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(150), 'Hold': np.int64(53), 'Up': np.int64(199)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
+Creating sequences from 462 data points...
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(150), 'Hold': np.int64(53), 'Up': np.int64(199)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
+Creating standard TradingLSTM model
+TradingLSTM: input_size=161, hidden_size=128
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPY...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for SPY
+📊 Backtesting SPY...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SPY...
+Creating sequences from 462 data points...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for SPY
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(193), 'Hold': np.int64(14), 'Up': np.int64(195)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
+Creating sequences from 462 data points...
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(193), 'Hold': np.int64(14), 'Up': np.int64(195)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(12), 'Hold': np.int64(1), 'Up': np.int64(11)}
+Creating standard TradingLSTM model
+TradingLSTM: input_size=161, hidden_size=128
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for AMD...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for AMD
+✅ Generated 161 features for AMD
 📊 Backtesting AMD...
 CACHE MISS: Running process_features and caching result.
-Creating sequences from 462 data points...
 🔧 Engineering features for AMD...
+Creating sequences from 462 data points...
 CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for AMD
 Successfully created 402 sequences
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for AMD
-Class distribution: {'Down': np.int64(245), 'Hold': np.int64(12), 'Up': np.int64(145)}
+Class distribution: {'Down': np.int64(246), 'Hold': np.int64(12), 'Up': np.int64(144)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
 Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
 Creating sequences from 462 data points...
 Successfully created 402 sequences
-Class distribution: {'Down': np.int64(245), 'Hold': np.int64(12), 'Up': np.int64(145)}
+Class distribution: {'Down': np.int64(246), 'Hold': np.int64(12), 'Up': np.int64(144)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
 Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
 Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
+TradingLSTM: input_size=161, hidden_size=128
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for UVXY...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for UVXY
+✅ Generated 161 features for UVXY
 📊 Backtesting UVXY...
-Creating sequences from 462 data points...
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for UVXY...
+Creating sequences from 462 data points...
 CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 151 features for UVXY
 Successfully created 402 sequences
-PCA explained variance ratio: 0.997
-✅ Generated 50 features for UVXY
-Class distribution: {'Down': np.int64(181), 'Hold': np.int64(14), 'Up': np.int64(207)}
+Class distribution: {'Down': np.int64(190), 'Hold': np.int64(8), 'Up': np.int64(204)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
-Class distribution: {'Down': np.int64(14), 'Hold': np.int64(1), 'Up': np.int64(9)}
+Class distribution: {'Down': np.int64(11), 'Hold': np.int64(2), 'Up': np.int64(11)}
 Creating sequences from 462 data points...
 Successfully created 402 sequences
-Class distribution: {'Down': np.int64(181), 'Hold': np.int64(14), 'Up': np.int64(207)}
+Class distribution: {'Down': np.int64(190), 'Hold': np.int64(8), 'Up': np.int64(204)}
 Creating sequences from 84 data points...
 Successfully created 24 sequences
-Class distribution: {'Down': np.int64(14), 'Hold': np.int64(1), 'Up': np.int64(9)}
+Class distribution: {'Down': np.int64(11), 'Hold': np.int64(2), 'Up': np.int64(11)}
 Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SOXL...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SOXL
-📊 Backtesting SOXL...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SOXL...
-Creating sequences from 462 data points...
-CACHE MISS: Running create_comprehensive_features and caching result.
-Successfully created 402 sequences
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SOXL
-Class distribution: {'Down': np.int64(226), 'Hold': np.int64(12), 'Up': np.int64(164)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(226), 'Hold': np.int64(12), 'Up': np.int64(164)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
-Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SQQQ...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for SQQQ
-📊 Backtesting SQQQ...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for SQQQ...
-CACHE MISS: Running create_comprehensive_features and caching result.
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-PCA explained variance ratio: 0.997
-Class distribution: {'Down': np.int64(163), 'Hold': np.int64(17), 'Up': np.int64(222)}
-✅ Generated 50 features for SQQQ
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(163), 'Hold': np.int64(17), 'Up': np.int64(222)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(11), 'Hold': np.int64(1), 'Up': np.int64(12)}
-Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for TQQQ...
-CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.996
-✅ Generated 50 features for TQQQ
-📊 Backtesting TQQQ...
-CACHE MISS: Running process_features and caching result.
-🔧 Engineering features for TQQQ...
-CACHE MISS: Running create_comprehensive_features and caching result.
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-PCA explained variance ratio: 0.998
-✅ Generated 50 features for TQQQ
-Class distribution: {'Down': np.int64(193), 'Hold': np.int64(8), 'Up': np.int64(201)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
-Creating sequences from 462 data points...
-Successfully created 402 sequences
-Class distribution: {'Down': np.int64(193), 'Hold': np.int64(8), 'Up': np.int64(201)}
-Creating sequences from 84 data points...
-Successfully created 24 sequences
-Class distribution: {'Down': np.int64(12), 'Hold': np.int64(12)}
-Creating standard TradingLSTM model
-TradingLSTM: input_size=50, hidden_size=128
+TradingLSTM: input_size=161, hidden_size=128
 CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for TSLA...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 0.999
-✅ Generated 50 features for TSLA
+✅ Generated 161 features for TSLA
 📊 Backtesting TSLA...
-📊 Current columns for SPXS: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for SPXS: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]CACHE MISS: Running process_features and caching result.
+CACHE MISS: Running process_features and caching result.
 🔧 Engineering features for TSLA...
+Creating sequences from 462 data points...
 CACHE MISS: Running create_comprehensive_features and caching result.
-PCA explained variance ratio: 1.000
-✅ Generated 50 features for TSLA
-                                         📊 Fetching data for SPY...
+✅ Generated 151 features for TSLA
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(227), 'Hold': np.int64(12), 'Up': np.int64(163)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(13), 'Hold': np.int64(11)}
+Creating sequences from 462 data points...
+Successfully created 402 sequences
+Class distribution: {'Down': np.int64(227), 'Hold': np.int64(12), 'Up': np.int64(163)}
+Creating sequences from 84 data points...
+Successfully created 24 sequences
+Class distribution: {'Down': np.int64(13), 'Hold': np.int64(11)}
+Creating standard TradingLSTM model
+TradingLSTM: input_size=161, hidden_size=128
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SQQQ...
+CACHE MISS: Running create_comprehensive_features and caching result.
+✅ Generated 161 features for SQQQ
+📊 Backtesting SQQQ...
 📊 Current columns for NVDA: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for NVDA: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
-📊 Current columns for AMD: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for AMD: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
-📊 Current columns for UVXY: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for UVXY: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
-📊 Current columns for SOXL: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for SOXL: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
-📊 Current columns for SQQQ: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for SQQQ: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
+CACHE MISS: Running process_features and caching result.
+🔧 Engineering features for SQQQ...
+📊 Backtest data shape for NVDA: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+CACHE MISS: Running create_comprehensive_features and caching result.
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]✅ Generated 151 features for SQQQ
+                                         📊 Fetching data for SPY...
+📊 Current columns for SPXS: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for SPXS: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
 📊 Current columns for TQQQ: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for TQQQ: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
+📊 Backtest data shape for TQQQ: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
+📊 Current columns for SOXL: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for SOXL: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
+📊 Current columns for SPY: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for SPY: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Current columns for AMD: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for AMD: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
+📊 Current columns for UVXY: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for UVXY: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
 📊 Current columns for TSLA: ['open', 'high', 'low', 'close', 'volume']
-📊 Backtest data shape for TSLA: (84, 55)
-📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'pca_0', 'pca_1', 'pca_2', 'pca_3', 'pca_4']...
+📊 Backtest data shape for TSLA: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
+📊 Current columns for SQQQ: ['open', 'high', 'low', 'close', 'volume']
+📊 Backtest data shape for SQQQ: (84, 166)
+📊 Backtest columns: ['Open', 'High', 'Low', 'Close', 'Volume', 'ema_ratio_12_26', 'ema_ratio_50_200', 'ema_ratio_12_50', 'ema_12_slope', 'ema_26_slope']...
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         📊 Fetching data for SPY...
 ✅ Fetched 690 rows for SPY
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         ✅ Fetched 690 rows for SPY
@@ -395,12 +359,12 @@ PCA explained variance ratio: 1.000
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         ✅ Fetched 690 rows for SPY
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         ✅ Fetched 690 rows for SPY
 Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         ✅ Fetched 690 rows for SPY
-Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         💾 Reports saved: /workspace/model_res/ultimate/ultimate_report_20250910_021709.json, /workspace/model_res/ultimate/ultimate_report_20250910_021709.md
+Backtest.run:   0% 0/83 [00:00<?, ?bar/s]                                         💾 Reports saved: /workspace/model_res/ultimate/ultimate_report_20250913_015155.json, /workspace/model_res/ultimate/ultimate_report_20250913_015155.md
 
 🎉 Analysis Complete!
 ✅ Trainings: 9/9
 ✅ Backtests: 9/9
-⏱️ Runtime: 3157.24s
-📊 Avg Accuracy: 0.4120
-📈 Avg Ann Return: 0.0133
-📉 Avg Sharpe: 0.1024
+⏱️ Runtime: 2620.84s
+📊 Avg Accuracy: 0.5093
+📈 Avg Ann Return: 0.0209
+📉 Avg Sharpe: 0.6178
